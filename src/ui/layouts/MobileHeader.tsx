@@ -1,21 +1,32 @@
-import { ThemeToggle } from '@/ui/components/ThemeToggle';
+import { useOrg } from '@/ui/app/OrgProvider';
+import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { UserMenuDropdown } from '@/ui/components/UserMenuDropdown';
 import { spacing } from '@/ui/theme/tokens';
 
 type MobileHeaderProps = {
-  title: string;
+  orgSlug: string;
 };
 
-export function MobileHeader({ title }: MobileHeaderProps) {
+export function MobileHeader({ orgSlug }: MobileHeaderProps) {
+  const { organizations } = useOrg();
+  const org = organizations.find((o) => o.slug === orgSlug);
+
   return (
     <header
-      className="flex items-center justify-between border-b border-border bg-surface px-4 md:hidden"
+      className="fixed inset-x-0 top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface px-4 md:hidden"
       style={{ height: spacing.headerHeight }}
     >
-      <div>
-        <p className="text-xs text-muted">Planner Kairós</p>
-        <h1 className="text-base font-semibold text-text">{title}</h1>
+      <div className="flex min-w-0 items-center gap-3">
+        {org ? (
+          <>
+            <OrgAvatar organization={org} size="sm" variant="square" />
+            <p className="truncate text-base font-semibold text-text">{org.name}</p>
+          </>
+        ) : (
+          <p className="text-base font-semibold text-text">{orgSlug}</p>
+        )}
       </div>
-      <ThemeToggle />
+      <UserMenuDropdown />
     </header>
   );
 }

@@ -10,6 +10,7 @@
     "lint": "eslint src",
     "test": "vitest run",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs",
+    "supabase:types": "supabase gen types typescript --local > src/infrastructure/supabase/database.types.ts",
     "preview": "vite preview"
   },
   "dependencies": {

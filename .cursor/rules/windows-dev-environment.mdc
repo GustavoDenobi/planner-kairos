@@ -1,0 +1,41 @@
+---
+description: Ambiente de desenvolvimento Windows 11 — shell e comandos
+alwaysApply: true
+---
+
+# Windows 11 — ambiente de desenvolvimento
+
+O projeto roda em **Windows 11**. O shell padrão é **PowerShell**. Não assumir bash/Linux.
+
+## Shell e comandos
+
+- Preferir comandos compatíveis com PowerShell.
+- Encadear com `;` em vez de `&&` (PowerShell antigo não suporta `&&`).
+- Evitar sintaxe exclusiva de bash: `export`, `source`, `$(cat <<'EOF' ...)`, pipes com `grep`/`sed`/`awk`.
+- Para filtrar texto no terminal, usar `Select-String`, `Where-Object` ou ferramentas do projeto (`rg` se disponível).
+
+## Caminhos
+
+- Usar caminhos absolutos quando possível: `c:\d9Digital\planner-kairos\...`
+- PowerShell aceita `/` e `\`; em strings, preferir o que evita escape desnecessário.
+
+## Git
+
+Commit com mensagem multilinha — here-string do PowerShell, não HEREDOC bash:
+
+```powershell
+git commit -m "$( @'
+Mensagem do commit.
+
+Detalhes opcionais.
+'@ )"
+```
+
+## Node / npm
+
+- `npm run`, `npx`, `node` funcionam igual em Windows.
+- Scripts em `package.json` que usam variáveis de ambiente devem usar `cross-env` se precisarem rodar em CI multiplataforma.
+
+## Supabase CLI
+
+- Instalado e executado no Windows; caminhos locais gerados em `supabase/.temp/` e `supabase/.branches/` (já no `.gitignore`).

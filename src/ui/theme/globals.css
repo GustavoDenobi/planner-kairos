@@ -5,7 +5,7 @@
 @theme {
   --color-bg: #fafafa;
   --color-surface: #ffffff;
-  --color-primary: #4f46e5;
+  --color-primary: #466be5;
   --color-accent: #f59e0b;
   --color-text: #18181b;
   --color-muted: #71717a;
@@ -17,7 +17,7 @@
 .dark {
   --color-bg: #09090b;
   --color-surface: #18181b;
-  --color-primary: #818cf8;
+  --color-primary: #3a7fd8;
   --color-accent: #fbbf24;
   --color-text: #f4f4f5;
   --color-muted: #a1a1aa;

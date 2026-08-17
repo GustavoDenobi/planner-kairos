@@ -8,6 +8,8 @@ import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
 import { PasswordRecoveryPage } from '@/ui/pages/PasswordRecoveryPage';
 import { AgendaPage } from '@/ui/pages/org/AgendaPage';
 import { EventDetailPage } from '@/ui/pages/org/EventDetailPage';
+import { GroupDetailPage } from '@/ui/pages/org/GroupDetailPage';
+import { GroupsPage } from '@/ui/pages/org/GroupsPage';
 import { MusiciansPage } from '@/ui/pages/org/MusiciansPage';
 import { PieceDetailPage } from '@/ui/pages/org/PieceDetailPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
@@ -35,6 +37,8 @@ export const router = createBrowserRouter([
           { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
           { path: 'eventos/:eventId', element: <EventDetailPage /> },
           { path: 'musicos', element: <MusiciansPage /> },
+          { path: 'grupos', element: <GroupsPage /> },
+          { path: 'grupos/:groupId', element: <GroupDetailPage /> },
         ],
       },
     ],

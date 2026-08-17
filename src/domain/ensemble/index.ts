@@ -1,1 +1,1 @@
-// Ensemble context — Fase 2
+export type { Group, GroupKind, GroupListItem } from './group';

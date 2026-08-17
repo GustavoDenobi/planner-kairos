@@ -11,9 +11,14 @@ export function AppLayout() {
     <div className="flex min-h-screen bg-bg">
       <Sidebar orgSlug={orgSlug} />
       <div className="flex min-h-screen flex-1 flex-col">
-        <MobileHeader title={orgSlug} />
+        <MobileHeader orgSlug={orgSlug} />
+        <div
+          className="shrink-0 md:hidden"
+          style={{ height: spacing.headerHeight }}
+          aria-hidden
+        />
         <main
-          className="flex-1 p-4 md:p-6"
+          className="flex-1 px-4 py-4 md:p-6"
           style={{ paddingBottom: `calc(${spacing.bottomNavHeight} + 1rem)` }}
         >
           <Outlet />
