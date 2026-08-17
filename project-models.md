@@ -22,6 +22,7 @@ UserProfile             Part                     PieceTheme             Event
 Membership              PartDivision             Piece                  ProgramItem
 GroupInvite             Group                    PieceFile
 PasswordRecoveryCode    Section
+                        SectionPart (N:N Part)
                         Assignment
 
 Insights (somente leitura): ProgramItem + Event + Piece → histórico de execução
@@ -38,6 +39,7 @@ Organization
     │     └── PartDivision
     ├── Group
     │     └── Section
+    │           └── Part* (N:N via section_parts)
     ├── Assignment (Musician, Group, Section?, Part?)
     ├── PieceCategory
     ├── PieceTheme
@@ -152,8 +154,9 @@ Link de convite para criação de conta, associado a uma formação (`Group`) da
 | `id` | UUID | sim | |
 | `organizationId` | UUID | sim | |
 | `groupId` | UUID | sim | → `Group`. Formação à qual o novo músico será vinculado |
-| `tokenHash` | string | sim | Hash do token da URL; o token em claro só trafega no link e na validação |
-| `expiresAt` | datetime | sim | Validade determinada na criação |
+| `tokenHash` | string | sim | Hash do token da URL; usado no lookup público (`get_invite_preview`, `redeem_group_invite`) |
+| `token` | string | não | Token em claro para o admin copiar o link de novo; preenchido na criação; visível só via RPC/RLS de admin |
+| `expiresAt` | datetime | sim | Validade determinada na criação; editável em convites ativos (`update_group_invite_expires`) |
 | `revokedAt` | datetime | não | Preenchido quando admin revoga/exclui o link antes do uso |
 | `createdByUserId` | UUID | sim | → `UserProfile`. Quem gerou o convite |
 | `redeemedAt` | datetime | não | Preenchido no aceite bem-sucedido |
@@ -165,11 +168,12 @@ Link de convite para criação de conta, associado a uma formação (`Group`) da
 Regras:
 
 - `group` e `organizationId` da mesma organização.
-- Convite **válido** quando: `revokedAt` é null, `redeemedAt` é null e `expiresAt` > agora.
+- Convite **válido** quando: `revokedAt` é null, `redeemedAt` é null, `expiresAt` > agora e o `group` não está arquivado (`archivedAt` null).
 - Uso único: após aceite, `redeemedAt` e `redeemedByUserId` são preenchidos; o link não aceita outro cadastro.
-- Criação, listagem e revogação: `admin` / `owner`. A página de aceite (token na URL) é pública, sem sessão.
-- Aceite atômico (um caso de uso): cria conta no Auth + `UserProfile` + `Membership` (`member`) + `Musician` (`userId`, `fullName` a partir do cadastro) + `Assignment` (`musician`, `groupId`, `ensembleRole` = `member`, sem `sectionId`/`partId` no MVP).
-- Se já existir `Musician` com o mesmo `userId` na org, falha ou reutiliza conforme regra de produto — no MVP, tratar como erro (convite é para quem ainda não tem cadastro na org).
+- Criação, listagem, revogação e alteração de `expiresAt`: `admin` / `owner`. A página de aceite (token na URL) é pública, sem sessão.
+- Não é possível criar convite nem aceitar link para `Group` arquivado.
+- Aceite atômico via RPC `redeem_group_invite` (um caso de uso): cria `Membership` (`member`) + `Musician` (`userId`, `fullName` e `email` do perfil; `phone` e `birthDate` opcionais informados no formulário de aceite) + `Assignment` (`musician`, `groupId`, `ensembleRole` = `member`, sem `sectionId`/`partId` no MVP). Conta no Auth e `UserProfile` já existem antes do aceite (cadastro na página de convite).
+- Se já existir `Membership` ou `Musician` com o mesmo `userId` na org, falha (`already_member` / `musician_exists`).
 - Vários convites ativos por org/grupo são permitidos; cada um com token próprio.
 
 ### 1.5 PasswordRecoveryCode
@@ -211,27 +215,29 @@ Pessoas da organização, formações, naipes e partes (instrumento ou voz). Um 
 
 ### 2.1 Musician
 
-Pessoa da organização: titular, aluno ou professor. Pode existir sem login (`userId` opcional).
+Pessoa da organização com registro em `musicians`. No MVP, criada apenas pelo aceite de convite (sempre com `userId` preenchido).
 
 | Atributo | Tipo | Obrigatório | Notas |
 |---|---|---|---|
 | `id` | UUID | sim | |
 | `organizationId` | UUID | sim | |
 | `fullName` | string | sim | |
-| `birthDate` | date | não | Aniversário; relatórios depois |
-| `education` | string | não | Escolaridade |
-| `cpf` | string | não | PII; acesso só via RLS do tenant |
+| `birthDate` | date | não | Aniversário; pode ser informado no aceite do convite |
+| `phone` | string | não | Contato; normalizado (só dígitos) no aceite do convite |
+| `email` | string | não | Contato; no aceite do convite, espelhado do `UserProfile` |
 | `userId` | UUID | não | Liga ao `UserProfile` quando o músico tiver login |
 | `notes` | string | não | |
 
-**Tabela:** `musicians`
+**Tabela:** `musicians`  
+**Unique:** `(organizationId, userId)` — um login não vira dois músicos na mesma org
 
 Regras:
 
-- CPF e demais PII são da organização; nunca vazam entre tenants.
-- `userId` único por organização quando preenchido (um login não vira dois músicos na mesma org).
-- Aceite de `GroupInvite` cria `Musician` na org com `userId` preenchido; demais campos (CPF, nascimento etc.) o usuário ou admin completa depois.
-- Cadastro manual pelo admin pode existir sem `userId`; o convite é o fluxo que liga login ↔ músico na criação.
+- Dados de contato (`phone`, `email`) são da organização; nunca vazam entre tenants.
+- **Criação** só via RPC `redeem_group_invite` (aceite de convite). Não há `INSERT` direto por admin — o cadastro de músico na org passa pelo convite.
+- Admin/owner **atualiza** campos do músico e pode **excluir** (assignments em cascata).
+- **Leitura (RLS):** admin/owner vê todos os músicos da org; `member` vê apenas o próprio registro (`userId` = usuário autenticado).
+- Aceite de `GroupInvite` cria `Musician` com `userId`, `fullName`, `email`; `phone` e `birthDate` opcionais no formulário de aceite. Demais campos o admin completa depois.
 
 ### 2.2 Part
 
@@ -243,7 +249,6 @@ Catálogo por organização da **parte** musical: o que se toca ou canta, e o qu
 | `organizationId` | UUID | sim | |
 | `name` | string | sim | |
 | `kind` | `PartKind` | sim | `instrument` \| `voice` |
-| `family` | string | não | Rótulo de catálogo (madeiras, cordas, vozes). Distinto de `Section`: a mesma parte pode entrar em naipes de formações diferentes |
 | `sortOrder` | int | sim | |
 
 **Tabela:** `parts`  
@@ -286,14 +291,18 @@ Formação: orquestra, big band, coral, turma de aula. Não é o naipe — naipe
 | `name` | string | sim | |
 | `kind` | `GroupKind` | sim | `ensemble` \| `choir` \| `class` \| `other` |
 | `notes` | string | não | |
+| `archivedAt` | datetime | não | Arquivamento suave; null = ativo |
 
-**Tabela:** `groups`
+**Tabela:** `groups`  
+**Índice:** `(organizationId)` parcial onde `archivedAt` IS NULL — listagem de grupos ativos
 
 Regras:
 
 - Sem `parentId`. Hierarquia para no máximo um nível, via `Section`.
 - Turma de aula costuma não ter seções.
 - Um grupo pode ter zero ou várias seções.
+- **Arquivamento:** preencher `archivedAt` oculta o grupo da listagem padrão. Grupo arquivado não aceita novos convites nem aceite de link; músicos e assignments existentes permanecem.
+- Restaurar grupo = limpar `archivedAt` (admin/owner).
 
 ### 2.5 Section
 
@@ -315,6 +324,35 @@ Regras:
 
 - `group` e `section` da mesma organização.
 - No coral, o naipe (sopranos) muitas vezes coincide com a `Part` (soprano). Não é obrigatório preencher os dois no assignment.
+- As partes que compõem o naipe são definidas em `SectionPart` (composição N:N com `Part`).
+
+### 2.5.1 SectionPart
+
+Composição entre `Section` e `Part`: quais partes pertencem a cada naipe. A mesma `Part` pode entrar em naipes de grupos diferentes (ex.: violino em cordas da orquestra e em turma de violino), mas dentro de um naipe só as partes vinculadas são válidas em atribuições.
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `sectionId` | UUID | sim | |
+| `partId` | UUID | sim | |
+| `organizationId` | UUID | sim | Redundante para RLS; deve coincidir com org de `section` e `part` |
+
+**Tabela:** `section_parts`  
+**Primary key:** `(sectionId, partId)`
+
+Exemplos:
+
+| Section (naipe) | Parts vinculadas |
+|---|---|
+| Cordas (Orquestra) | Violino, Viola, Violoncelo, Contrabaixo |
+| Saxofones (Big Band) | Sax alto, Sax tenor, Sax barítono |
+| Sopranos (Coral) | Soprano |
+
+Regras:
+
+- `section` e `part` da mesma organização.
+- Zero ou mais partes por naipe; o admin configura na ficha do grupo.
+- Se `Assignment` tem `sectionId` e `partId`, a parte deve estar vinculada ao naipe em `section_parts`.
+- Atribuição só com naipe (sem parte) ou só com parte (sem naipe) continua válida quando o papel exige (chefe de naipe, professor).
 
 ### 2.6 Assignment
 
@@ -345,10 +383,11 @@ Regras:
 
 - Músico, grupo, seção (se houver) e parte (se houver) pertencem à mesma organização.
 - Se `sectionId` estiver preenchido, a seção pertence àquele `groupId`.
+- Se `sectionId` e `partId` estiverem preenchidos, a parte deve estar vinculada ao naipe em `section_parts`.
 - `section_lead` só faz sentido com `sectionId`.
 - Sem `partDivisionId` no MVP: a pessoa toca trombone / soprano; a cadeira 1/2/3 é metadado do arquivo.
 - Um músico pode ter várias linhas (vários grupos / naipes / partes / papéis).
-- Unique sugerido: `(musicianId, groupId, sectionId, partId, ensembleRole)` para evitar duplicata idêntica. Tratamento de NULL no unique fica na migration (Postgres não trata dois NULLs como iguais).
+- **Unique:** índice em `(musicianId, groupId, COALESCE(sectionId, sentinel), COALESCE(partId, sentinel), ensembleRole)` — `sectionId`/`partId` nulos usam UUID sentinela para deduplicar corretamente.
 
 ### 2.7 Value objects / enums
 
@@ -619,9 +658,9 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 | Necessidade (overview) | Por que espera |
 |---|---|
 | Comunicação (WhatsApp, e-mail) por músico, naipe, chefe de naipe | Canal à parte (`Communications`), dependendo de Identity + Ensemble |
+| Cadastro manual de músico (sem convite / pré-login) | Hoje só via `redeem_group_invite`; pré-cadastro pelo admin exigiria novo fluxo e policy de `INSERT` |
 | Convites com `accessRole` configurável no link, convite por e-mail nominativo, reenvio | Evolução de `GroupInvite` + `Membership` |
 | Escalas por naipe, disponibilidade, turmas | Evolução de `Assignment` + `Section` + `Event`; IDs já existem |
-| Ligar partes a um naipe (sax alto/tenor/bari ⊂ naipe de sax) | Tabela de composição `Section`–`Part`; não no MVP |
 | Cadeira no assignment (`partDivisionId`: “você é trombone 1”) | Evolução de `Assignment`; arquivos já usam `PartDivision` |
 | Versionamento de obras, arranjos, metadados ricos | Evolução de `Piece` / `PieceFile` |
 | Presença em evento, recorrência, conflitos | Evolução de `Event` |
@@ -637,22 +676,26 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 3. `Section` pertence a exatamente um `Group`. Sem árvore: naipe não tem naipe-pai.
 4. `PartDivision` pertence a exatamente uma `Part`. Sem árvore: divisão não tem divisão-filha. Não reusar `Section` nem `Part.parentId`.
 5. Se `Assignment.sectionId` existir, `section.groupId` = `assignment.groupId`.
-6. `PieceFile` não referencia `Section`. Partes e cadeiras vão em `piece_file_part_links`.
-7. Se um link tiver `partDivisionId`, `division.partId` = `link.partId`.
-8. `AccessRole` (sistema) e `EnsembleRole` (música) são enums distintos.
-9. `ThemePreference` é do `UserProfile`.
-10. Evento sem `ProgramItem` é válido.
-11. Soft-delete de `Piece` preserva `ProgramItem` histórico.
-12. Categorias, temas de obra e tipos de evento vêm do domínio da org, não de constantes na UI.
-13. `ThemePreference` (UI) ≠ `PieceTheme` (repertório).
-14. Cor de exibição de `Event` vem de `EventType`; cor de `Piece` no catálogo vem de `PieceCategory`. Nenhum dos dois duplica cor no agregado filho.
-15. `Organization.imageStorageKey` é opcional e único por org (no máximo um arquivo). Não é entidade separada — o path vive na linha de `organizations`.
-16. Aceite de `GroupInvite` cria `Membership` com `accessRole` = `member` — nunca `admin` nem `owner`.
-17. Aceite de `GroupInvite` cria `Musician` com `userId` na mesma org e `Assignment` no `groupId` do convite (`ensembleRole` = `member`).
-18. `GroupInvite` válido: `revokedAt` null, `redeemedAt` null, `expiresAt` no futuro.
-19. Token e OTP persistem só como hash (`tokenHash`, `codeHash`); valor em claro só na URL, e-mail ou input do usuário.
-20. `PasswordRecoveryCode` não tem `organizationId`; pertence ao `UserProfile`.
-21. Recuperação de senha não usa OTP do Supabase Auth — só `PasswordRecoveryCode` + e-mail próprio.
+6. Se `Assignment.sectionId` e `Assignment.partId` existirem, a parte deve estar em `section_parts` para aquele naipe.
+7. `PieceFile` não referencia `Section`. Partes e cadeiras vão em `piece_file_part_links`.
+8. Se um link tiver `partDivisionId`, `division.partId` = `link.partId`.
+9. `AccessRole` (sistema) e `EnsembleRole` (música) são enums distintos.
+10. `ThemePreference` é do `UserProfile`.
+11. Evento sem `ProgramItem` é válido.
+12. Soft-delete de `Piece` preserva `ProgramItem` histórico.
+13. Categorias, temas de obra e tipos de evento vêm do domínio da org, não de constantes na UI.
+14. `ThemePreference` (UI) ≠ `PieceTheme` (repertório).
+15. Cor de exibição de `Event` vem de `EventType`; cor de `Piece` no catálogo vem de `PieceCategory`. Nenhum dos dois duplica cor no agregado filho.
+16. `Organization.imageStorageKey` é opcional e único por org (no máximo um arquivo). Não é entidade separada — o path vive na linha de `organizations`.
+17. Aceite de `GroupInvite` cria `Membership` com `accessRole` = `member` — nunca `admin` nem `owner`.
+18. Aceite de `GroupInvite` cria `Musician` com `userId` na mesma org e `Assignment` no `groupId` do convite (`ensembleRole` = `member`). `phone` e `birthDate` opcionais vêm do formulário de aceite.
+19. `GroupInvite` válido: `revokedAt` null, `redeemedAt` null, `expiresAt` no futuro e `group.archivedAt` null.
+20. Lookup de convite usa `tokenHash`; OTP de recuperação persiste só como `codeHash`. O token em claro do convite também fica em `group_invites.token` para o admin recopiar o link (acesso restrito a admin/owner). Na página pública o token vem da URL.
+21. `PasswordRecoveryCode` não tem `organizationId`; pertence ao `UserProfile`.
+22. Recuperação de senha não usa OTP do Supabase Auth — só `PasswordRecoveryCode` + e-mail próprio.
+23. `Musician` só é criado via `redeem_group_invite`; admin atualiza e exclui, mas não insere diretamente.
+24. `member` só lê o próprio `Musician`; listagem completa da org é `admin`/`owner`.
+25. `Group` arquivado (`archivedAt` preenchido) não aceita convites novos nem aceite de link.
 
 ---
 
@@ -663,14 +706,15 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 | `organizations` | Organization | `slug` único; `image_storage_key` nullable |
 | `profiles` | UserProfile | 1:1 `auth.users` |
 | `memberships` | Membership | `(organization_id, user_id)` |
-| `group_invites` | GroupInvite | `(token_hash)`; FK `group_id` |
+| `group_invites` | GroupInvite | `(token_hash)`; `token` nullable (admin); FK `group_id` |
 | `password_recovery_codes` | PasswordRecoveryCode | `(user_id, expires_at)`; sem `organization_id` |
-| `musicians` | Musician | `user_id` nullable |
+| `musicians` | Musician | `(organization_id, user_id)`; `phone`, `email`; sem insert direto (só RPC) |
 | `parts` | Part | `(organization_id, name)` |
 | `part_divisions` | PartDivision | `(part_id, name)` |
-| `groups` | Group | |
+| `groups` | Group | `archived_at` nullable; índice parcial para ativos |
 | `sections` | Section | `(group_id, name)` |
-| `assignments` | Assignment | `(musician_id, group_id, section_id, part_id, ensemble_role)` com cuidado a NULL |
+| `section_parts` | Section ↔ Part | `(section_id, part_id)` |
+| `assignments` | Assignment | unique com `COALESCE` em `section_id`/`part_id`; trigger valida `section_parts` |
 | `piece_categories` | PieceCategory | `(organization_id, slug)` |
 | `piece_themes` | PieceTheme | `(organization_id, slug)` |
 | `pieces` | Piece | `(organization_id, title)`; `(organization_id, category_id)`; `deleted_at` |

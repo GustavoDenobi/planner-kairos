@@ -78,6 +78,39 @@ export function IconChevronLeft(props: IconProps) {
   );
 }
 
+export function IconPencil(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+export function IconGripVertical(props: IconProps) {
+  return (
+    <svg {...defaults} viewBox="7 3 10 18" {...props}>
+      <circle cx="9" cy="5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="19" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="19" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconArrowUpDown(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m21 16-4 4-4-4" />
+      <path d="M17 20V4" />
+      <path d="m3 8 4-4 4 4" />
+      <path d="M7 4v16" />
+    </svg>
+  );
+}
+
 export function IconLogOut(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

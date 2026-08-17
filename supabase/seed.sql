@@ -1,4 +1,4 @@
--- Dev seed: Orquestra Kairós + groups + admin user
+-- Dev seed: Orquestra Kairós + groups + parts + sections + admin user
 
 DO $$
 DECLARE
@@ -7,6 +7,14 @@ DECLARE
   v_group_orchestra UUID := 'c0000000-0000-4000-8000-000000000001';
   v_group_bigband UUID := 'c0000000-0000-4000-8000-000000000002';
   v_group_choir UUID := 'c0000000-0000-4000-8000-000000000003';
+  v_part_sax UUID := 'd0000000-0000-4000-8000-000000000001';
+  v_part_violin UUID := 'd0000000-0000-4000-8000-000000000002';
+  v_part_trombone UUID := 'd0000000-0000-4000-8000-000000000003';
+  v_part_soprano UUID := 'd0000000-0000-4000-8000-000000000004';
+  v_section_cordas UUID;
+  v_section_metais UUID;
+  v_section_sax UUID;
+  v_section_sopranos UUID;
 BEGIN
   INSERT INTO organizations (id, name, slug)
   VALUES (v_org_id, 'Orquestra Kairós', 'kairos')
@@ -18,6 +26,53 @@ BEGIN
     (v_group_bigband, v_org_id, 'Big Band', 'ensemble'),
     (v_group_choir, v_org_id, 'Coral', 'choir')
   ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO parts (id, organization_id, name, kind, sort_order)
+  VALUES
+    (v_part_sax, v_org_id, 'Sax alto', 'instrument', 1),
+    (v_part_violin, v_org_id, 'Violino', 'instrument', 2),
+    (v_part_trombone, v_org_id, 'Trombone', 'instrument', 3),
+    (v_part_soprano, v_org_id, 'Soprano', 'voice', 4)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO part_divisions (organization_id, part_id, name, sort_order)
+  VALUES
+    (v_org_id, v_part_trombone, '1', 1),
+    (v_org_id, v_part_trombone, '2', 2),
+    (v_org_id, v_part_trombone, '3', 3)
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO sections (organization_id, group_id, name, sort_order)
+  VALUES
+    (v_org_id, v_group_orchestra, 'Cordas', 1),
+    (v_org_id, v_group_orchestra, 'Metais', 2),
+    (v_org_id, v_group_bigband, 'Saxofones', 1),
+    (v_org_id, v_group_choir, 'Sopranos', 1)
+  ON CONFLICT DO NOTHING;
+
+  SELECT id INTO v_section_cordas
+  FROM sections
+  WHERE organization_id = v_org_id AND group_id = v_group_orchestra AND name = 'Cordas';
+
+  SELECT id INTO v_section_metais
+  FROM sections
+  WHERE organization_id = v_org_id AND group_id = v_group_orchestra AND name = 'Metais';
+
+  SELECT id INTO v_section_sax
+  FROM sections
+  WHERE organization_id = v_org_id AND group_id = v_group_bigband AND name = 'Saxofones';
+
+  SELECT id INTO v_section_sopranos
+  FROM sections
+  WHERE organization_id = v_org_id AND group_id = v_group_choir AND name = 'Sopranos';
+
+  INSERT INTO section_parts (organization_id, section_id, part_id)
+  VALUES
+    (v_org_id, v_section_cordas, v_part_violin),
+    (v_org_id, v_section_metais, v_part_trombone),
+    (v_org_id, v_section_sax, v_part_sax),
+    (v_org_id, v_section_sopranos, v_part_soprano)
+  ON CONFLICT DO NOTHING;
 
   -- Admin dev user: email admin@kairos.local / password: kairos-admin
   INSERT INTO auth.users (

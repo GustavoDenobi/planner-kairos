@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Connect } from 'vite';
-import { buildInviteOgHtml, parseProductionAssets } from '../og/inviteOg';
+import {
+  buildInviteOgHtml,
+  buildInviteOgMeta,
+  fetchInvitePreviewRow,
+  injectInviteOgIntoHtml,
+  parseProductionAssets,
+} from '../og/inviteOg';
 
 type InviteOgMiddlewareOptions = {
   supabaseUrl: string;
@@ -10,6 +16,8 @@ type InviteOgMiddlewareOptions = {
   appUrl?: string;
   mode: 'development' | 'production';
   distDir?: string;
+  indexHtmlPath?: string;
+  transformIndexHtml?: (url: string, html: string) => Promise<string>;
 };
 
 function getSiteOrigin(req: IncomingMessage, appUrl?: string): string {
@@ -49,14 +57,36 @@ export function createInviteOgMiddleware(options: InviteOgMiddlewareOptions): Co
     const siteOrigin = getSiteOrigin(req, options.appUrl);
 
     try {
-      const html = await buildInviteOgHtml({
-        token,
-        siteOrigin,
-        supabaseUrl: options.supabaseUrl,
-        supabaseAnonKey: options.supabaseAnonKey,
-        mode: options.mode,
-        productionAssets,
-      });
+      let html: string | null;
+
+      if (options.mode === 'development' && options.transformIndexHtml && options.indexHtmlPath) {
+        const preview = await fetchInvitePreviewRow(
+          token,
+          options.supabaseUrl,
+          options.supabaseAnonKey,
+        );
+
+        if (!preview) {
+          next();
+          return;
+        }
+
+        const indexHtml = fs.readFileSync(options.indexHtmlPath, 'utf-8');
+        const transformedHtml = await options.transformIndexHtml(requestUrl, indexHtml);
+
+        html = injectInviteOgIntoHtml(
+          transformedHtml,
+          buildInviteOgMeta(preview, { token, siteOrigin, supabaseUrl: options.supabaseUrl }),
+        );
+      } else {
+        html = await buildInviteOgHtml({
+          token,
+          siteOrigin,
+          supabaseUrl: options.supabaseUrl,
+          supabaseAnonKey: options.supabaseAnonKey,
+          productionAssets,
+        });
+      }
 
       if (!html) {
         next();

@@ -55,19 +55,17 @@ export function createGroupRepository(): GroupRepository {
         return [];
       }
 
-      return data.map((row) =>
-        mapGroupListItem(
-          row as {
-            id: string;
-            organization_id: string;
-            name: string;
-            kind: Group['kind'];
-            notes: string | null;
-            archived_at: string | null;
-            assignments: { count: number }[];
-          },
-        ),
-      );
+      return data.map((row) => {
+        const assignments = row.assignments as { count: number } | { count: number }[];
+        const count = Array.isArray(assignments)
+          ? assignments[0]?.count ?? 0
+          : assignments?.count ?? 0;
+
+        return mapGroupListItem({
+          ...row,
+          assignments: [{ count }],
+        });
+      });
     },
 
     async getById(organizationId, groupId) {

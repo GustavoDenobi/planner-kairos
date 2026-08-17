@@ -18,10 +18,10 @@ Substituir o bloco de notas do maestro por um sistema onde ele consegue **cadast
 ## Princípios de execução
 
 1. **Fatias verticais por contexto** — cada fase entrega migration + domínio + application + infra + UI mínima, não “toda a camada de uma vez”.
-2. **RLS junto com a migration** — multi-tenant e PII (CPF) desde o primeiro schema; não adiar políticas.
+2. **RLS junto com a migration** — multi-tenant e dados de contato (phone, email) desde o primeiro schema; não adiar políticas.
 3. **Regras no domínio com teste** — invariantes novas nascem em `domain/**/*.test.ts` antes ou junto com o caso de uso.
 4. **Dados reais cedo** — seed da Orquestra Kairós + importação de amostra do bloco de notas assim que Agenda e Repertório existirem.
-5. **Fora do MVP** — comunicação (WhatsApp/e-mail), relatórios visuais, offline completo (Dexie), anotações em PDF, escalas por naipe, `partDivisionId` no assignment.
+5. **Fora do MVP** — comunicação (WhatsApp/e-mail), relatórios visuais, offline completo (Dexie), anotações em PDF, escalas por naipe, `partDivisionId` no assignment, pré-cadastro manual de músico sem convite.
 
 ---
 
@@ -31,7 +31,7 @@ Substituir o bloco de notas do maestro por um sistema onde ele consegue **cadast
 |---|---|---|---|
 | 0 | Fundação | — | App sobe, tema, rotas, CI, Supabase local |
 | 1 | IdentityAccess | 0 | Login, orgs, convite, recuperação de senha, tema do usuário |
-| 2 | Ensemble | 1 | Músicos, formações, partes, naipes, atribuições |
+| 2 | Ensemble | 1 | Músicos (via convite), formações, partes, naipes, atribuições |
 | 3 | Repertoire | 1, 2 | Catálogo de obras, upload PDF/áudio, busca |
 | 4 | Agenda | 1, 3 | Eventos, tipos, programação por evento |
 | 5 | Insights | 4 | Histórico na ficha da obra (texto) |
@@ -93,7 +93,7 @@ Migrations de negócio, telas de auth funcionais.
 **Infra externa**
 
 - Provedor de e-mail para OTP de recuperação (Edge Function + service role; **não** OTP do Supabase Auth)
-- Aceite de convite atômico: Auth + Profile + Membership (`member`) + Musician + Assignment — RPC ou Edge Function
+- Aceite de convite atômico via RPC `redeem_group_invite`: cadastro/login no Auth na página de convite; RPC cria `Membership` (`member`) + `Musician` + `Assignment` (com `phone` e `birthDate` opcionais no formulário)
 
 ### Entregável
 
@@ -107,36 +107,41 @@ Validade/revogação/uso único de `GroupInvite`; convite sempre cria `accessRol
 
 ## Fase 2 — Ensemble
 
-**Objetivo:** cadastro de pessoas e estrutura musical mínima para convites e filtro de partituras.
+**Objetivo:** estrutura musical da org e gestão de músicos já vinculados por convite; base para filtro de partituras e atribuições.
 
 ### Escopo
 
 **Banco e RLS**
 
-- Tabelas: `musicians`, `parts`, `part_divisions`, `groups`, `sections`, `assignments`
-- Constraints de mesma org; unique em assignments com cuidado a NULL
+- Tabelas: `musicians`, `parts`, `part_divisions`, `groups`, `sections`, `section_parts`, `assignments`
+- `groups.archived_at` — arquivamento suave; bloqueia convites novos
+- `musicians`: contato (`phone`, `email`); **sem** `INSERT` direto — criação só via `redeem_group_invite`
+- RLS de músicos: admin/owner lê e edita todos; `member` lê apenas o próprio registro
+- Constraints de mesma org; unique em assignments com `COALESCE` em `section_id`/`part_id`; trigger valida `section_parts`
 
 **Domínio e application**
 
-- CRUD: músico, parte, divisão (onde necessário), grupo, seção, atribuição
-- Casos de uso: `RegisterMusician`, `UpdateMusician`, `ListMusicians`, `RegisterPart`, `RegisterGroup`, `AssignMusician`, etc.
+- CRUD admin: parte, divisão, grupo (incl. arquivar/restaurar), seção (com composição `section_parts`), atribuição
+- Músico: `ListMusicians`, `GetMusician`, `UpdateMusician`, `DeleteMusician` — **sem** `RegisterMusician` (entrada só por convite)
+- Casos de uso: `CreateGroup`, `ArchiveGroup`, `RegisterPart`, `RegisterSection`, `AssignMusician`, `UpdateAssignment`, etc.
 
 **UI**
 
-- `/:orgSlug/musicos` — listagem e formulário (admin)
-- Telas mínimas de formações, partes e atribuições (podem ser simples no MVP)
+- `/:orgSlug/musicos` — listagem (admin) e ficha com edição de contato e atribuições
+- `/:orgSlug/grupos` e `/:orgSlug/grupos/:groupId` — formações, naipes, convites e composição de partes
+- `/:orgSlug/partes` — catálogo de partes e divisões
 
 **Seed de dev**
 
-- Org Kairós, grupos (orquestra, big band, coral), partes comuns (sax alto, violino, trombone + divisões 1/2/3)
+- Org Kairós, grupos (orquestra, big band, coral), partes comuns (sax alto, violino, trombone + divisões 1/2/3), naipes e `section_parts`
 
 ### Entregável
 
-Cadastro manual de músico com assignment; estrutura pronta para o fluxo de convite da Fase 1.
+Músico entra pela Fase 1 (convite + assignment inicial); admin gerencia formações, naipes, partes e atribuições adicionais na ficha do músico.
 
 ### Não inclui
 
-Escalas, disponibilidade, cadeira (`partDivisionId`) no assignment.
+Pré-cadastro manual de músico sem convite, escalas, disponibilidade, cadeira (`partDivisionId`) no assignment.
 
 ---
 
@@ -293,11 +298,12 @@ Fases 2 e 3 podem avançar em paralelo após a Fase 1, desde que Ensemble tenha 
 
 ## Milestones de validação com o maestro
 
-1. **Após Fase 1** — convite de um músico real; login e troca de org.
-2. **Após Fase 3** — catalogar 5–10 obras com PDFs reais.
-3. **Após Fase 4** — registrar 2–3 cultos do bloco de notas com programação.
-4. **Após Fase 5** — conferir contagens contra o histórico manual.
-5. **Após Fase 6** — músico acessa partitura da sua parte no tablet/celular.
+1. **Após Fase 1** — convite de um músico real; login, entrada na org e assignment inicial no grupo do convite.
+2. **Após Fase 2** — admin configura naipes/partes e atribuições adicionais na ficha do músico.
+3. **Após Fase 3** — catalogar 5–10 obras com PDFs reais.
+4. **Após Fase 4** — registrar 2–3 cultos do bloco de notas com programação.
+5. **Após Fase 5** — conferir contagens contra o histórico manual.
+6. **Após Fase 6** — músico acessa partitura da sua parte no tablet/celular.
 
 ---
 
@@ -313,10 +319,14 @@ Fases 2 e 3 podem avançar em paralelo após a Fase 1, desde que Ensemble tenha 
 /:orgSlug/repertorio/:pieceId
 /:orgSlug/eventos/:eventId
 /:orgSlug/musicos
+/:orgSlug/musicos/:musicianId
+/:orgSlug/grupos
+/:orgSlug/grupos/:groupId
+/:orgSlug/partes
 ```
 
 ---
 
 ## Próximo passo
 
-Iniciar **Fase 0**: scaffold do projeto, `ui/theme`, layouts de navegação e `supabase init` — em seguida primeira migration da **Fase 1** (`organizations`, `profiles`, `memberships`).
+Iniciar **Fase 3 (Repertoire)**: migrations de `piece_categories`, `piece_themes`, `pieces`, links e storage de arquivos — ver `project-models.md` §3.

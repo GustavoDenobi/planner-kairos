@@ -16,7 +16,6 @@ export type InviteOgHtmlOptions = {
   siteOrigin: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
-  mode: 'development' | 'production';
   productionAssets?: { js: string; css?: string };
 };
 
@@ -52,6 +51,64 @@ export async function fetchInvitePreviewRow(
   return data[0] ?? null;
 }
 
+export type InviteOgMeta = {
+  title: string;
+  description: string;
+  pageUrl: string;
+  imageUrl: string | null;
+  organizationName: string;
+};
+
+export function buildInviteOgMeta(
+  preview: InvitePreviewRow,
+  options: Pick<InviteOgHtmlOptions, 'token' | 'siteOrigin' | 'supabaseUrl'>,
+): InviteOgMeta {
+  const pageUrl = `${options.siteOrigin.replace(/\/$/, '')}/convite/${encodeURIComponent(options.token)}`;
+  const title = `Convite — ${preview.organization_name}`;
+  const description = `Participe de ${preview.organization_name} no grupo ${preview.group_name}.`;
+  const imageUrl = preview.organization_image_storage_key
+    ? publicOrgImageUrl(options.supabaseUrl, preview.organization_image_storage_key)
+    : null;
+
+  return {
+    title,
+    description,
+    pageUrl,
+    imageUrl,
+    organizationName: preview.organization_name,
+  };
+}
+
+function renderInviteOgHeadTags(meta: InviteOgMeta): string {
+  const imageTags = meta.imageUrl
+    ? [
+        `<meta property="og:image" content="${escapeHtml(meta.imageUrl)}" />`,
+        `<meta property="og:image:alt" content="${escapeHtml(meta.organizationName)}" />`,
+        `<meta name="twitter:image" content="${escapeHtml(meta.imageUrl)}" />`,
+      ].join('\n    ')
+    : '';
+
+  return `<meta name="description" content="${escapeHtml(meta.description)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Planner Kairós" />
+    <meta property="og:title" content="${escapeHtml(meta.title)}" />
+    <meta property="og:description" content="${escapeHtml(meta.description)}" />
+    <meta property="og:url" content="${escapeHtml(meta.pageUrl)}" />
+    <meta property="og:locale" content="pt_BR" />
+    ${imageTags}
+    <meta name="twitter:card" content="${meta.imageUrl ? 'summary_large_image' : 'summary'}" />
+    <meta name="twitter:title" content="${escapeHtml(meta.title)}" />
+    <meta name="twitter:description" content="${escapeHtml(meta.description)}" />`;
+}
+
+export function injectInviteOgIntoHtml(indexHtml: string, meta: InviteOgMeta): string {
+  const headTags = renderInviteOgHeadTags(meta);
+
+  return indexHtml
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(meta.title)}</title>`)
+    .replace('<head>', `<head>\n    ${headTags}`);
+}
+
 export async function buildInviteOgHtml(options: InviteOgHtmlOptions): Promise<string | null> {
   const preview = await fetchInvitePreviewRow(
     options.token,
@@ -63,48 +120,21 @@ export async function buildInviteOgHtml(options: InviteOgHtmlOptions): Promise<s
     return null;
   }
 
-  const pageUrl = `${options.siteOrigin.replace(/\/$/, '')}/convite/${encodeURIComponent(options.token)}`;
-  const title = `Convite — ${preview.organization_name}`;
-  const description = `Participe de ${preview.organization_name} no grupo ${preview.group_name}.`;
-  const imageUrl = preview.organization_image_storage_key
-    ? publicOrgImageUrl(options.supabaseUrl, preview.organization_image_storage_key)
-    : null;
-
-  const imageTags = imageUrl
-    ? [
-        `<meta property="og:image" content="${escapeHtml(imageUrl)}" />`,
-        `<meta property="og:image:alt" content="${escapeHtml(preview.organization_name)}" />`,
-        `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />`,
-      ].join('\n    ')
-    : '';
+  const meta = buildInviteOgMeta(preview, options);
 
   const cssTag = options.productionAssets?.css
     ? `<link rel="stylesheet" crossorigin href="${escapeHtml(options.productionAssets.css)}" />`
     : '';
 
-  const scripts =
-    options.mode === 'development'
-      ? `<script type="module" src="/@vite/client"></script>
-    <script type="module" src="/src/main.tsx"></script>`
-      : `<script type="module" crossorigin src="${escapeHtml(options.productionAssets?.js ?? '/assets/index.js')}"></script>`;
+  const scripts = `<script type="module" crossorigin src="${escapeHtml(options.productionAssets?.js ?? '/assets/index.js')}"></script>`;
 
   return `<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(title)}</title>
-    <meta name="description" content="${escapeHtml(description)}" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Planner Kairós" />
-    <meta property="og:title" content="${escapeHtml(title)}" />
-    <meta property="og:description" content="${escapeHtml(description)}" />
-    <meta property="og:url" content="${escapeHtml(pageUrl)}" />
-    <meta property="og:locale" content="pt_BR" />
-    ${imageTags}
-    <meta name="twitter:card" content="${imageUrl ? 'summary_large_image' : 'summary'}" />
-    <meta name="twitter:title" content="${escapeHtml(title)}" />
-    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    <title>${escapeHtml(meta.title)}</title>
+    ${renderInviteOgHeadTags(meta)}
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

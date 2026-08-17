@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useIdentity } from '@/ui/app/AppServicesContext';
-import { ThemeToggle } from '@/ui/components/ThemeToggle';
 
 export function LoginPage() {
   const identity = useIdentity();
@@ -29,12 +28,9 @@ export function LoginPage() {
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-center flex-1">
-          <h1 className="text-2xl font-semibold text-text">Planner Kairós</h1>
-          <p className="mt-1 text-sm text-muted">Gestão de repertório e agenda</p>
-        </div>
-        <ThemeToggle variant="compact" />
+      <div className="mb-4 text-center">
+        <h1 className="text-2xl font-semibold text-text">Planner Kairós</h1>
+        <p className="mt-1 text-sm text-muted">Gestão de repertório e agenda</p>
       </div>
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>

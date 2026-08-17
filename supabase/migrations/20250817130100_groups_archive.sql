@@ -1,8 +1,8 @@
 -- Soft-archive groups: hidden from default listing, unavailable for new musicians.
 
-ALTER TABLE groups ADD COLUMN archived_at TIMESTAMPTZ;
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
-CREATE INDEX groups_org_active_idx ON groups (organization_id) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS groups_org_active_idx ON groups (organization_id) WHERE archived_at IS NULL;
 
 -- Block invites for archived groups
 CREATE OR REPLACE FUNCTION create_group_invite(p_group_id UUID, p_expires_at TIMESTAMPTZ)

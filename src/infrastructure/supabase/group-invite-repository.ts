@@ -26,9 +26,11 @@ export function createGroupInviteRepository(): GroupInviteRepository {
       } satisfies GroupInvitePreview;
     },
 
-    async redeem(token) {
+    async redeem(token, contact) {
       const { data, error } = await supabase.rpc('redeem_group_invite', {
         p_token: token,
+        p_phone: contact?.phone ?? null,
+        p_birth_date: contact?.birthDate ?? null,
       });
 
       if (error) {

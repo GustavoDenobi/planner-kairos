@@ -52,8 +52,7 @@ export function OrgSelectorPage() {
 
   return (
     <div className="mx-auto max-w-lg p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-text">Selecionar organização</h1>
+      <div className="mb-6 flex items-center justify-end">
         <ThemeToggle variant="compact" />
       </div>
 

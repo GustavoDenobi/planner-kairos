@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { GroupKind, GroupListItem } from '@/domain/ensemble';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
@@ -7,7 +7,7 @@ import { Modal } from '@/ui/components/Modal';
 import { IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 import { GroupKindIcon } from '@/ui/features/ensemble/group-icons';
-function sortGroups(groups: GroupListItem[]) {
+import { matchesSearchText } from '@/ui/utils/normalize-search-text';function sortGroups(groups: GroupListItem[]) {
   const active = groups
     .filter((g) => !g.archivedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -30,9 +30,17 @@ export function GroupsPage() {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
   const { active: activeGroups, archived: archivedGroups } = sortGroups(groups);
-  useEffect(() => {
+  const filteredActiveGroups = useMemo(
+    () => activeGroups.filter((group) => matchesSearchText(group.name, searchQuery)),
+    [activeGroups, searchQuery],
+  );
+  const filteredArchivedGroups = useMemo(
+    () => archivedGroups.filter((group) => matchesSearchText(group.name, searchQuery)),
+    [archivedGroups, searchQuery],
+  );  useEffect(() => {
     if (!org) {
       return;
     }
@@ -102,9 +110,11 @@ export function GroupsPage() {
       </li>
     );
   }
-  const visibleGroups = showArchived ? [...activeGroups, ...archivedGroups] : activeGroups;
+  const visibleGroups = showArchived
+    ? [...filteredActiveGroups, ...filteredArchivedGroups]
+    : filteredActiveGroups;
   const isEmpty = activeGroups.length === 0 && archivedGroups.length === 0;
-  return (
+  const hasSearchResults = visibleGroups.length > 0;  return (
     <div className="mx-auto max-w-2xl">
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -118,15 +128,28 @@ export function GroupsPage() {
           + Grupo
         </button>
       </div>
+      {!isLoading && !isEmpty && (
+        <label className="mt-4 flex flex-col gap-1 text-sm">
+          <span className="sr-only">Buscar grupos</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por nome…"
+            className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+          />
+        </label>
+      )}
       {isLoading ? (
         <p className="mt-6 text-sm text-muted">Carregando…</p>
       ) : isEmpty ? (
         <p className="mt-6 text-sm text-muted">Nenhum grupo cadastrado.</p>
+      ) : !hasSearchResults ? (
+        <p className="mt-6 text-sm text-muted">Nenhum grupo encontrado.</p>
       ) : (
         <ul className="mt-6 flex flex-col gap-2">
           {visibleGroups.map((group) => renderGroupItem(group, group.archivedAt !== null))}
-          {!showArchived && archivedGroups.length > 0 && (
-            <li className="pt-2 text-center">
+          {!showArchived && archivedGroups.length > 0 && (            <li className="pt-2 text-center">
               <button
                 type="button"
                 onClick={() => setShowArchived(true)}

@@ -20,6 +20,8 @@ export function inviteOgPlugin(env: Record<string, string>): Plugin {
           supabaseAnonKey,
           appUrl,
           mode: 'development',
+          indexHtmlPath: path.resolve('index.html'),
+          transformIndexHtml: (url, html) => server.transformIndexHtml(url, html),
         }),
       );
     },

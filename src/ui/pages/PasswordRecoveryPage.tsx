@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useIdentity } from '@/ui/app/AppServicesContext';
-import { ThemeToggle } from '@/ui/components/ThemeToggle';
 
 type Step = 'request' | 'confirm' | 'done';
 
@@ -42,10 +41,6 @@ export function PasswordRecoveryPage() {
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
-      <div className="mb-4 flex justify-end">
-        <ThemeToggle variant="compact" />
-      </div>
-
       <h1 className="mb-4 text-xl font-semibold text-text">Recuperar senha</h1>
 
       {step === 'request' && (
