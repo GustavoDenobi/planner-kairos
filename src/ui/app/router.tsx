@@ -15,6 +15,11 @@ import { MusiciansPage } from '@/ui/pages/org/MusiciansPage';
 import { PartsPage } from '@/ui/pages/org/PartsPage';
 import { PieceDetailPage } from '@/ui/pages/org/PieceDetailPage';
 import { PiecePdfViewerPage } from '@/ui/pages/org/PiecePdfViewerPage';
+import { PrepareReadingPlaylistPage } from '@/ui/pages/org/PrepareReadingPlaylistPage';
+import { ReadingPlaylistEditPage } from '@/ui/pages/org/ReadingPlaylistEditPage';
+import { ReadingPlaylistNewPage } from '@/ui/pages/org/ReadingPlaylistNewPage';
+import { ReadingPlaylistReaderPage } from '@/ui/pages/org/ReadingPlaylistReaderPage';
+import { ReadingPlaylistsPage } from '@/ui/pages/org/ReadingPlaylistsPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
 
 export const router = createBrowserRouter([
@@ -35,6 +40,10 @@ export const router = createBrowserRouter([
         element: <PiecePdfViewerPage />,
       },
       {
+        path: '/:orgSlug/leitura/:playlistId/:itemIndex',
+        element: <ReadingPlaylistReaderPage />,
+      },
+      {
         path: '/:orgSlug',
         element: <AppLayout />,
         children: [
@@ -42,6 +51,10 @@ export const router = createBrowserRouter([
           { path: 'agenda', element: <AgendaPage /> },
           { path: 'repertorio', element: <RepertoirePage /> },
           { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
+          { path: 'leitura', element: <ReadingPlaylistsPage /> },
+          { path: 'leitura/novo', element: <ReadingPlaylistNewPage /> },
+          { path: 'leitura/:playlistId', element: <ReadingPlaylistEditPage /> },
+          { path: 'eventos/:eventId/preparar-partituras', element: <PrepareReadingPlaylistPage /> },
           { path: 'eventos/:eventId', element: <EventDetailPage /> },
           { path: 'musicos', element: <MusiciansPage /> },
           { path: 'musicos/:musicianId', element: <MusicianDetailPage /> },

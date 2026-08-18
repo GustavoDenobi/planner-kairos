@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultPieceFileTitle,
+  filterScoreCandidatesForUser,
   mimeToPieceFileKind,
   normalizePieceAliases,
   pieceFileMatchesUserParts,
+  resolveDefaultScoreFile,
   slugifyName,
   validateAnnotationGeometry,
   validateAnnotationLayer,
   validateCreatePdfAnnotationInput,
+  validateCreateReadingPlaylistInput,
   validatePieceCategoryInput,
   validatePieceFileMime,
   validatePieceFilePartLinks,
   validatePieceFileTitle,
   validatePieceInput,
   validatePieceThemeInput,
+  isEventSourcedPlaylistExpired,
 } from './rules';
 
 describe('normalizePieceAliases', () => {
@@ -258,5 +262,144 @@ describe('validateCreatePdfAnnotationInput', () => {
         sectionId: null,
       }),
     ).toBe('section_layer_requires_section');
+  });
+});
+
+describe('filterScoreCandidatesForUser', () => {
+  const saxPartId = 'part-sax';
+  const violinPartId = 'part-violin';
+
+  const saxFile = {
+    id: 'file-sax',
+    organizationId: 'org',
+    pieceId: 'piece-1',
+    kind: 'score' as const,
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Sax',
+    originalName: 'sax.pdf',
+    byteSize: null,
+    contentHash: null,
+    partLinks: [{ partId: saxPartId, partDivisionId: null }],
+  };
+
+  const violinFile = {
+    ...saxFile,
+    id: 'file-violin',
+    title: 'Violin',
+    partLinks: [{ partId: violinPartId, partDivisionId: null }],
+  };
+
+  const generalFile = {
+    ...saxFile,
+    id: 'file-general',
+    title: 'Geral',
+    partLinks: [],
+  };
+
+  const audioFile = {
+    ...saxFile,
+    id: 'file-audio',
+    kind: 'audio' as const,
+    title: 'Audio',
+    partLinks: [],
+  };
+
+  it('returns all scores when user has no parts', () => {
+    const result = filterScoreCandidatesForUser([saxFile, violinFile, generalFile, audioFile], []);
+    expect(result.map((f) => f.id)).toEqual(['file-sax', 'file-violin', 'file-general']);
+  });
+
+  it('prioritizes matched parts then general scores', () => {
+    const result = filterScoreCandidatesForUser(
+      [generalFile, violinFile, saxFile],
+      [saxPartId],
+    );
+    expect(result.map((f) => f.id)).toEqual(['file-sax', 'file-general']);
+  });
+});
+
+describe('resolveDefaultScoreFile', () => {
+  const file = {
+    id: 'file-1',
+    organizationId: 'org',
+    pieceId: 'piece-1',
+    kind: 'score' as const,
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Score',
+    originalName: 'score.pdf',
+    byteSize: null,
+    contentHash: null,
+    partLinks: [],
+  };
+
+  it('returns single candidate', () => {
+    expect(resolveDefaultScoreFile([file])).toBe(file);
+  });
+
+  it('returns null when ambiguous', () => {
+    expect(resolveDefaultScoreFile([file, { ...file, id: 'file-2' }])).toBeNull();
+  });
+});
+
+describe('validateCreateReadingPlaylistInput', () => {
+  it('rejects empty name', () => {
+    expect(
+      validateCreateReadingPlaylistInput({
+        name: '',
+        items: [{ pieceFileId: 'file-1' }],
+      }),
+    ).toBe('invalid_name');
+  });
+
+  it('rejects empty items', () => {
+    expect(
+      validateCreateReadingPlaylistInput({
+        name: 'Cantata',
+        items: [],
+      }),
+    ).toBe('empty_playlist');
+  });
+
+  it('accepts valid input', () => {
+    expect(
+      validateCreateReadingPlaylistInput({
+        name: 'Cantata Natal',
+        items: [{ pieceFileId: 'file-1' }],
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('isEventSourcedPlaylistExpired', () => {
+  const startsAt = '2026-08-16T13:00:00.000Z';
+  const endsAt = '2026-08-16T14:30:00.000Z';
+
+  it('keeps the playlist during the event', () => {
+    expect(
+      isEventSourcedPlaylistExpired(startsAt, endsAt, new Date('2026-08-16T14:00:00.000Z')),
+    ).toBe(false);
+  });
+
+  it('keeps the playlist until one day after the event end', () => {
+    expect(
+      isEventSourcedPlaylistExpired(startsAt, endsAt, new Date('2026-08-17T14:29:59.000Z')),
+    ).toBe(false);
+  });
+
+  it('archives one day after the event end', () => {
+    expect(
+      isEventSourcedPlaylistExpired(startsAt, endsAt, new Date('2026-08-17T14:30:00.000Z')),
+    ).toBe(true);
+  });
+
+  it('uses startsAt when the event has no end', () => {
+    expect(
+      isEventSourcedPlaylistExpired(startsAt, null, new Date('2026-08-17T13:00:00.000Z')),
+    ).toBe(true);
+    expect(
+      isEventSourcedPlaylistExpired(startsAt, null, new Date('2026-08-17T12:59:59.000Z')),
+    ).toBe(false);
   });
 });

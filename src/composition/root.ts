@@ -20,6 +20,7 @@ import { createPieceThemeRepository } from '@/infrastructure/supabase/piece-them
 import { createSectionRepository } from '@/infrastructure/supabase/section-repository';
 import { createPasswordRecoveryGateway } from '@/infrastructure/supabase/password-recovery-gateway';
 import { createProfileRepository } from '@/infrastructure/supabase/profile-repository';
+import { createReadingPlaylistRepository } from '@/infrastructure/supabase/reading-playlist-repository';
 
 export function createAppServices() {
   const auth = createAuthGateway();
@@ -38,6 +39,7 @@ export function createAppServices() {
   const pieceRepo = createPieceRepository();
   const pieceFileRepo = createPieceFileRepository();
   const annotationRepo = createPieceFileAnnotationRepository();
+  const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
 
@@ -64,6 +66,7 @@ export function createAppServices() {
     pieceRepo,
     fileRepo: pieceFileRepo,
     annotationRepo,
+    playlistRepo,
     partRepo,
     fileStorage,
   });

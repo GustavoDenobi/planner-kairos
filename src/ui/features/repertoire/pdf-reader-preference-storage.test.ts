@@ -15,10 +15,10 @@ afterEach(() => {
 });
 
 describe('pdf-reader-preference-storage', () => {
-  it('defaults to vertical navigation and no invert', () => {
+  it('defaults to horizontal navigation and no invert', () => {
     expect(loadPdfReaderPreferences(USER_ID)).toEqual({
       inverted: false,
-      navigation: 'vertical',
+      navigation: 'horizontal',
     });
   });
 
@@ -50,7 +50,7 @@ describe('pdf-reader-preference-storage', () => {
     localStorage.setItem(`planner-kairos:pdf-invert:${USER_ID}`, 'true');
     expect(loadPdfReaderPreferences(USER_ID)).toEqual({
       inverted: true,
-      navigation: 'vertical',
+      navigation: 'horizontal',
     });
   });
 });

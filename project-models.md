@@ -551,6 +551,39 @@ Regras:
 |---|---|---|
 | `PieceFileKind` | `score`, `audio` | Partitura vs. áudio |
 
+### 3.6 ReadingPlaylist (conjunto de partituras pessoal)
+
+Playlist ordenada de arquivos PDF (`pieceFileId`) para leitura em sequência — distinta da programação do evento (`ProgramItem`, que referencia apenas `pieceId`).
+
+**Tabela:** `reading_playlists`
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | UUID | sim | |
+| `organizationId` | UUID | sim | |
+| `ownerUserId` | UUID | sim | → `profiles`; playlist privada do usuário |
+| `name` | string | sim | Nome de exibição (ex.: “Cantata Natal — domingo”) |
+| `sourceEventId` | UUID | não | → `events`; proveniência opcional, sem sync automático |
+
+**Tabela:** `reading_playlist_items`
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | UUID | sim | |
+| `playlistId` | UUID | sim | → `reading_playlists` |
+| `organizationId` | UUID | sim | |
+| `pieceFileId` | UUID | sim | → `piece_files`; apenas `kind = score` |
+| `sortOrder` | int | sim | Ordem na playlist |
+| `label` | string | não | Override de título na leitura |
+| `notes` | string | não | Lembrete pessoal |
+
+Regras:
+
+- `ProgramItem` = o que o grupo toca; `ReadingPlaylist` = o que **eu** abro, com PDF já escolhido.
+- Importação da programação de um evento é assistida: o usuário resolve ambiguidades de arquivo antes de salvar.
+- RLS: apenas `ownerUserId = auth.uid()` dentro da org.
+- `sourceEventId` é metadado de origem; alterações na programação do evento não alteram a playlist automaticamente.
+
 ---
 
 ## 4. Agenda

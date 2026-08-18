@@ -10,7 +10,7 @@ const LEGACY_INVERT_KEY = 'planner-kairos:pdf-invert';
 
 const DEFAULT_PREFERENCES: PdfReaderPreferences = {
   inverted: false,
-  navigation: 'vertical',
+  navigation: 'horizontal',
 };
 
 function storageKey(userId: string): string {

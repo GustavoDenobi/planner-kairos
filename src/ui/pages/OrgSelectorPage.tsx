@@ -55,7 +55,9 @@ export function OrgSelectorPage() {
       <div className="mb-6 flex items-center justify-end">
         <ThemeToggle variant="compact" />
       </div>
-
+      <div className="mb-6 flex items-center justify-center">
+        <h1 className="text-2xl font-bold text-text">Selecione</h1>
+      </div>
       <ul className="flex flex-col gap-3">
         {organizations.map((org) => {
           const isAdmin = org.accessRole === 'admin' || org.accessRole === 'owner';

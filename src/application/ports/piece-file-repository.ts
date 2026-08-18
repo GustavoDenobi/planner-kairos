@@ -24,6 +24,7 @@ export type PieceFileRepository = {
     pieceId: string,
     fileId: string,
   ): Promise<PieceFileWithLinks | null>;
+  getByFileId(organizationId: string, fileId: string): Promise<PieceFileWithLinks | null>;
   findByContentHash(
     organizationId: string,
     pieceId: string,

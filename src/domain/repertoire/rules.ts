@@ -9,6 +9,10 @@ import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from './pie
 import type { PieceCategoryInput } from './piece-category';
 import type { PieceInput } from './piece';
 import type { PieceThemeInput } from './piece-theme';
+import type {
+  CreateReadingPlaylistInput,
+  UpdateReadingPlaylistInput,
+} from './reading-playlist';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -229,4 +233,105 @@ export function pieceFileMatchesUserParts(
     return true;
   }
   return file.partLinks.some((link) => userPartIds.includes(link.partId));
+}
+
+export function isGeneralScoreFile(
+  file: Pick<PieceFileWithLinks, 'kind' | 'partLinks'>,
+): boolean {
+  return file.kind === 'score' && file.partLinks.length === 0;
+}
+
+export function filterScoreCandidatesForUser(
+  files: PieceFileWithLinks[],
+  userPartIds: string[],
+): PieceFileWithLinks[] {
+  const scores = files.filter((file) => file.kind === 'score');
+
+  if (userPartIds.length === 0) {
+    return scores;
+  }
+
+  const matched = scores.filter(
+    (file) =>
+      file.partLinks.length > 0 && pieceFileMatchesUserParts(file, userPartIds),
+  );
+  const general = scores.filter((file) => isGeneralScoreFile(file));
+
+  const seen = new Set<string>();
+  const result: PieceFileWithLinks[] = [];
+
+  for (const file of matched) {
+    if (seen.has(file.id)) {
+      continue;
+    }
+    seen.add(file.id);
+    result.push(file);
+  }
+
+  for (const file of general) {
+    if (seen.has(file.id)) {
+      continue;
+    }
+    seen.add(file.id);
+    result.push(file);
+  }
+
+  return result;
+}
+
+export function resolveDefaultScoreFile(
+  candidates: PieceFileWithLinks[],
+): PieceFileWithLinks | null {
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+  return null;
+}
+
+export function validateCreateReadingPlaylistInput(
+  input: CreateReadingPlaylistInput,
+): string | null {
+  if (!isValidTitle(input.name)) {
+    return 'invalid_name';
+  }
+  if (!input.items || input.items.length === 0) {
+    return 'empty_playlist';
+  }
+  for (const item of input.items) {
+    if (!item.pieceFileId.trim()) {
+      return 'invalid_file';
+    }
+  }
+  return null;
+}
+
+export function validateUpdateReadingPlaylistInput(
+  input: UpdateReadingPlaylistInput,
+): string | null {
+  if (input.name !== undefined && !isValidTitle(input.name)) {
+    return 'invalid_name';
+  }
+  return null;
+}
+
+export const EVENT_SOURCED_PLAYLIST_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function eventSourcedPlaylistExpiresAt(
+  startsAt: string,
+  endsAt: string | null,
+): Date {
+  const eventTime = new Date(endsAt ?? startsAt);
+  return new Date(eventTime.getTime() + EVENT_SOURCED_PLAYLIST_TTL_MS);
+}
+
+export function isEventSourcedPlaylistExpired(
+  startsAt: string,
+  endsAt: string | null,
+  now: Date = new Date(),
+): boolean {
+  const expiresAt = eventSourcedPlaylistExpiresAt(startsAt, endsAt);
+  if (Number.isNaN(expiresAt.getTime())) {
+    return true;
+  }
+  return now.getTime() >= expiresAt.getTime();
 }

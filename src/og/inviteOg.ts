@@ -90,7 +90,7 @@ function renderInviteOgHeadTags(meta: InviteOgMeta): string {
 
   return `<meta name="description" content="${escapeHtml(meta.description)}" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Planner Kairós" />
+    <meta property="og:site_name" content="Planner Musical" />
     <meta property="og:title" content="${escapeHtml(meta.title)}" />
     <meta property="og:description" content="${escapeHtml(meta.description)}" />
     <meta property="og:url" content="${escapeHtml(meta.pageUrl)}" />

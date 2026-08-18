@@ -7,6 +7,7 @@ import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { SortableList } from '@/ui/components/SortableList';
 import { IconGripVertical, IconMusic, IconPlus, IconTrash } from '@/ui/components/icons';
+import { prepareReadingPlaylistPath } from '@/ui/features/repertoire/reading-playlist-routes';
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
 import { EventProgramPiecePicker } from '@/ui/features/agenda/EventProgramPiecePicker';
@@ -169,19 +170,29 @@ export function EventProgramSection({
           className={`flex items-center gap-3 ${hideHeading ? 'justify-end' : 'justify-between'}`}
         >
           {!hideHeading && <h2 className="text-base font-semibold text-text">Programação</h2>}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                setPickerOpen(true);
-                void searchPieces('');
-              }}
-              className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
-            >
-            <IconPlus className="h-4 w-4" />
-            Peça
-          </button>
-          )}
+          <div className="flex items-center gap-2">
+            {rows.length > 0 && (
+              <Link
+                to={prepareReadingPlaylistPath(orgSlug, eventId)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-bg"
+              >
+                Preparar partituras
+              </Link>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerOpen(true);
+                  void searchPieces('');
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
+              >
+                <IconPlus className="h-4 w-4" />
+                Peça
+              </button>
+            )}
+          </div>
         </div>
       )}
 

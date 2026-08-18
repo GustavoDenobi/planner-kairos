@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
       await sendEmail(
         profile.email,
-        'Código de recuperação — Planner Kairós',
+        'Código de recuperação — Planner Musical',
         `Seu código de recuperação de senha é: ${code}\n\nVálido por 15 minutos.`,
       );
     }

@@ -4,6 +4,7 @@ import {
   IconLayers,
   IconMic,
   IconMusic,
+  IconPlay,
   IconUsers,
 } from '@/ui/components/icons';
 import type { ReactNode } from 'react';
@@ -18,6 +19,7 @@ export type NavItem = {
 export const baseNavItems: NavItem[] = [
   { to: 'agenda', label: 'Agenda', icon: <IconCalendar className="h-5 w-5 shrink-0" /> },
   { to: 'repertorio', label: 'Repertório', icon: <IconMusic className="h-5 w-5 shrink-0" /> },
+  { to: 'leitura', label: 'Playlist', icon: <IconPlay className="h-5 w-5 shrink-0" /> },
 ];
 
 export const adminNavItems: NavItem[] = [

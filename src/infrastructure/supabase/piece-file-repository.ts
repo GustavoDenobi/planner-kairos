@@ -107,6 +107,26 @@ export function createPieceFileRepository(): PieceFileRepository {
       };
     },
 
+    async getByFileId(organizationId, fileId) {
+      const { data, error } = await supabase
+        .from('piece_files')
+        .select(FILE_COLUMNS)
+        .eq('organization_id', organizationId)
+        .eq('id', fileId)
+        .maybeSingle();
+
+      if (error || !data) {
+        return null;
+      }
+
+      const linksByFile = await loadPartLinksForFiles(organizationId, [data.id]);
+
+      return {
+        ...mapFile(data),
+        partLinks: linksByFile.get(data.id) ?? [],
+      };
+    },
+
     async findByContentHash(organizationId, pieceId, contentHash) {
       const { data, error } = await supabase
         .from('piece_files')

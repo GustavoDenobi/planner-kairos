@@ -5,8 +5,9 @@ import type { PieceFileAnnotationRepository } from '@/application/ports/piece-fi
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
+import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { PieceCategoryInput, CreatePdfAnnotationInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -22,6 +23,14 @@ import {
 } from './annotation-use-cases';
 import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, updatePieceFile } from './file-use-cases';
 import type { AttachPieceFileInput, UpdatePieceFileInput } from './file-use-cases';
+import {
+  createReadingPlaylist,
+  deleteReadingPlaylist,
+  getReadingPlaylist,
+  listReadingPlaylists,
+  replaceReadingPlaylistItems,
+  updateReadingPlaylist,
+} from './reading-playlist-use-cases';
 import {
   catalogPiece,
   getPiece,
@@ -42,6 +51,7 @@ export type RepertoireDeps = {
   pieceRepo: PieceRepository;
   fileRepo: PieceFileRepository;
   annotationRepo: PieceFileAnnotationRepository;
+  playlistRepo: ReadingPlaylistRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
 };
@@ -145,6 +155,55 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       pieceFileId: string,
       annotationId: string,
     ) => deletePieceFileAnnotation(deps.annotationRepo, organizationId, pieceFileId, annotationId),
+
+    listReadingPlaylists: (organizationId: string, ownerUserId: string) =>
+      listReadingPlaylists(deps.playlistRepo, organizationId, ownerUserId),
+    getReadingPlaylist: (organizationId: string, playlistId: string, ownerUserId: string) =>
+      getReadingPlaylist(deps.playlistRepo, organizationId, playlistId, ownerUserId),
+    createReadingPlaylist: (
+      organizationId: string,
+      ownerUserId: string,
+      input: CreateReadingPlaylistInput,
+    ) =>
+      createReadingPlaylist(
+        deps.fileRepo,
+        deps.playlistRepo,
+        organizationId,
+        ownerUserId,
+        input,
+      ),
+    updateReadingPlaylist: (
+      organizationId: string,
+      playlistId: string,
+      ownerUserId: string,
+      input: UpdateReadingPlaylistInput,
+    ) =>
+      updateReadingPlaylist(
+        deps.playlistRepo,
+        organizationId,
+        playlistId,
+        ownerUserId,
+        input,
+      ),
+    replaceReadingPlaylistItems: (
+      organizationId: string,
+      playlistId: string,
+      ownerUserId: string,
+      items: CreateReadingPlaylistItemInput[],
+    ) =>
+      replaceReadingPlaylistItems(
+        deps.fileRepo,
+        deps.playlistRepo,
+        organizationId,
+        playlistId,
+        ownerUserId,
+        items,
+      ),
+    deleteReadingPlaylist: (
+      organizationId: string,
+      playlistId: string,
+      ownerUserId: string,
+    ) => deleteReadingPlaylist(deps.playlistRepo, organizationId, playlistId, ownerUserId),
   };
 }
 

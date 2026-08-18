@@ -14,6 +14,8 @@ import {
 } from '@/domain/repertoire';
 import {
   IconArrowUpDown,
+  IconChevronLeft,
+  IconChevronRight,
   IconMaximize,
   IconMinimize,
   IconMoon,
@@ -47,11 +49,69 @@ export type SectionLeadOption = {
   name: string;
 };
 
+export type PdfViewerPlaylistContext = {
+  title: string;
+  currentIndex: number;
+  totalItems: number;
+  currentItemLabel: string;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPreviousItem: () => void;
+  onGoNextItem: () => void;
+  onContinueToPreviousItem: () => void;
+  onContinueToNextItem: () => void;
+};
+
+type PdfViewerPlaylistNavProps = {
+  playlist: PdfViewerPlaylistContext;
+  onPrevious: () => void;
+  onNext: () => void;
+};
+
+export function PdfViewerPlaylistNav({
+  playlist,
+  onPrevious,
+  onNext,
+}: PdfViewerPlaylistNavProps) {
+  return (
+    <div className="flex items-center justify-center gap-x-3">
+      <button
+        type="button"
+        onClick={onPrevious}
+        disabled={!playlist.canGoPrevious}
+        aria-label="Obra anterior"
+        className="rounded-lg border border-border p-2 text-text disabled:opacity-40"
+      >
+        <IconChevronLeft className="h-5 w-5" />
+      </button>
+      <div className="min-w-0 text-center">
+        <p className="truncate text-sm font-medium text-text">
+          {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
+        </p>
+        <p className="truncate text-xs text-muted">{playlist.title}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!playlist.canGoNext}
+        aria-label="Próxima obra"
+        className="rounded-lg border border-border p-2 text-text disabled:opacity-40"
+      >
+        <IconChevronRight className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
 type PdfViewerProps = {
   url: string;
   userId: string | null;
   annotations: PdfAnnotation[];
   sectionLeadOptions: SectionLeadOption[];
+  playlist?: PdfViewerPlaylistContext;
+  initialPage?: number;
+  entryDirection?: 'next' | 'prev';
+  preloadedPdf?: pdfjs.PDFDocumentProxy | null;
   onAnnotationCreate: (
     input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>,
   ) => Promise<PdfAnnotation | null>;
@@ -201,7 +261,7 @@ function PdfPageFrame({
 function defaultPreferences(userId: string | null) {
   return userId
     ? loadPdfReaderPreferences(userId)
-    : { inverted: false, navigation: 'vertical' as PdfNavigationMode };
+    : { inverted: false, navigation: 'horizontal' as PdfNavigationMode };
 }
 
 function dedupeSectionLeadOptions(options: SectionLeadOption[]): SectionLeadOption[] {
@@ -256,6 +316,10 @@ export function PdfViewer({
   userId,
   annotations,
   sectionLeadOptions,
+  playlist,
+  initialPage = 1,
+  entryDirection,
+  preloadedPdf = null,
   onAnnotationCreate,
   onAnnotationDelete,
 }: PdfViewerProps) {
@@ -388,14 +452,29 @@ export function PdfViewer({
 
   useEffect(() => {
     let cancelled = false;
+    const resolvedInitialPage = Math.max(1, initialPage);
+
+    if (preloadedPdf) {
+      setLoading(true);
+      setError(null);
+      setPdf(preloadedPdf);
+      setNumPages(preloadedPdf.numPages);
+      setCurrentPage(Math.min(resolvedInitialPage, preloadedPdf.numPages));
+      setShouldAnimate(Boolean(entryDirection));
+      setSlideDirection(entryDirection ?? 'next');
+      setLoading(false);
+      return;
+    }
+
     const loadingTask = pdfjs.getDocument({ url });
 
     setLoading(true);
     setError(null);
     setPdf(null);
     setNumPages(0);
-    setCurrentPage(1);
-    setShouldAnimate(false);
+    setCurrentPage(resolvedInitialPage);
+    setShouldAnimate(Boolean(entryDirection));
+    setSlideDirection(entryDirection ?? 'next');
 
     loadingTask.promise
       .then((document) => {
@@ -405,6 +484,7 @@ export function PdfViewer({
         }
         setPdf(document);
         setNumPages(document.numPages);
+        setCurrentPage(Math.min(resolvedInitialPage, document.numPages));
         setLoading(false);
       })
       .catch(() => {
@@ -419,7 +499,7 @@ export function PdfViewer({
       cancelled = true;
       void loadingTask.destroy();
     };
-  }, [url]);
+  }, [url, preloadedPdf, initialPage, entryDirection]);
 
   const getViewportElement = useCallback(() => {
     return navigation === 'horizontal' ? viewportRef.current : scrollRef.current;
@@ -587,12 +667,44 @@ export function PdfViewer({
   );
 
   const goToPreviousPage = useCallback(() => {
+    if (isAnnotating) {
+      return;
+    }
+    if (currentPage <= 1) {
+      if (navigation === 'horizontal' && playlist?.canGoPrevious) {
+        playlist.onContinueToPreviousItem();
+      }
+      return;
+    }
     navigateHorizontal('prev');
-  }, [navigateHorizontal]);
+  }, [currentPage, isAnnotating, navigateHorizontal, navigation, playlist]);
 
   const goToNextPage = useCallback(() => {
+    if (isAnnotating) {
+      return;
+    }
+    if (currentPage >= numPages) {
+      if (navigation === 'horizontal' && playlist?.canGoNext) {
+        playlist.onContinueToNextItem();
+      }
+      return;
+    }
     navigateHorizontal('next');
-  }, [navigateHorizontal]);
+  }, [currentPage, isAnnotating, numPages, navigateHorizontal, navigation, playlist]);
+
+  const goToPreviousItem = useCallback(() => {
+    if (isAnnotating || !playlist?.canGoPrevious) {
+      return;
+    }
+    playlist.onPreviousItem();
+  }, [isAnnotating, playlist]);
+
+  const goToNextItem = useCallback(() => {
+    if (isAnnotating || !playlist?.canGoNext) {
+      return;
+    }
+    playlist.onGoNextItem();
+  }, [isAnnotating, playlist]);
 
   useEffect(() => {
     if (navigation !== 'horizontal' || isAnnotating) {
@@ -600,6 +712,19 @@ export function PdfViewer({
     }
 
     function onKeyDown(event: KeyboardEvent) {
+      if (playlist && event.shiftKey) {
+        if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+          event.preventDefault();
+          goToNextItem();
+          return;
+        }
+        if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+          event.preventDefault();
+          goToPreviousItem();
+          return;
+        }
+      }
+
       if (event.key === 'ArrowRight' || event.key === 'PageDown') {
         event.preventDefault();
         goToNextPage();
@@ -611,7 +736,15 @@ export function PdfViewer({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigation, isAnnotating, goToNextPage, goToPreviousPage]);
+  }, [
+    navigation,
+    isAnnotating,
+    goToNextPage,
+    goToPreviousPage,
+    playlist,
+    goToNextItem,
+    goToPreviousItem,
+  ]);
 
   const handleTouchStart = useCallback(
     (event: React.TouchEvent) => {
@@ -885,8 +1018,10 @@ export function PdfViewer({
   }
 
   const pageNumbers = Array.from({ length: numPages }, (_, index) => index + 1);
-  const canGoPrevious = currentPage > 1;
-  const canGoNext = currentPage < numPages;
+  const canGoPrevious =
+    currentPage > 1 || (navigation === 'horizontal' && (playlist?.canGoPrevious ?? false));
+  const canGoNext =
+    currentPage < numPages || (navigation === 'horizontal' && (playlist?.canGoNext ?? false));
   const surfaceClass = inverted ? 'bg-black' : 'bg-bg';
   const slideClass = shouldAnimate
     ? slideDirection === 'next'
@@ -913,10 +1048,10 @@ export function PdfViewer({
 
   const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
   const controlsBarClass = isFullscreen
-    ? `pdf-fullscreen-controls absolute inset-x-0 top-0 z-20 flex flex-wrap items-center justify-center gap-2 border-b border-border bg-surface/95 px-4 py-2 shadow-md backdrop-blur-sm ${
+    ? `pdf-fullscreen-controls absolute inset-x-0 top-0 z-20 flex flex-col border-b border-border bg-surface/95 shadow-md backdrop-blur-sm ${
         showFullscreenControls ? '' : 'pdf-fullscreen-controls-hidden'
       }`
-    : 'flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 sm:px-4';
+    : 'flex shrink-0 flex-col border-b border-border';
   const rootClass = isFullscreen
     ? `fixed inset-0 z-50 flex flex-col ${surfaceClass}`
     : 'flex min-h-0 flex-1 flex-col';
@@ -931,6 +1066,21 @@ export function PdfViewer({
       }
     : {};
 
+  const controlsRowClass =
+    'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4';
+
+  const playlistBar = playlist && isFullscreen
+    ? (
+        <div className={`${controlsRowClass} border-b border-border bg-surface/95`}>
+          <PdfViewerPlaylistNav
+            playlist={playlist}
+            onPrevious={goToPreviousItem}
+            onNext={goToNextItem}
+          />
+        </div>
+      )
+    : null;
+
   const controlsBar = (
     <div
       className={controlsBarClass}
@@ -938,6 +1088,8 @@ export function PdfViewer({
       onPointerUp={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      {playlistBar}
+      <div className={controlsRowClass}>
       {isAnnotating ? (
         <>
           {canEditSectionLayer && (
@@ -1190,6 +1342,7 @@ export function PdfViewer({
           </div>
         </>
       )}
+      </div>
     </div>
   );
 

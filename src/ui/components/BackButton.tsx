@@ -1,4 +1,4 @@
-import { IconChevronLeft } from '@/ui/components/icons';
+import { IconChevronLeft, IconX } from '@/ui/components/icons';
 import { useGoBack } from '@/ui/hooks/useGoBack';
 
 const defaultClassName =
@@ -6,20 +6,24 @@ const defaultClassName =
 
 type BackButtonProps = {
   fallbackTo: string;
+  variant?: 'back' | 'close';
   'aria-label'?: string;
   className?: string;
 };
 
 export function BackButton({
   fallbackTo,
-  'aria-label': ariaLabel = 'Voltar',
+  variant = 'back',
+  'aria-label': ariaLabel,
   className = defaultClassName,
 }: BackButtonProps) {
   const goBack = useGoBack(fallbackTo);
+  const resolvedAriaLabel = ariaLabel ?? (variant === 'close' ? 'Fechar' : 'Voltar');
+  const Icon = variant === 'close' ? IconX : IconChevronLeft;
 
   return (
-    <button type="button" onClick={goBack} className={className} aria-label={ariaLabel}>
-      <IconChevronLeft className="h-6 w-6" />
+    <button type="button" onClick={goBack} className={className} aria-label={resolvedAriaLabel}>
+      <Icon className="h-6 w-6" />
     </button>
   );
 }
