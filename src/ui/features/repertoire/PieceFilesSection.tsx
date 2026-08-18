@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
+import { pieceFileMatchesUserParts } from '@/domain/repertoire';
 import type { PieceFileKind, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconArrowDown, IconPencil, IconPlus } from '@/ui/components/icons';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
 type PartFilterOption = {
@@ -20,6 +21,7 @@ type PieceFilesSectionProps = {
   parts: PartWithDivisions[];
   isAdmin: boolean;
   userPartIds: string[];
+  onOpen: (file: PieceFileWithLinks) => void;
   onDownload: (fileId: string) => void;
   onEdit: (file: PieceFileWithLinks) => void;
   onAddFiles: (files: File[]) => void;
@@ -73,26 +75,18 @@ function fileMatchesTitleFilter(file: PieceFileWithLinks, query: string): boolea
   return file.title.toLowerCase().includes(normalizedQuery);
 }
 
-function fileMatchesUserParts(file: PieceFileWithLinks, userPartIds: string[]): boolean {
-  if (userPartIds.length === 0) {
-    return false;
-  }
-  if (file.partLinks.length === 0) {
-    return false;
-  }
-  return file.partLinks.some((link) => userPartIds.includes(link.partId));
-}
-
 function FileList({
   files,
   parts,
   isAdmin,
+  onOpen,
   onDownload,
   onEdit,
 }: {
   files: PieceFileWithLinks[];
   parts: PartWithDivisions[];
   isAdmin: boolean;
+  onOpen: (file: PieceFileWithLinks) => void;
   onDownload: (fileId: string) => void;
   onEdit: (file: PieceFileWithLinks) => void;
 }) {
@@ -107,7 +101,7 @@ function FileList({
           <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3">
             <button
               type="button"
-              onClick={() => onDownload(file.id)}
+              onClick={() => onOpen(file)}
               className="min-w-0 flex-1 text-left"
             >
               <p className="font-medium text-text">{file.title}</p>
@@ -117,16 +111,26 @@ function FileList({
                   : pieceFileKindLabel(file.kind)}
               </p>
             </button>
-            {isAdmin && (
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
-                onClick={() => onEdit(file)}
-                aria-label={`Editar ${file.title}`}
-                className="shrink-0 rounded-lg border border-border p-2 text-muted hover:text-text"
+                onClick={() => onDownload(file.id)}
+                aria-label={`Baixar ${file.title}`}
+                className="rounded-lg border border-border p-2 text-muted hover:text-text"
               >
-                <IconPencil className="h-4 w-4" />
+                <IconArrowDown className="h-4 w-4" />
               </button>
-            )}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(file)}
+                  aria-label={`Editar ${file.title}`}
+                  className="rounded-lg border border-border p-2 text-muted hover:text-text"
+                >
+                  <IconPencil className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         </li>
       ))}
@@ -139,6 +143,7 @@ export function PieceFilesSection({
   parts,
   isAdmin,
   userPartIds,
+  onOpen,
   onDownload,
   onEdit,
   onAddFiles,
@@ -240,10 +245,10 @@ export function PieceFilesSection({
 
   const showUserSection = userPartIds.length > 0;
   const userFiles = showUserSection
-    ? filteredFiles.filter((file) => fileMatchesUserParts(file, userPartIds))
+    ? filteredFiles.filter((file) => pieceFileMatchesUserParts(file, userPartIds))
     : [];
   const otherFiles = showUserSection
-    ? filteredFiles.filter((file) => !fileMatchesUserParts(file, userPartIds))
+    ? filteredFiles.filter((file) => !pieceFileMatchesUserParts(file, userPartIds))
     : filteredFiles;
 
   const hasFilters = partOptions.length > 0 || divisionOptions.length > 0 || kindOptions.length > 1;
@@ -372,6 +377,7 @@ export function PieceFilesSection({
                   files={userFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  onOpen={onOpen}
                   onDownload={onDownload}
                   onEdit={onEdit}
                 />
@@ -387,6 +393,7 @@ export function PieceFilesSection({
                   files={otherFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  onOpen={onOpen}
                   onDownload={onDownload}
                   onEdit={onEdit}
                 />

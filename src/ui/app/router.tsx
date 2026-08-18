@@ -14,6 +14,7 @@ import { MusicianDetailPage } from '@/ui/pages/org/MusicianDetailPage';
 import { MusiciansPage } from '@/ui/pages/org/MusiciansPage';
 import { PartsPage } from '@/ui/pages/org/PartsPage';
 import { PieceDetailPage } from '@/ui/pages/org/PieceDetailPage';
+import { PiecePdfViewerPage } from '@/ui/pages/org/PiecePdfViewerPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
 
 export const router = createBrowserRouter([
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
     element: <AuthGuard />,
     children: [
       { path: '/orgs', element: <OrgSelectorPage /> },
+      {
+        path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
+        element: <PiecePdfViewerPage />,
+      },
       {
         path: '/:orgSlug',
         element: <AppLayout />,

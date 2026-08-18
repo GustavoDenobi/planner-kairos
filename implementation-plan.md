@@ -206,7 +206,7 @@ Maestro registra culto de domingo e associa obras — substitui o bloco de notas
 
 ---
 
-## Fase 5 — Insights
+## Fase 5 — Insights (despriorizada)
 
 **Objetivo:** responder “quantas vezes tocou?” e “quando foi a última vez?”.
 

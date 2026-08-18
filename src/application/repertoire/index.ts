@@ -1,11 +1,12 @@
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
+import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { PieceCategoryInput, PieceInput, PieceThemeInput } from '@/domain/repertoire';
+import type { PieceCategoryInput, CreatePdfAnnotationInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -13,6 +14,12 @@ import {
   listPieceCategories,
   updatePieceCategory,
 } from './category-use-cases';
+import {
+  createPieceFileAnnotation,
+  deletePieceFileAnnotation,
+  listPieceFileAnnotations,
+  updatePieceFileAnnotation,
+} from './annotation-use-cases';
 import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, updatePieceFile } from './file-use-cases';
 import type { AttachPieceFileInput, UpdatePieceFileInput } from './file-use-cases';
 import {
@@ -34,6 +41,7 @@ export type RepertoireDeps = {
   themeRepo: PieceThemeRepository;
   pieceRepo: PieceRepository;
   fileRepo: PieceFileRepository;
+  annotationRepo: PieceFileAnnotationRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
 };
@@ -102,6 +110,41 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
         pieceId,
         fileId,
       ),
+
+    listPieceFileAnnotations: (organizationId: string, pieceFileId: string) =>
+      listPieceFileAnnotations(deps.annotationRepo, organizationId, pieceFileId),
+    createPieceFileAnnotation: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      input: CreatePdfAnnotationInput,
+    ) =>
+      createPieceFileAnnotation(
+        deps.fileRepo,
+        deps.annotationRepo,
+        organizationId,
+        pieceId,
+        authorUserId,
+        input,
+      ),
+    updatePieceFileAnnotation: (
+      organizationId: string,
+      pieceFileId: string,
+      annotationId: string,
+      input: UpdatePdfAnnotationInput,
+    ) =>
+      updatePieceFileAnnotation(
+        deps.annotationRepo,
+        organizationId,
+        pieceFileId,
+        annotationId,
+        input,
+      ),
+    deletePieceFileAnnotation: (
+      organizationId: string,
+      pieceFileId: string,
+      annotationId: string,
+    ) => deletePieceFileAnnotation(deps.annotationRepo, organizationId, pieceFileId, annotationId),
   };
 }
 

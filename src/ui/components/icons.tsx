@@ -175,6 +175,22 @@ export function IconSun(props: IconProps) {
   );
 }
 
+export function IconMaximize(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
+export function IconMinimize(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+    </svg>
+  );
+}
+
 export function IconMic(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -262,6 +278,14 @@ export function IconAlertTriangle(props: IconProps) {
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" x2="12" y1="9" y2="13" />
       <line x1="12" x2="12.01" y1="17" y2="17" />
+    </svg>
+  );
+}
+
+export function IconUndo(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C20.08 11.03 16.55 8 12.5 8z"/>
     </svg>
   );
 }

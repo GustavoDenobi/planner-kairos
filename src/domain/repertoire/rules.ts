@@ -1,4 +1,11 @@
-import type { PieceFileKind, PieceFilePartLink } from './piece-file';
+import type {
+  AnnotationGeometry,
+  AnnotationLayer,
+  AnnotationType,
+  CreatePdfAnnotationInput,
+  StrokeGeometry,
+} from './piece-file-annotation';
+import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from './piece-file';
 import type { PieceCategoryInput } from './piece-category';
 import type { PieceInput } from './piece';
 import type { PieceThemeInput } from './piece-theme';
@@ -141,4 +148,85 @@ export function validatePieceFileTitle(title: string): string | null {
     return 'invalid_file_title';
   }
   return null;
+}
+
+function isNormalizedCoord(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function isStrokeGeometry(geometry: AnnotationGeometry): geometry is StrokeGeometry {
+  return 'points' in geometry;
+}
+
+export function validateAnnotationGeometry(
+  type: AnnotationType,
+  geometry: AnnotationGeometry,
+): string | null {
+  if (type === 'stroke' || type === 'highlight') {
+    if (!isStrokeGeometry(geometry)) {
+      return 'invalid_geometry';
+    }
+    if (geometry.points.length < 2) {
+      return 'invalid_stroke_points';
+    }
+    if (!Number.isFinite(geometry.strokeWidth) || geometry.strokeWidth <= 0) {
+      return 'invalid_stroke_width';
+    }
+    for (const point of geometry.points) {
+      if (!isNormalizedCoord(point.x) || !isNormalizedCoord(point.y)) {
+        return 'invalid_coordinates';
+      }
+    }
+    return null;
+  }
+
+  return 'invalid_geometry';
+}
+
+export function validateCreatePdfAnnotationInput(input: CreatePdfAnnotationInput): string | null {
+  if (!Number.isInteger(input.pageNumber) || input.pageNumber < 1) {
+    return 'invalid_page_number';
+  }
+  if (!input.pieceFileId.trim()) {
+    return 'invalid_piece_file';
+  }
+  if (!input.color.trim()) {
+    return 'invalid_color';
+  }
+
+  const layerError = validateAnnotationLayer(input.layer, input.sectionId ?? null);
+  if (layerError) {
+    return layerError;
+  }
+
+  return validateAnnotationGeometry(input.type, input.geometry);
+}
+
+export function validateAnnotationLayer(
+  layer: AnnotationLayer,
+  sectionId: string | null,
+): string | null {
+  if (layer === 'personal' && sectionId !== null) {
+    return 'personal_layer_requires_no_section';
+  }
+  if (layer === 'section' && !sectionId?.trim()) {
+    return 'section_layer_requires_section';
+  }
+  return null;
+}
+
+export function pieceFileMatchesUserParts(
+  file: Pick<PieceFileWithLinks, 'kind' | 'partLinks'>,
+  userPartIds: string[],
+): boolean {
+  if (file.kind !== 'score') {
+    return false;
+  }
+  if (userPartIds.length === 0) {
+    return false;
+  }
+  if (file.partLinks.length === 0) {
+    return true;
+  }
+  return file.partLinks.some((link) => userPartIds.includes(link.partId));
 }

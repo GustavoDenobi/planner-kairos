@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
+import { IconMusic } from '@/ui/components/icons';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -112,7 +113,9 @@ export function RepertoirePiecesSection({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-text">{piece.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-text">{piece.title}</p>
+                    </div>
                     {piece.composer && (
                       <p className="mt-0.5 text-sm text-muted">{piece.composer}</p>
                     )}

@@ -142,3 +142,17 @@
     animation: none;
   }
 }
+
+.pdf-fullscreen-controls {
+  transition: transform 0.25s ease-in-out;
+}
+
+.pdf-fullscreen-controls-hidden {
+  transform: translateY(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-fullscreen-controls {
+    transition: none;
+  }
+}

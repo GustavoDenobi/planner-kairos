@@ -6,7 +6,7 @@ import type { PieceListItem } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { SortableList } from '@/ui/components/SortableList';
-import { IconGripVertical, IconPlus, IconTrash } from '@/ui/components/icons';
+import { IconGripVertical, IconMusic, IconPlus, IconTrash } from '@/ui/components/icons';
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
 import { EventProgramPiecePicker } from '@/ui/features/agenda/EventProgramPiecePicker';
@@ -211,12 +211,14 @@ export function EventProgramSection({
               </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <Link
-                    to={repertoirePiecePath(orgSlug, row.pieceId)}
-                    className={`font-medium ${row.pieceDeleted ? 'text-muted line-through' : 'text-text'}`}
-                  >
-                    {row.pieceTitle}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <Link
+                      to={repertoirePiecePath(orgSlug, row.pieceId)}
+                      className={`font-medium ${row.pieceDeleted ? 'text-muted line-through' : 'text-text'}`}
+                    >
+                      {row.pieceTitle}
+                    </Link>
+                  </div>
                   <button
                     type="button"
                     onClick={() => void handleRemove(row.pieceId)}
@@ -247,11 +249,13 @@ export function EventProgramSection({
             const cardContent = (
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p
-                    className={`font-medium ${row.pieceDeleted ? 'text-muted line-through' : 'text-text'}`}
-                  >
-                    {row.pieceTitle}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={`font-medium ${row.pieceDeleted ? 'text-muted line-through' : 'text-text'}`}
+                    >
+                      {row.pieceTitle}
+                    </p>
+                  </div>
                   {row.pieceDeleted && (
                     <p className="mt-0.5 text-xs text-muted">Obra removida do catálogo</p>
                   )}

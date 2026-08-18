@@ -18,6 +18,7 @@ import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
 import { IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
+import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
 import {
   PieceFileUploadEntries,
@@ -25,6 +26,7 @@ import {
   type UploadFileEntry,
 } from '@/ui/features/repertoire/PieceFileUploadEntries';
 import { repertoirePath } from '@/ui/features/repertoire/repertoire-routes';
+import { piecePdfViewerPath } from '@/ui/features/repertoire/piece-file-routes';
 import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
 import {
   formatPartLinks,
@@ -78,6 +80,11 @@ export function PieceDetailPage() {
   const [isRemovingFile, setIsRemovingFile] = useState(false);
 
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [playingAudioFile, setPlayingAudioFile] = useState<PieceFileWithLinks | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
 
@@ -417,6 +424,39 @@ export function PieceDetailPage() {
     await loadPiece();
   }
 
+  async function handleOpen(file: PieceFileWithLinks) {
+    if (!org || !piece || !orgSlug) {
+      return;
+    }
+
+    if (file.kind === 'score') {
+      navigate(piecePdfViewerPath(orgSlug, piece.id, file.id));
+      return;
+    }
+
+    setPlayingAudioFile(file);
+    setAudioUrl(null);
+    setAudioError(null);
+    setAudioLoading(true);
+
+    const result = await repertoire.getPieceFileDownloadUrl(org.id, piece.id, file.id);
+    setAudioLoading(false);
+
+    if (!result.ok) {
+      setAudioError(repertoireErrorMessage(result.error));
+      return;
+    }
+
+    setAudioUrl(result.value);
+  }
+
+  function handleCloseAudio() {
+    setPlayingAudioFile(null);
+    setAudioUrl(null);
+    setAudioError(null);
+    setAudioLoading(false);
+  }
+
   async function handleDownload(fileId: string) {
     const result = await repertoire.getPieceFileDownloadUrl(org.id, piece.id, fileId);
     if (!result.ok) {
@@ -576,6 +616,7 @@ export function PieceDetailPage() {
         parts={parts}
         isAdmin={isAdmin}
         userPartIds={userPartIds}
+        onOpen={handleOpen}
         onDownload={handleDownload}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}
@@ -863,6 +904,16 @@ export function PieceDetailPage() {
           </div>
         )}
       </Modal>
+
+      <AudioPlayerModal
+        open={playingAudioFile !== null}
+        onClose={handleCloseAudio}
+        title={playingAudioFile?.title ?? 'Áudio'}
+        url={audioUrl}
+        downloadName={playingAudioFile?.originalName}
+        isLoading={audioLoading}
+        error={audioError}
+      />
     </>
   );
 }

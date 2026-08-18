@@ -466,6 +466,66 @@ export type Database = {
           },
         ];
       };
+      piece_file_annotations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          piece_file_id: string;
+          page_number: number;
+          layer: 'personal' | 'section';
+          type: 'stroke' | 'highlight';
+          geometry: Json;
+          color: string;
+          author_user_id: string;
+          section_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          piece_file_id: string;
+          page_number: number;
+          layer: 'personal' | 'section';
+          type: 'stroke' | 'highlight';
+          geometry: Json;
+          color: string;
+          author_user_id: string;
+          section_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          piece_file_id?: string;
+          page_number?: number;
+          layer?: 'personal' | 'section';
+          type?: 'stroke' | 'highlight';
+          geometry?: Json;
+          color?: string;
+          author_user_id?: string;
+          section_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'piece_file_annotations_piece_file_id_fkey';
+            columns: ['piece_file_id'];
+            isOneToOne: false;
+            referencedRelation: 'piece_files';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'piece_file_annotations_section_id_fkey';
+            columns: ['section_id'];
+            isOneToOne: false;
+            referencedRelation: 'sections';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -511,6 +571,18 @@ export type Database = {
           created_at: string;
         }[];
       };
+      current_musician_id: {
+        Args: { p_org_id: string };
+        Returns: string;
+      };
+      is_in_section: {
+        Args: { p_org_id: string; p_section_id: string };
+        Returns: boolean;
+      };
+      is_section_lead_for: {
+        Args: { p_org_id: string; p_section_id: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       access_role: 'owner' | 'admin' | 'member';
@@ -519,6 +591,8 @@ export type Database = {
       group_kind: 'ensemble' | 'choir' | 'class' | 'other';
       part_kind: 'instrument' | 'voice';
       event_kind: 'rehearsal' | 'service' | 'class' | 'special';
+      annotation_layer: 'personal' | 'section';
+      annotation_type: 'stroke' | 'highlight';
     };
     CompositeTypes: Record<string, never>;
   };

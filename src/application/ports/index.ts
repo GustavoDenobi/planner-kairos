@@ -17,5 +17,6 @@ export type { PieceCategoryRepository } from './piece-category-repository';
 export type { PieceThemeRepository } from './piece-theme-repository';
 export type { PieceRepository, SearchPiecesOptions } from './piece-repository';
 export type { PieceFileRepository, CreatePieceFileInput } from './piece-file-repository';
+export type { PieceFileAnnotationRepository } from './piece-file-annotation-repository';
 export type { EventTypeRepository } from './event-type-repository';
 export type { EventRepository, ListEventsInRangeOptions } from './event-repository';

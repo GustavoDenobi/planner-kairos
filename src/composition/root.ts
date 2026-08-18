@@ -13,6 +13,7 @@ import { createMusicianRepository } from '@/infrastructure/supabase/musician-rep
 import { createOrganizationRepository } from '@/infrastructure/supabase/organization-repository';
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
+import { createPieceFileAnnotationRepository } from '@/infrastructure/supabase/piece-file-annotation-repository';
 import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
 import { createPieceRepository } from '@/infrastructure/supabase/piece-repository';
 import { createPieceThemeRepository } from '@/infrastructure/supabase/piece-theme-repository';
@@ -36,6 +37,7 @@ export function createAppServices() {
   const themeRepo = createPieceThemeRepository();
   const pieceRepo = createPieceRepository();
   const pieceFileRepo = createPieceFileRepository();
+  const annotationRepo = createPieceFileAnnotationRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
 
@@ -61,6 +63,7 @@ export function createAppServices() {
     themeRepo,
     pieceRepo,
     fileRepo: pieceFileRepo,
+    annotationRepo,
     partRepo,
     fileStorage,
   });

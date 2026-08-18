@@ -3,7 +3,11 @@ import {
   defaultPieceFileTitle,
   mimeToPieceFileKind,
   normalizePieceAliases,
+  pieceFileMatchesUserParts,
   slugifyName,
+  validateAnnotationGeometry,
+  validateAnnotationLayer,
+  validateCreatePdfAnnotationInput,
   validatePieceCategoryInput,
   validatePieceFileMime,
   validatePieceFilePartLinks,
@@ -130,5 +134,129 @@ describe('validatePieceFileTitle', () => {
 
   it('accepts non-empty titles', () => {
     expect(validatePieceFileTitle('Violino 1')).toBeNull();
+  });
+});
+
+describe('pieceFileMatchesUserParts', () => {
+  const saxPartId = 'part-sax';
+  const violinPartId = 'part-violin';
+
+  it('returns false when user has no parts', () => {
+    expect(
+      pieceFileMatchesUserParts(
+        { kind: 'score', partLinks: [{ partId: saxPartId, partDivisionId: null }] },
+        [],
+      ),
+    ).toBe(false);
+  });
+
+  it('returns false for audio files', () => {
+    expect(pieceFileMatchesUserParts({ kind: 'audio', partLinks: [] }, [saxPartId])).toBe(false);
+  });
+
+  it('includes general scores without part links', () => {
+    expect(pieceFileMatchesUserParts({ kind: 'score', partLinks: [] }, [saxPartId])).toBe(true);
+  });
+
+  it('matches when a linked part is assigned to the user', () => {
+    expect(
+      pieceFileMatchesUserParts(
+        { kind: 'score', partLinks: [{ partId: saxPartId, partDivisionId: null }] },
+        [saxPartId],
+      ),
+    ).toBe(true);
+  });
+
+  it('does not match when linked parts differ from user assignments', () => {
+    expect(
+      pieceFileMatchesUserParts(
+        { kind: 'score', partLinks: [{ partId: violinPartId, partDivisionId: null }] },
+        [saxPartId],
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('validateAnnotationLayer', () => {
+  it('requires no section for personal layer', () => {
+    expect(validateAnnotationLayer('personal', null)).toBeNull();
+    expect(validateAnnotationLayer('personal', 'section-1')).toBe(
+      'personal_layer_requires_no_section',
+    );
+  });
+
+  it('requires section for section layer', () => {
+    expect(validateAnnotationLayer('section', 'section-1')).toBeNull();
+    expect(validateAnnotationLayer('section', null)).toBe('section_layer_requires_section');
+  });
+});
+
+describe('validateAnnotationGeometry', () => {
+  it('validates stroke geometry', () => {
+    expect(
+      validateAnnotationGeometry('stroke', {
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.3, y: 0.4 },
+        ],
+        strokeWidth: 0.004,
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('stroke', {
+        points: [{ x: 0.1, y: 0.2 }],
+        strokeWidth: 0.004,
+      }),
+    ).toBe('invalid_stroke_points');
+  });
+
+  it('validates highlight geometry as freehand stroke', () => {
+    expect(
+      validateAnnotationGeometry('highlight', {
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.3, y: 0.4 },
+        ],
+        strokeWidth: 0.028,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('validateCreatePdfAnnotationInput', () => {
+  const baseInput = {
+    pieceFileId: 'file-1',
+    pageNumber: 1,
+    layer: 'personal' as const,
+    type: 'stroke' as const,
+    geometry: {
+      points: [
+        { x: 0.1, y: 0.2 },
+        { x: 0.3, y: 0.4 },
+      ],
+      strokeWidth: 0.004,
+    },
+    color: '#3b82f6',
+    sectionId: null,
+  };
+
+  it('accepts valid personal stroke input', () => {
+    expect(validateCreatePdfAnnotationInput(baseInput)).toBeNull();
+  });
+
+  it('rejects invalid page number', () => {
+    expect(validateCreatePdfAnnotationInput({ ...baseInput, pageNumber: 0 })).toBe(
+      'invalid_page_number',
+    );
+  });
+
+  it('requires section for section layer', () => {
+    expect(
+      validateCreatePdfAnnotationInput({
+        ...baseInput,
+        layer: 'section',
+        sectionId: null,
+      }),
+    ).toBe('section_layer_requires_section');
   });
 });
