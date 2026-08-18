@@ -20,6 +20,7 @@ export type PaginatedMusicians = {
 export type MusicianRepository = {
   listForOrg(organizationId: string, options?: ListMusiciansOptions): Promise<PaginatedMusicians>;
   getById(organizationId: string, musicianId: string): Promise<Musician | null>;
+  getByUserId(organizationId: string, userId: string): Promise<Musician | null>;
   update(organizationId: string, musicianId: string, input: MusicianInput): Promise<Musician>;
   delete(organizationId: string, musicianId: string): Promise<void>;
 };

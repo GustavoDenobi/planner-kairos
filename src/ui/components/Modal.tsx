@@ -5,12 +5,15 @@ type ModalProps = {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  size?: 'md' | 'lg';
 };
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
   if (!open) {
     return null;
   }
+
+  const maxWidthClass = size === 'lg' ? 'max-w-2xl' : 'max-w-md';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -21,7 +24,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg"
+        className={`relative w-full ${maxWidthClass} rounded-xl border border-border bg-surface p-6 shadow-lg`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"

@@ -13,3 +13,7 @@ export type { MusicianRepository } from './musician-repository';
 export type { PartRepository, PartWithDivisions } from './part-repository';
 export type { SectionRepository } from './section-repository';
 export type { AssignmentRepository } from './assignment-repository';
+export type { PieceCategoryRepository } from './piece-category-repository';
+export type { PieceThemeRepository } from './piece-theme-repository';
+export type { PieceRepository, SearchPiecesOptions } from './piece-repository';
+export type { PieceFileRepository, CreatePieceFileInput } from './piece-file-repository';

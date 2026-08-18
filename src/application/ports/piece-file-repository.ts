@@ -1,0 +1,40 @@
+import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from '@/domain/repertoire';
+
+export type CreatePieceFileInput = {
+  pieceId: string;
+  kind: PieceFileKind;
+  storageKey: string;
+  mimeType: string;
+  title: string;
+  originalName: string;
+  byteSize: number | null;
+  contentHash: string;
+  partLinks: PieceFilePartLink[];
+};
+
+export type UpdatePieceFileInput = {
+  title: string;
+  partLinks?: PieceFilePartLink[];
+};
+
+export type PieceFileRepository = {
+  listForPiece(organizationId: string, pieceId: string): Promise<PieceFileWithLinks[]>;
+  getById(
+    organizationId: string,
+    pieceId: string,
+    fileId: string,
+  ): Promise<PieceFileWithLinks | null>;
+  findByContentHash(
+    organizationId: string,
+    pieceId: string,
+    contentHash: string,
+  ): Promise<PieceFileWithLinks | null>;
+  create(organizationId: string, input: CreatePieceFileInput): Promise<PieceFileWithLinks>;
+  update(
+    organizationId: string,
+    pieceId: string,
+    fileId: string,
+    input: UpdatePieceFileInput,
+  ): Promise<PieceFileWithLinks | null>;
+  remove(organizationId: string, pieceId: string, fileId: string): Promise<PieceFileWithLinks | null>;
+};

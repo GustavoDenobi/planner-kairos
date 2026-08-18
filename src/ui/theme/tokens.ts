@@ -4,13 +4,13 @@ export const THEME_STORAGE_KEY = 'theme';
 
 export const colors = {
   light: {
-    bg: '#fafafa',
+    bg: '#f0f1f4',
     surface: '#ffffff',
     primary: '#4f46e5',
     accent: '#f59e0b',
     text: '#18181b',
-    muted: '#71717a',
-    border: '#e4e4e7',
+    muted: '#52525b',
+    border: '#d0d3da',
   },
   dark: {
     bg: '#09090b',

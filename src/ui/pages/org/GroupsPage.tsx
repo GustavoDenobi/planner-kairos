@@ -7,6 +7,7 @@ import { Modal } from '@/ui/components/Modal';
 import { IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 import { GroupKindIcon } from '@/ui/features/ensemble/group-icons';
+import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
 import { matchesSearchText } from '@/ui/utils/normalize-search-text';function sortGroups(groups: GroupListItem[]) {
   const active = groups
     .filter((g) => !g.archivedAt)
@@ -114,42 +115,49 @@ export function GroupsPage() {
     ? [...filteredActiveGroups, ...filteredArchivedGroups]
     : filteredActiveGroups;
   const isEmpty = activeGroups.length === 0 && archivedGroups.length === 0;
-  const hasSearchResults = visibleGroups.length > 0;  return (
-    <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+  const hasSearchResults = visibleGroups.length > 0;
+
+  return (
+    <>
+    <OrgListPageLayout
+      header={
+        <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold text-text">Grupos</h1>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            + Grupo
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
-          + Grupo
-        </button>
-      </div>
-      {!isLoading && !isEmpty && (
-        <label className="mt-4 flex flex-col gap-1 text-sm">
-          <span className="sr-only">Buscar grupos</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nome…"
-            className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-          />
-        </label>
-      )}
+      }
+      toolbar={
+        !isLoading && !isEmpty ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="sr-only">Buscar grupos</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nome…"
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+            />
+          </label>
+        ) : undefined
+      }
+    >
       {isLoading ? (
-        <p className="mt-6 text-sm text-muted">Carregando…</p>
+        <p className="text-sm text-muted">Carregando…</p>
       ) : isEmpty ? (
-        <p className="mt-6 text-sm text-muted">Nenhum grupo cadastrado.</p>
+        <p className="text-sm text-muted">Nenhum grupo cadastrado.</p>
       ) : !hasSearchResults ? (
-        <p className="mt-6 text-sm text-muted">Nenhum grupo encontrado.</p>
+        <p className="text-sm text-muted">Nenhum grupo encontrado.</p>
       ) : (
-        <ul className="mt-6 flex flex-col gap-2">
+        <ul className="flex flex-col gap-2">
           {visibleGroups.map((group) => renderGroupItem(group, group.archivedAt !== null))}
-          {!showArchived && archivedGroups.length > 0 && (            <li className="pt-2 text-center">
+          {!showArchived && archivedGroups.length > 0 && (
+            <li className="pt-2 text-center">
               <button
                 type="button"
                 onClick={() => setShowArchived(true)}
@@ -161,7 +169,9 @@ export function GroupsPage() {
           )}
         </ul>
       )}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Novo grupo">
+    </OrgListPageLayout>
+
+    <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Novo grupo">
         <form className="flex flex-col gap-4" onSubmit={handleCreate}>
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-text">Nome</span>
@@ -204,6 +214,6 @@ export function GroupsPage() {
           </button>
         </form>
       </Modal>
-    </div>
+    </>
   );
 }

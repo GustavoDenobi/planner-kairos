@@ -140,4 +140,6 @@ BEGIN
   INSERT INTO memberships (organization_id, user_id, access_role)
   VALUES (v_org_id, v_user_id, 'owner')
   ON CONFLICT (organization_id, user_id) DO NOTHING;
+
+  PERFORM seed_piece_taxonomy(v_org_id);
 END $$;

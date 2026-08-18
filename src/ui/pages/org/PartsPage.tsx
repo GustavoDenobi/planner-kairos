@@ -7,7 +7,8 @@ import { useOrg } from '@/ui/app/OrgProvider';
 import { Modal } from '@/ui/components/Modal';
 import { IconPencil } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
-import { PART_KIND_OPTIONS, partKindLabel } from '@/ui/features/ensemble/ensemble-labels';
+import { PART_KIND_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
+import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
 import { matchesSearchText, normalizeSearchText } from '@/ui/utils/normalize-search-text';
 type DivisionModalState = {
   partId: string;
@@ -277,45 +278,53 @@ export function PartsPage() {
     );
   }
 
-  return (    <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+  return (
+    <>
+    <OrgListPageLayout
+      header={
+        <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold text-text">Partes</h1>
+          <button
+            type="button"
+            onClick={openCreatePartModal}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            + Parte
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={openCreatePartModal}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
-          + Parte
-        </button>
-      </div>
-
-      {error && !partModalOpen && !divisionModal && (
-        <p className="mt-4 text-sm text-red-600">{error}</p>
-      )}
-
-      {!isLoading && parts.length > 0 && (
-        <label className="mt-4 flex flex-col gap-1 text-sm">
-          <span className="sr-only">Buscar partes</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nome…"
-            className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-          />
-        </label>
-      )}
-
+      }
+      toolbar={
+        (error && !partModalOpen && !divisionModal) || (!isLoading && parts.length > 0)
+          ? (
+            <>
+              {error && !partModalOpen && !divisionModal && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+              {!isLoading && parts.length > 0 && (
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="sr-only">Buscar partes</span>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar por nome…"
+                    className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                  />
+                </label>
+              )}
+            </>
+          )
+          : undefined
+      }
+    >
       {isLoading ? (
-        <p className="mt-6 text-sm text-muted">Carregando…</p>
+        <p className="text-sm text-muted">Carregando…</p>
       ) : parts.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">Nenhuma parte cadastrada.</p>
+        <p className="text-sm text-muted">Nenhuma parte cadastrada.</p>
       ) : filteredParts.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">Nenhuma parte encontrada.</p>
+        <p className="text-sm text-muted">Nenhuma parte encontrada.</p>
       ) : isSearching ? (
-        <ul className="mt-6 flex flex-col gap-3">
+        <ul className="flex flex-col gap-3">
           {filteredParts.map((part) => (
             <li key={part.id}>{renderPartCard(part)}</li>
           ))}
@@ -326,11 +335,13 @@ export function PartsPage() {
           onReorder={handleReorderParts}
           disabled={isReordering}
           ariaLabel="Partes"
-          className="mt-6 flex flex-col gap-3"
+          className="flex flex-col gap-3"
           renderItem={(part, handle) => renderPartCard(part, handle)}
         />
       )}
-      <Modal
+    </OrgListPageLayout>
+
+    <Modal
         open={partModalOpen}
         onClose={() => setPartModalOpen(false)}
         title={editingPartId ? 'Editar parte' : 'Nova parte'}
@@ -418,6 +429,6 @@ export function PartsPage() {
           </form>
         )}
       </Modal>
-    </div>
+    </>
   );
 }

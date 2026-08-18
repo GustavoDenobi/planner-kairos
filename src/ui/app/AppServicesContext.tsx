@@ -1,10 +1,12 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { EnsembleUseCases } from '@/application/ensemble';
 import type { IdentityUseCases } from '@/application/identity';
+import type { RepertoireUseCases } from '@/application/repertoire';
 
 export type AppServices = {
   identity: IdentityUseCases;
   ensemble: EnsembleUseCases;
+  repertoire: RepertoireUseCases;
 };
 
 const AppServicesContext = createContext<AppServices | null>(null);
@@ -35,4 +37,8 @@ export function useIdentity() {
 
 export function useEnsemble() {
   return useAppServices().ensemble;
+}
+
+export function useRepertoire() {
+  return useAppServices().repertoire;
 }

@@ -1,0 +1,35 @@
+import type { ReactNode, Ref } from 'react';
+
+export const orgListPageHeightClass =
+  'h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-6.5rem)]';
+
+type OrgListPageLayoutProps = {
+  header: ReactNode;
+  toolbar?: ReactNode;
+  children: ReactNode;
+  scrollRef?: Ref<HTMLDivElement>;
+};
+
+export function OrgListPageLayout({
+  header,
+  toolbar,
+  children,
+  scrollRef,
+}: OrgListPageLayoutProps) {
+  return (
+    <div
+      className={`mx-auto flex max-w-2xl flex-col ${orgListPageHeightClass}`}
+    >
+      <div className="shrink-0 space-y-4 pb-6">
+        {header}
+        {toolbar}
+      </div>
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}

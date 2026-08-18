@@ -1,3 +1,4 @@
+import { createRepertoireUseCases } from '@/application/repertoire';
 import { createEnsembleUseCases } from '@/application/ensemble';
 import { createIdentityUseCases } from '@/application/identity';
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
@@ -8,6 +9,10 @@ import { createGroupRepository } from '@/infrastructure/supabase/group-repositor
 import { createMusicianRepository } from '@/infrastructure/supabase/musician-repository';
 import { createOrganizationRepository } from '@/infrastructure/supabase/organization-repository';
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
+import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
+import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
+import { createPieceRepository } from '@/infrastructure/supabase/piece-repository';
+import { createPieceThemeRepository } from '@/infrastructure/supabase/piece-theme-repository';
 import { createSectionRepository } from '@/infrastructure/supabase/section-repository';
 import { createPasswordRecoveryGateway } from '@/infrastructure/supabase/password-recovery-gateway';
 import { createProfileRepository } from '@/infrastructure/supabase/profile-repository';
@@ -24,6 +29,10 @@ export function createAppServices() {
   const partRepo = createPartRepository();
   const sectionRepo = createSectionRepository();
   const assignmentRepo = createAssignmentRepository();
+  const categoryRepo = createPieceCategoryRepository();
+  const themeRepo = createPieceThemeRepository();
+  const pieceRepo = createPieceRepository();
+  const pieceFileRepo = createPieceFileRepository();
 
   const identity = createIdentityUseCases({
     auth,
@@ -42,5 +51,14 @@ export function createAppServices() {
     assignmentRepo,
   });
 
-  return { identity, ensemble };
+  const repertoire = createRepertoireUseCases({
+    categoryRepo,
+    themeRepo,
+    pieceRepo,
+    fileRepo: pieceFileRepo,
+    partRepo,
+    fileStorage,
+  });
+
+  return { identity, ensemble, repertoire };
 }

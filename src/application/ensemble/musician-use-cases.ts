@@ -27,6 +27,18 @@ export async function getMusician(
   return Result.ok(musician);
 }
 
+export async function getMyMusician(
+  musicianRepo: MusicianRepository,
+  organizationId: string,
+  userId: string,
+) {
+  const musician = await musicianRepo.getByUserId(organizationId, userId);
+  if (!musician) {
+    return Result.fail('not_found');
+  }
+  return Result.ok(musician);
+}
+
 export async function updateMusician(
   musicianRepo: MusicianRepository,
   organizationId: string,

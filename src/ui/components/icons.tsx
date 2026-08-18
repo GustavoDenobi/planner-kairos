@@ -78,11 +78,40 @@ export function IconChevronLeft(props: IconProps) {
   );
 }
 
+export function IconChevronRight(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 export function IconPencil(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+export function IconTrash(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </svg>
+  );
+}
+
+export function IconPlus(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
     </svg>
   );
 }
@@ -153,6 +182,78 @@ export function IconBookOpen(props: IconProps) {
     <svg {...defaults} {...props}>
       <path d="M12 7v14" />
       <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+    </svg>
+  );
+}
+
+export function IconFileText(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </svg>
+  );
+}
+
+export function IconTag(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.432 0l6.586-6.586a2.426 2.426 0 0 0 0-3.432z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconPalette(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" />
+      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" stroke="none" />
+      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" stroke="none" />
+      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconUpload(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 3v12M7 8l5-5 5 5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+export function IconArrowDown(props: IconProps) {
+  // Ícone típico de download: seta para baixo com "chão"
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 3v14" />
+      <path d="M6 13l6 6 6-6" />
+    </svg>
+  );
+}
+
+export function IconAlertCircle(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  );
+}
+
+export function IconAlertTriangle(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" x2="12" y1="9" y2="13" />
+      <line x1="12" x2="12.01" y1="17" y2="17" />
     </svg>
   );
 }

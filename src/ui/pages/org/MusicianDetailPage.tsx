@@ -330,7 +330,7 @@ export function MusicianDetailPage() {
       <div className="flex items-center gap-2">
         <Link
           to={`/${orgSlug}/musicos`}
-          className="flex shrink-0 items-center justify-center rounded-lg outline-1 outline-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
+          className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
           aria-label="Voltar aos músicos"
         >
           <IconChevronLeft className="h-6 w-6" />

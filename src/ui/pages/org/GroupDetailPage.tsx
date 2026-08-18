@@ -350,7 +350,7 @@ export function GroupDetailPage() {
       <div className="flex items-center gap-2">
         <Link
           to={`/${orgSlug}/grupos`}
-          className="flex shrink-0 items-center justify-center rounded-lg outline-1 outline-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
+          className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
           aria-label="Voltar aos grupos"
         >
           <IconChevronLeft className="h-6 w-6" />
@@ -473,7 +473,7 @@ export function GroupDetailPage() {
                       )}
                     />
                   )}
-                  <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center justify-center gap-4 mt-4">
                     <button
                       type="button"
                       onClick={openCreateSectionModal}

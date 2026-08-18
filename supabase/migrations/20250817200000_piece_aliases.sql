@@ -1,0 +1,2 @@
+ALTER TABLE pieces
+  ADD COLUMN aliases TEXT[] NOT NULL DEFAULT '{}';

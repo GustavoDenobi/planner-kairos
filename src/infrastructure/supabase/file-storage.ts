@@ -22,6 +22,22 @@ export function createFileStorage(): FileStorage {
       return path;
     },
 
+    async uploadPieceFile(organizationId, pieceId, fileId, file) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${organizationId}/pieces/${pieceId}/${fileId}-${safeName}`;
+
+      const { error } = await supabase.storage.from(BRANDING_BUCKET).upload(path, file, {
+        upsert: false,
+        contentType: file.type,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return path;
+    },
+
     async remove(path) {
       const { error } = await supabase.storage.from(BRANDING_BUCKET).remove([path]);
       if (error) {
