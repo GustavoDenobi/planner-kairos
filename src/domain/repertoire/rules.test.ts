@@ -6,6 +6,7 @@ import {
   normalizePieceAliases,
   pieceFileMatchesUserParts,
   resolveDefaultScoreFile,
+  resolvePieceFileMime,
   slugifyName,
   validateAnnotationGeometry,
   validateAnnotationLayer,
@@ -85,6 +86,30 @@ describe('mimeToPieceFileKind', () => {
   it('rejects unknown mime', () => {
     expect(mimeToPieceFileKind('image/png')).toBeNull();
     expect(validatePieceFileMime('image/png')).toBe('invalid_mime_type');
+  });
+});
+
+describe('resolvePieceFileMime', () => {
+  it('uses File.type when present', () => {
+    expect(resolvePieceFileMime({ name: 'part.pdf', type: 'application/pdf' })).toBe(
+      'application/pdf',
+    );
+  });
+
+  it('infers mime from extension when File.type is empty', () => {
+    expect(resolvePieceFileMime({ name: 'partitura.pdf', type: '' })).toBe('application/pdf');
+    expect(resolvePieceFileMime({ name: 'audio.mp3', type: '' })).toBe('audio/mpeg');
+    expect(resolvePieceFileMime({ name: 'audio.wav', type: '' })).toBe('audio/wav');
+  });
+
+  it('prefers extension when File.type is unreliable', () => {
+    expect(resolvePieceFileMime({ name: 'score.pdf', type: 'application/octet-stream' })).toBe(
+      'application/pdf',
+    );
+  });
+
+  it('returns null for unsupported files', () => {
+    expect(resolvePieceFileMime({ name: 'image.png', type: '' })).toBeNull();
   });
 });
 

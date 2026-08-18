@@ -45,12 +45,43 @@ export const REPERTOIRE_ERROR_MESSAGES: Record<string, string> = {
   upload_failed: 'Não foi possível enviar o arquivo.',
   duplicate_file: 'Este arquivo já está nesta obra.',
   invalid_mime_type: 'Formato não suportado. Use PDF ou áudio (MP3/WAV).',
+  invalid_part_link: 'Seleção de partes inválida.',
   delete_failed: 'Não foi possível remover.',
   create_failed: 'Não foi possível salvar.',
   update_failed: 'Não foi possível atualizar.',
   not_found: 'Obra não encontrada.',
 };
 
+function mapStorageErrorDetail(detail: string): string | null {
+  const normalized = detail.toLowerCase();
+
+  if (normalized.includes('failed to fetch') || normalized.includes('networkerror')) {
+    return 'Falha de conexão com o servidor. Verifique a internet e tente novamente.';
+  }
+  if (normalized.includes('row-level security') || normalized.includes('policy')) {
+    return 'Sem permissão para enviar arquivos nesta organização.';
+  }
+  if (normalized.includes('mime type') || normalized.includes('not allowed')) {
+    return 'Formato não aceito pelo servidor. Use PDF ou áudio (MP3/WAV).';
+  }
+  if (normalized.includes('too large') || normalized.includes('payload')) {
+    return 'Arquivo muito grande. O limite é 50 MB.';
+  }
+  if (normalized.includes('already exists')) {
+    return 'Este arquivo já foi enviado.';
+  }
+
+  return null;
+}
+
 export function repertoireErrorMessage(code: string): string {
+  if (code.startsWith('upload_failed:')) {
+    const detail = code.slice('upload_failed:'.length).trim();
+    if (!detail) {
+      return REPERTOIRE_ERROR_MESSAGES.upload_failed;
+    }
+    return mapStorageErrorDetail(detail) ?? `${REPERTOIRE_ERROR_MESSAGES.upload_failed} (${detail})`;
+  }
+
   return REPERTOIRE_ERROR_MESSAGES[code] ?? 'Ocorreu um erro. Tente novamente.';
 }

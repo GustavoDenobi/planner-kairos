@@ -6,6 +6,7 @@ import type { PieceFilePartLink } from '@/domain/repertoire';
 import {
   defaultPieceFileTitle,
   mimeToPieceFileKind,
+  resolvePieceFileMime,
   validatePieceFileMime,
   validatePieceFilePartLinks,
   validatePieceFileTitle,
@@ -38,12 +39,17 @@ export async function attachPieceFile(
     return Result.fail('not_found');
   }
 
-  const mimeError = validatePieceFileMime(input.file.type);
+  const mimeType = resolvePieceFileMime(input.file);
+  if (!mimeType) {
+    return Result.fail('invalid_mime_type');
+  }
+
+  const mimeError = validatePieceFileMime(mimeType);
   if (mimeError) {
     return Result.fail(mimeError);
   }
 
-  const kind = mimeToPieceFileKind(input.file.type);
+  const kind = mimeToPieceFileKind(mimeType);
   if (!kind) {
     return Result.fail('invalid_mime_type');
   }
@@ -77,13 +83,14 @@ export async function attachPieceFile(
       input.pieceId,
       fileId,
       input.file,
+      mimeType,
     );
 
     const pieceFile = await fileRepo.create(organizationId, {
       pieceId: input.pieceId,
       kind,
       storageKey,
-      mimeType: input.file.type,
+      mimeType,
       title,
       originalName: input.file.name,
       byteSize: input.file.size,
@@ -92,8 +99,9 @@ export async function attachPieceFile(
     });
 
     return Result.ok(pieceFile);
-  } catch {
-    return Result.fail('upload_failed');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.trim() : '';
+    return Result.fail(detail ? `upload_failed:${detail}` : 'upload_failed');
   }
 }
 

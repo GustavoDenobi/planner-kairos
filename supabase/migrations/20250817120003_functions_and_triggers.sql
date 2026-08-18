@@ -4,6 +4,7 @@ CREATE OR REPLACE FUNCTION hash_token(p_token TEXT)
 RETURNS TEXT
 LANGUAGE sql
 IMMUTABLE
+SET search_path = public, extensions
 AS $$
   SELECT encode(digest(p_token, 'sha256'), 'hex');
 $$;
@@ -42,7 +43,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT := hash_token(p_token);
@@ -70,7 +71,7 @@ CREATE OR REPLACE FUNCTION redeem_group_invite(p_token TEXT)
 RETURNS TABLE (organization_slug TEXT)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_user_id UUID := auth.uid();
@@ -139,7 +140,7 @@ CREATE OR REPLACE FUNCTION create_group_invite(p_group_id UUID, p_expires_at TIM
 RETURNS TABLE (invite_id UUID, token TEXT)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_user_id UUID := auth.uid();

@@ -1,7 +1,7 @@
 {
-  "name": "Planner Kairós",
-  "short_name": "Kairós",
-  "description": "Gestão de repertório e agenda da orquestra",
+  "name": "Planner Musical",
+  "short_name": "Planner Musical",
+  "description": "Gestão de repertório e agenda",
   "start_url": "/",
   "id": "/",
   "scope": "/",

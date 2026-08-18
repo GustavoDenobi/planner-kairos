@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isPieceFileScore } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { IconChevronLeft, IconChevronRight, IconAlertTriangle } from '@/ui/components/icons';
 
@@ -66,7 +67,7 @@ function UploadEntryCard({
   onRemoveEntry: (id: string) => void;
   canRemove: boolean;
 }) {
-  const isPdf = entry.file.type === 'application/pdf';
+  const isPdf = isPieceFileScore(entry.file);
 
   return (
     <div className="">

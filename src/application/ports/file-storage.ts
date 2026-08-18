@@ -5,6 +5,7 @@ export type FileStorage = {
     pieceId: string,
     fileId: string,
     file: File,
+    contentType: string,
   ): Promise<string>;
   remove(path: string): Promise<void>;
   getSignedUrl(path: string, expiresInSeconds?: number): Promise<string>;

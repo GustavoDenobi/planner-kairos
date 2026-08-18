@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { defaultPieceFileTitle } from '@/domain/repertoire';
+import { defaultPieceFileTitle, isPieceFileScore, resolvePieceFileMime } from '@/domain/repertoire';
 import type {
   PieceCategory,
   PieceDetail,
@@ -326,6 +326,11 @@ export function PieceDetailPage() {
       const accepted: UploadFileEntry[] = [];
 
       for (const file of files) {
+        if (!resolvePieceFileMime(file)) {
+          setUploadError(`${file.name}: Formato não suportado. Use PDF ou áudio (MP3/WAV).`);
+          continue;
+        }
+
         const contentHash = await computeFileSha256Hex(file);
         accepted.push({
           id: crypto.randomUUID(),
@@ -338,7 +343,7 @@ export function PieceDetailPage() {
       }
 
       setUploadEntries(accepted);
-      setUploadOpen(true);
+      setUploadOpen(accepted.length > 0);
     } finally {
       setIsPreparingUpload(false);
     }
@@ -390,7 +395,7 @@ export function PieceDetailPage() {
         pieceId: piece.id,
         file: entry.file,
         title: entry.title,
-        partLinks: entry.file.type === 'application/pdf' ? partLinks : [],
+        partLinks: isPieceFileScore(entry.file) ? partLinks : [],
         contentHash: entry.contentHash,
       });
 
@@ -630,6 +635,10 @@ export function PieceDetailPage() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
+
+      {uploadError && !uploadOpen && (
+        <p className="text-sm text-red-600">{uploadError}</p>
+      )}
 
       <PieceFilesSection
         files={piece.files}

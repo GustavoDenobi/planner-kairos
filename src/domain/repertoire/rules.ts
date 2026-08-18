@@ -19,6 +19,12 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SCORE_MIMES = new Set(['application/pdf']);
 const AUDIO_MIMES = new Set(['audio/mpeg', 'audio/wav', 'audio/x-wav']);
 
+const PIECE_FILE_EXTENSION_MIMES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+};
+
 export function slugifyName(name: string): string {
   return name
     .normalize('NFD')
@@ -119,6 +125,34 @@ export function validatePieceFileMime(mimeType: string): string | null {
     return 'invalid_mime_type';
   }
   return null;
+}
+
+function pieceFileExtension(fileName: string): string | null {
+  const match = fileName.trim().toLowerCase().match(/(\.[a-z0-9]+)$/);
+  return match?.[1] ?? null;
+}
+
+/** Resolves MIME from File.type or, when empty/unreliable, from the file extension. */
+export function resolvePieceFileMime(file: Pick<File, 'name' | 'type'>): string | null {
+  const fromType = file.type.trim();
+  if (fromType && validatePieceFileMime(fromType) === null) {
+    return fromType;
+  }
+
+  const extension = pieceFileExtension(file.name);
+  if (extension) {
+    const fromExtension = PIECE_FILE_EXTENSION_MIMES[extension];
+    if (fromExtension && validatePieceFileMime(fromExtension) === null) {
+      return fromExtension;
+    }
+  }
+
+  return null;
+}
+
+export function isPieceFileScore(file: Pick<File, 'name' | 'type'>): boolean {
+  const mime = resolvePieceFileMime(file);
+  return mime !== null && mimeToPieceFileKind(mime) === 'score';
 }
 
 export function validatePieceFilePartLinks(

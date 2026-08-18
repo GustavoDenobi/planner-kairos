@@ -243,10 +243,10 @@ export function IconPalette(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
       <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" />
-      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" stroke="none" />
-      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" stroke="none" />
-      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" stroke="none" />
-      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" stroke="none" />
+      <circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none" />
     </svg>
   );
 }

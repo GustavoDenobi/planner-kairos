@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
-import { IconMusic } from '@/ui/components/icons';
 import { RepertoireCategoryPicker } from '@/ui/features/repertoire/RepertoireCategoryPicker';
 
 type RepertoirePiecesSectionProps = {
@@ -137,7 +136,6 @@ export function RepertoirePiecesSection({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <p className="font-medium text-text">{piece.title}</p>
-                        <IconMusic className="h-4 w-4 shrink-0 text-muted" />
                       </div>
                       {piece.composer && (
                         <p className="mt-0.5 text-sm text-muted">{piece.composer}</p>
