@@ -408,7 +408,7 @@ Filtro estruturado tem duas dimensões, ambas configuráveis por organização e
 - **Categoria** (1 por obra): tipo de repertório — Instrumental, HCA, Coral, Solo.
 - **Temas** (N por obra): facetas para busca — Natal, Ceia, Adoração, Congresso. Uma obra pode servir a mais de um.
 
-Texto livre não substitui nenhum dos dois: vai em `description` (o que é a obra) e `notes` (anotação operacional).
+Texto livre não substitui nenhum dos dois: vai em `description` (o que é a obra) e `notes` (anotação operacional). **Apelidos** (`aliases`) são nomes alternativos da mesma obra — só entram na busca do catálogo, não em filtros nem em programação.
 
 ### 3.1 PieceCategory
 
@@ -421,16 +421,17 @@ Categoria configurável por organização. Seed inicial inspirado no bloco do ma
 | `name` | string | sim | Ex.: Instrumental, HCA, Coral, Solo |
 | `slug` | string | sim | Ex.: `hca`. Único por organização |
 | `sortOrder` | int | sim | Ordem na UI |
-| `color` | string | não | Cor de exibição: token da paleta do projeto (ex.: `blue-500`) ou hex (`#3B82F6`). Badges e filtros no catálogo |
+| `color` | string | não | Matiz HSL em graus (`0`–`360`), persistida como string (ex.: `220`). Badges e filtros no catálogo |
 
 **Tabela:** `piece_categories`
 
-Seed sugerido por org: Instrumental, HCA, Coral, Solo. Não hardcodar na UI.
+Seed sugerido por org: Instrumental (`220`), HCA (`38`), Coral (`160`), Solo (`270`). Não hardcodar na UI.
 
 Regras:
 
 - `color` é opcional. A obra herda a cor da categoria via `categoryId` (badges na listagem e ficha).
-- Se vazio, a UI aplica cor automática (ex.: por `sortOrder` ou `slug`).
+- A UI renderiza `color` como `hsl(hue 65% 45%)` com texto contrastante. Tokens legados da paleta (`blue-500`, etc.) ainda são aceitos na leitura, mas gravação usa só o número da matiz.
+- Se vazio, a UI aplica matiz automática (ex.: por `slug`).
 
 ### 3.2 PieceTheme
 
@@ -471,12 +472,13 @@ Item de repertório. Não é o arquivo.
 | `composer` | string | não | |
 | `description` | string | não | Texto livre sobre a obra. Não é filtro |
 | `notes` | string | não | Anotação operacional (maestro/arquivista) |
+| `aliases` | string[] | sim | Apelidos da obra; default `[]`. Máx. 20; deduplicados sem diferenciar maiúsculas |
 | `deletedAt` | datetime | não | Soft-delete; histórico de eventos permanece |
 
 Temas: N:N via `piece_theme_links` → `PieceTheme`. Não há campo `theme` na obra.
 
 **Tabela:** `pieces`  
-**Índice:** `(organizationId, title)`  
+**Unique (parcial):** `(organizationId, title)` onde `deletedAt` IS NULL  
 **Índice (filtro):** `piece_theme_links(theme_id)` e `pieces(organization_id, category_id)`
 
 Regras:
@@ -484,6 +486,7 @@ Regras:
 - Remover uma obra não apaga eventos passados: soft-delete. `ProgramItem` continua apontando para a obra.
 - Obra soft-deleted não entra em programação nova.
 - Busca por tema usa os links, não `description`.
+- Busca textual no catálogo considera `title`, `composer` e `aliases` (substring, case-insensitive). Apelidos não substituem o título oficial.
 
 ### 3.4 PieceFile
 
@@ -497,10 +500,13 @@ Arquivo de uma obra: partitura (PDF) ou áudio (mp3/wav). Não tem `partId`. Cob
 | `kind` | `PieceFileKind` | sim | `score` \| `audio` |
 | `storageKey` | string | sim | Path no Storage; o domínio não fala com o SDK |
 | `mimeType` | string | sim | `application/pdf`, `audio/mpeg`, `audio/wav`… |
-| `originalName` | string | sim | Nome original do upload |
+| `title` | string | sim | Nome de exibição na ficha e na listagem de arquivos; editável |
+| `originalName` | string | sim | Nome original do upload (auditoria) |
 | `byteSize` | int | não | Útil para cache/offline depois |
+| `contentHash` | string | não | SHA-256 hex do conteúdo; calculado no upload |
 
-**Tabela:** `piece_files`
+**Tabela:** `piece_files`  
+**Índice:** `(pieceId, contentHash)` onde `contentHash` IS NOT NULL — lookup de duplicata, sem unique
 
 Storage (bucket privado):
 
@@ -532,7 +538,10 @@ Associação com partes (N:N), no mesmo espírito de `piece_theme_links`:
 Regras:
 
 - Uma obra pode ter vários PDFs e vários áudios.
+- `title` default no upload: `originalName` sem a extensão final. O usuário pode renomear depois; filtros e ordenação na ficha usam `title`, não `originalName`.
+- `contentHash` é calculado no cliente no upload (SHA-256). Serve para avisar duplicata na mesma obra; o upload **não** é bloqueado — vários arquivos podem compartilhar o mesmo hash.
 - Parte e divisão (se houver) da mesma organização; se `partDivisionId` existir, `division.partId` = `link.partId`.
+- Links com partes/divisões só em arquivos `score`; áudio não aceita `partLinks`.
 - Zero links = não é de uma parte específica (maestro, redução, mp3). SATB **não** vai nesse saco: tem um link por voz.
 - “PDFs da minha parte” (MVP): links com o `partId` do assignment, com ou sem divisão, mais arquivos sem links se a UI oferecer a partitura geral.
 
@@ -685,7 +694,7 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 12. Soft-delete de `Piece` preserva `ProgramItem` histórico.
 13. Categorias, temas de obra e tipos de evento vêm do domínio da org, não de constantes na UI.
 14. `ThemePreference` (UI) ≠ `PieceTheme` (repertório).
-15. Cor de exibição de `Event` vem de `EventType`; cor de `Piece` no catálogo vem de `PieceCategory`. Nenhum dos dois duplica cor no agregado filho.
+15. Cor de exibição de `Event` vem de `EventType`; cor de `Piece` no catálogo vem de `PieceCategory` (matiz HSL `0`–`360` como string). Nenhum dos dois duplica cor no agregado filho.
 16. `Organization.imageStorageKey` é opcional e único por org (no máximo um arquivo). Não é entidade separada — o path vive na linha de `organizations`.
 17. Aceite de `GroupInvite` cria `Membership` com `accessRole` = `member` — nunca `admin` nem `owner`.
 18. Aceite de `GroupInvite` cria `Musician` com `userId` na mesma org e `Assignment` no `groupId` do convite (`ensembleRole` = `member`). `phone` e `birthDate` opcionais vêm do formulário de aceite.
@@ -696,6 +705,10 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 23. `Musician` só é criado via `redeem_group_invite`; admin atualiza e exclui, mas não insere diretamente.
 24. `member` só lê o próprio `Musician`; listagem completa da org é `admin`/`owner`.
 25. `Group` arquivado (`archivedAt` preenchido) não aceita convites novos nem aceite de link.
+26. `Piece.aliases` é lista de apelidos para busca; máx. 20; normalização remove vazios e duplicatas case-insensitive. Não altera título nem programação.
+27. `PieceFile.title` é obrigatório e distinto de `originalName` — nome de exibição editável; default sem extensão do arquivo enviado.
+28. `PieceFile.contentHash` é SHA-256 hex do conteúdo; indexado por obra para detectar duplicata na UI, sem constraint de unicidade.
+29. `piece_file_part_links` só se aplicam a arquivos `score`; áudio não tem links de parte.
 
 ---
 
@@ -715,11 +728,11 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 | `sections` | Section | `(group_id, name)` |
 | `section_parts` | Section ↔ Part | `(section_id, part_id)` |
 | `assignments` | Assignment | unique com `COALESCE` em `section_id`/`part_id`; trigger valida `section_parts` |
-| `piece_categories` | PieceCategory | `(organization_id, slug)` |
+| `piece_categories` | PieceCategory | `(organization_id, slug)`; `color` = matiz `0`–`360` (string) |
 | `piece_themes` | PieceTheme | `(organization_id, slug)` |
-| `pieces` | Piece | `(organization_id, title)`; `(organization_id, category_id)`; `deleted_at` |
+| `pieces` | Piece | `(organization_id, title)` parcial (`deleted_at` null); `(organization_id, category_id)`; `aliases` (`text[]`); `deleted_at` |
 | `piece_theme_links` | Piece ↔ PieceTheme | `(piece_id, theme_id)`; índice em `theme_id` |
-| `piece_files` | PieceFile | |
+| `piece_files` | PieceFile | `title`; `content_hash` nullable; índice `(piece_id, content_hash)` |
 | `piece_file_part_links` | PieceFile ↔ Part / PartDivision | `(piece_file_id, part_id, part_division_id)` com cuidado a NULL; índices em `part_id` |
 | `event_types` | EventType | |
 | `events` | Event | `(organization_id, starts_at)` |

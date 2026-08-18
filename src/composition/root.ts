@@ -1,8 +1,11 @@
+import { createAgendaUseCases } from '@/application/agenda';
 import { createRepertoireUseCases } from '@/application/repertoire';
 import { createEnsembleUseCases } from '@/application/ensemble';
 import { createIdentityUseCases } from '@/application/identity';
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
 import { createFileStorage } from '@/infrastructure/supabase/file-storage';
+import { createEventRepository } from '@/infrastructure/supabase/event-repository';
+import { createEventTypeRepository } from '@/infrastructure/supabase/event-type-repository';
 import { createGroupInviteRepository } from '@/infrastructure/supabase/group-invite-repository';
 import { createAssignmentRepository } from '@/infrastructure/supabase/assignment-repository';
 import { createGroupRepository } from '@/infrastructure/supabase/group-repository';
@@ -33,6 +36,8 @@ export function createAppServices() {
   const themeRepo = createPieceThemeRepository();
   const pieceRepo = createPieceRepository();
   const pieceFileRepo = createPieceFileRepository();
+  const eventTypeRepo = createEventTypeRepository();
+  const eventRepo = createEventRepository();
 
   const identity = createIdentityUseCases({
     auth,
@@ -60,5 +65,11 @@ export function createAppServices() {
     fileStorage,
   });
 
-  return { identity, ensemble, repertoire };
+  const agenda = createAgendaUseCases({
+    eventTypeRepo,
+    eventRepo,
+    pieceRepo,
+  });
+
+  return { identity, ensemble, repertoire, agenda };
 }

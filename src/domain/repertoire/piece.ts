@@ -28,6 +28,7 @@ export type PieceListItem = {
   id: string;
   title: string;
   composer: string | null;
+  aliases: string[];
   category: Pick<PieceCategory, 'id' | 'name' | 'slug' | 'color'>;
   themeIds: string[];
 };

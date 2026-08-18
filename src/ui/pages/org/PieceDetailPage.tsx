@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { defaultPieceFileTitle } from '@/domain/repertoire';
 import type {
   PieceCategory,
@@ -15,7 +15,8 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
-import { IconChevronLeft, IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
+import { BackButton } from '@/ui/components/BackButton';
+import { IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
 import {
@@ -196,13 +197,7 @@ export function PieceDetailPage() {
   if (!piece) {
     return (
       <div className="space-y-4">
-        <Link
-          to={repertoirePath(orgSlug!, 'pieces')}
-          className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
-          aria-label="Voltar ao repertório"
-        >
-          <IconChevronLeft className="h-6 w-6" />
-        </Link>
+        <BackButton fallbackTo={repertoirePath(orgSlug!, 'pieces')} />
         <p className="text-sm text-muted">Obra não encontrada.</p>
       </div>
     );
@@ -468,13 +463,7 @@ export function PieceDetailPage() {
       <div className="shrink-0 space-y-4">
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to={repertoirePath(orgSlug!, 'pieces')}
-            className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
-            aria-label="Voltar ao repertório"
-          >
-            <IconChevronLeft className="h-6 w-6" />
-          </Link>
+          <BackButton fallbackTo={repertoirePath(orgSlug!, 'pieces')} />
           <h1 className="min-w-0 flex-1 text-xl font-semibold text-text sm:text-2xl ml-1">
             {piece.title}
           </h1>

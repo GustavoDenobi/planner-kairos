@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type {
   AssignmentInput,
   AssignmentWithDetails,
@@ -13,7 +13,8 @@ import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { Modal } from '@/ui/components/Modal';
 import { Tabs } from '@/ui/components/Tabs';
-import { IconChevronLeft, IconPencil } from '@/ui/components/icons';
+import { BackButton, BackLink } from '@/ui/components/BackButton';
+import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 
 type AssignmentFormState = {
@@ -137,9 +138,12 @@ export function MusicianDetailPage() {
     return (
       <div>
         <p className="text-muted">Músico não encontrado.</p>
-        <Link to={`/${orgSlug}/musicos`} className="mt-2 text-sm text-primary hover:underline">
+        <BackLink
+          fallbackTo={`/${orgSlug}/musicos`}
+          className="mt-2 text-sm text-primary hover:underline"
+        >
           Voltar aos músicos
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -328,13 +332,7 @@ export function MusicianDetailPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="flex items-center gap-2">
-        <Link
-          to={`/${orgSlug}/musicos`}
-          className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
-          aria-label="Voltar aos músicos"
-        >
-          <IconChevronLeft className="h-6 w-6" />
-        </Link>
+        <BackButton fallbackTo={`/${orgSlug}/musicos`} />
         <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>
       </div>
 

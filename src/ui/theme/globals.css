@@ -38,6 +38,19 @@
   #root {
     min-height: 100vh;
   }
+
+  input[type='date'],
+  input[type='datetime-local'],
+  input[type='time'] {
+    accent-color: var(--color-primary);
+    color-scheme: light;
+  }
+
+  .dark input[type='date'],
+  .dark input[type='datetime-local'],
+  .dark input[type='time'] {
+    color-scheme: dark;
+  }
 }
 
 @utility bg-bg {

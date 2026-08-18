@@ -299,6 +299,108 @@ export type Database = {
           },
         ];
       };
+      event_types: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          kind: 'rehearsal' | 'service' | 'class' | 'special';
+          sort_order: number;
+          color: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          kind: 'rehearsal' | 'service' | 'class' | 'special';
+          sort_order?: number;
+          color?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          name?: string;
+          kind?: 'rehearsal' | 'service' | 'class' | 'special';
+          sort_order?: number;
+          color?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          type_id: string;
+          title: string | null;
+          starts_at: string;
+          ends_at: string | null;
+          location: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          type_id: string;
+          title?: string | null;
+          starts_at: string;
+          ends_at?: string | null;
+          location?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          type_id?: string;
+          title?: string | null;
+          starts_at?: string;
+          ends_at?: string | null;
+          location?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      program_items: {
+        Row: {
+          id: string;
+          organization_id: string;
+          event_id: string;
+          piece_id: string;
+          sort_order: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          event_id: string;
+          piece_id: string;
+          sort_order?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          event_id?: string;
+          piece_id?: string;
+          sort_order?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       assignments: {
         Row: {
           id: string;
@@ -416,6 +518,7 @@ export type Database = {
       ensemble_role: 'member' | 'teacher' | 'section_lead';
       group_kind: 'ensemble' | 'choir' | 'class' | 'other';
       part_kind: 'instrument' | 'voice';
+      event_kind: 'rehearsal' | 'service' | 'class' | 'special';
     };
     CompositeTypes: Record<string, never>;
   };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { GroupInviteListItem } from '@/domain/identity';
 import type { Group, GroupKind, Section, SectionListItem } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
@@ -10,7 +10,8 @@ import { InviteLinkCopy } from '@/ui/components/InviteLinkCopy';
 import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 import { Tabs } from '@/ui/components/Tabs';
-import { IconChevronLeft, IconPencil, IconUsers } from '@/ui/components/icons';
+import { BackButton, BackLink } from '@/ui/components/BackButton';
+import { IconPencil, IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -222,9 +223,12 @@ export function GroupDetailPage() {
     return (
       <div>
         <p className="text-muted">Grupo não encontrado.</p>
-        <Link to={`/${orgSlug}/grupos`} className="mt-2 text-sm text-primary hover:underline">
+        <BackLink
+          fallbackTo={`/${orgSlug}/grupos`}
+          className="mt-2 text-sm text-primary hover:underline"
+        >
           Voltar aos grupos
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -348,13 +352,7 @@ export function GroupDetailPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="flex items-center gap-2">
-        <Link
-          to={`/${orgSlug}/grupos`}
-          className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
-          aria-label="Voltar aos grupos"
-        >
-          <IconChevronLeft className="h-6 w-6" />
-        </Link>
+        <BackButton fallbackTo={`/${orgSlug}/grupos`} />
         <h1 className={`text-2xl font-semibold ${isArchived ? 'text-muted' : 'text-text'}`}>
           {group.name}
         </h1>

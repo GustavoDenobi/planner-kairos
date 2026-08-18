@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import type { AgendaUseCases } from '@/application/agenda';
 import type { EnsembleUseCases } from '@/application/ensemble';
 import type { IdentityUseCases } from '@/application/identity';
 import type { RepertoireUseCases } from '@/application/repertoire';
@@ -7,6 +8,7 @@ export type AppServices = {
   identity: IdentityUseCases;
   ensemble: EnsembleUseCases;
   repertoire: RepertoireUseCases;
+  agenda: AgendaUseCases;
 };
 
 const AppServicesContext = createContext<AppServices | null>(null);
@@ -41,4 +43,8 @@ export function useEnsemble() {
 
 export function useRepertoire() {
   return useAppServices().repertoire;
+}
+
+export function useAgenda() {
+  return useAppServices().agenda;
 }

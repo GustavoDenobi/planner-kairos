@@ -262,6 +262,7 @@ export function createPieceRepository(): PieceRepository {
           id: row.id,
           title: row.title,
           composer: row.composer,
+          aliases: row.aliases ?? [],
           category: {
             id: categoryRow.id,
             name: categoryRow.name,
