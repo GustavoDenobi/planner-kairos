@@ -53,8 +53,6 @@ function togglePartLink(
 
 function UploadEntryCard({
   entry,
-  index,
-  total,
   parts,
   disabled,
   onEntryChange,
@@ -62,8 +60,6 @@ function UploadEntryCard({
   canRemove,
 }: {
   entry: UploadFileEntry;
-  index: number;
-  total: number;
   parts: PartWithDivisions[];
   disabled?: boolean;
   onEntryChange: (id: string, patch: Partial<Pick<UploadFileEntry, 'title' | 'partLinks'>>) => void;
@@ -217,8 +213,6 @@ export function PieceFileUploadEntries({
         <div key={entry.id} className={slideClass}>
           <UploadEntryCard
             entry={entry}
-            index={currentIndex}
-            total={entries.length}
             parts={parts}
             disabled={disabled}
             onEntryChange={onEntryChange}

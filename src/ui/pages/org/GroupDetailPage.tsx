@@ -6,6 +6,7 @@ import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useIdentity } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { InviteLinkCopy } from '@/ui/components/InviteLinkCopy';
 import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
@@ -13,6 +14,7 @@ import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil, IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
+import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -39,6 +41,7 @@ export function GroupDetailPage() {
   const [notes, setNotes] = useState('');
   const [invites, setInvites] = useState<GroupInviteListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('group-detail', isLoading);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -350,7 +353,7 @@ export function GroupDetailPage() {
     return 'Ativo';
   }
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/grupos`} />
         <h1 className={`text-2xl font-semibold ${isArchived ? 'text-muted' : 'text-text'}`}>

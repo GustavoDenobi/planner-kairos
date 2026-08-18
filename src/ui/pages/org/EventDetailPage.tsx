@@ -4,6 +4,7 @@ import type { EventDetail, EventType } from '@/domain/agenda';
 import { eventDisplayTitle } from '@/domain/agenda';
 import { useAgenda } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackButton } from '@/ui/components/BackButton';
 import { Tabs } from '@/ui/components/Tabs';
 import {
@@ -16,7 +17,10 @@ import { agendaPath } from '@/ui/features/agenda/agenda-routes';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 
 export function EventDetailPage() {
   const { orgSlug, eventId } = useParams();
@@ -29,6 +33,7 @@ export function EventDetailPage() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('event-detail', isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [typeId, setTypeId] = useState('');
@@ -104,7 +109,7 @@ export function EventDetailPage() {
 
   if (isLoading) {
     return (
-      <div className={`mx-auto max-w-2xl px-4 py-6 ${orgListPageHeightClass}`}>
+      <div className={`${orgPageContentClass} px-4 py-6 ${orgListPageHeightClass}`}>
         <p className="text-sm text-muted">Carregando…</p>
       </div>
     );
@@ -112,7 +117,7 @@ export function EventDetailPage() {
 
   if (!event || error) {
     return (
-      <div className={`mx-auto max-w-2xl px-4 py-6 ${orgListPageHeightClass}`}>
+      <div className={`${orgPageContentClass} px-4 py-6 ${orgListPageHeightClass}`}>
         <div className="space-y-4">
           <BackButton fallbackTo={agendaPath(orgSlug ?? '')} />
           <p className="text-sm text-muted">{error ?? 'Evento não encontrado.'}</p>
@@ -125,7 +130,7 @@ export function EventDetailPage() {
   const badgeStyle = eventTypeBadgeStyle(event.type);
 
   return (
-    <div className={`mx-auto max-w-2xl  ${orgListPageHeightClass} overflow-y-auto`}>
+    <div className={`${orgPageContentClass}  ${orgListPageHeightClass} overflow-y-auto`}>
       <section className="mb-6 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo={agendaPath(orgSlug ?? '')} />

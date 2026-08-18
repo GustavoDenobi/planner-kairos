@@ -12,6 +12,7 @@ import {
   ANNOTATION_COLORS,
   resolveHighlightColor,
 } from '@/domain/repertoire';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import {
   IconArrowUpDown,
   IconChevronLeft,
@@ -339,6 +340,7 @@ export function PdfViewer({
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
   const [loading, setLoading] = useState(true);
+  useLoadingBar('pdf', loading);
   const [error, setError] = useState<string | null>(null);
   const [inverted, setInverted] = useState(() => defaultPreferences(userId).inverted);
   const [navigation, setNavigation] = useState<PdfNavigationMode>(

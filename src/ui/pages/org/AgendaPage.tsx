@@ -4,6 +4,7 @@ import type { EventKind, EventListItem, EventType } from '@/domain/agenda';
 import { useAgenda } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
 import { Modal } from '@/ui/components/Modal';
 import { IconChevronLeft, IconPlus, IconSettings } from '@/ui/components/icons';
@@ -30,7 +31,10 @@ import {
   formatCategoryHue,
   parseCategoryHue,
 } from '@/ui/features/repertoire/category-color';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
 
@@ -68,6 +72,7 @@ export function AgendaPage() {
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('agenda', isLoading);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [typeId, setTypeId] = useState('');
@@ -277,7 +282,7 @@ export function AgendaPage() {
 
   return (
     <>
-      <div className={`mx-auto flex max-w-2xl flex-col overflow-hidden ${orgListPageHeightClass}`}>
+      <div className={`flex flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}>
         <div className="shrink-0 space-y-4 pb-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
@@ -339,6 +344,7 @@ export function AgendaPage() {
               onNext={() => setAnchor((current) => shiftAnchor('week', current, 1))}
             />
           )}
+          <hr className="border-border" />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

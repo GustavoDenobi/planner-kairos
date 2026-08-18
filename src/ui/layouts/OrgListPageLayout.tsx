@@ -1,5 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 
+export const orgPageContentClass = 'w-full max-w-6xl';
+
 export const orgListPageHeightClass =
   'h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-6.5rem)]';
 
@@ -18,7 +20,7 @@ export function OrgListPageLayout({
 }: OrgListPageLayoutProps) {
   return (
     <div
-      className={`mx-auto flex max-w-2xl flex-col ${orgListPageHeightClass}`}
+      className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}
     >
       <div className="shrink-0 space-y-4 pb-6">
         {header}

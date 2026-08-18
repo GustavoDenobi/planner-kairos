@@ -60,6 +60,17 @@ export function categoryBadgeStyle(
   };
 }
 
+export function categoryCardStyle(
+  color: string | null,
+  slug: string,
+): { borderColor: string; backgroundColor: string } {
+  const hue = parseCategoryHue(color, slug);
+  return {
+    borderColor: categoryBackgroundColor(hue),
+    backgroundColor: `hsl(${hue} ${CATEGORY_HUE_SATURATION}% ${CATEGORY_HUE_LIGHTNESS}% / 0.25)`,
+  };
+}
+
 export function parseCategoryHue(color: string | null | undefined, slug: string): number {
   if (color) {
     const numeric = Number(color);

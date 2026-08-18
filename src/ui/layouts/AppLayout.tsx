@@ -1,4 +1,5 @@
 import { Outlet, useParams } from 'react-router-dom';
+import { useLoadingBarPlacement } from '@/ui/app/loading-bar/useLoadingBar';
 import { BottomNav } from '@/ui/layouts/BottomNav';
 import { MobileHeader } from '@/ui/layouts/MobileHeader';
 import { Sidebar } from '@/ui/layouts/Sidebar';
@@ -6,6 +7,7 @@ import { spacing } from '@/ui/theme/tokens';
 
 export function AppLayout() {
   const { orgSlug = 'org' } = useParams();
+  useLoadingBarPlacement('belowAppHeader');
 
   return (
     <div className="flex min-h-screen bg-bg">

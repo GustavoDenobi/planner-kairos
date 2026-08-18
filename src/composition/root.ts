@@ -1,4 +1,5 @@
 import { createAgendaUseCases } from '@/application/agenda';
+import { createOfflineUseCases } from '@/application/offline';
 import { createRepertoireUseCases } from '@/application/repertoire';
 import { createEnsembleUseCases } from '@/application/ensemble';
 import { createIdentityUseCases } from '@/application/identity';
@@ -21,6 +22,7 @@ import { createSectionRepository } from '@/infrastructure/supabase/section-repos
 import { createPasswordRecoveryGateway } from '@/infrastructure/supabase/password-recovery-gateway';
 import { createProfileRepository } from '@/infrastructure/supabase/profile-repository';
 import { createReadingPlaylistRepository } from '@/infrastructure/supabase/reading-playlist-repository';
+import { createOfflineStorage } from '@/infrastructure/pwa';
 
 export function createAppServices() {
   const auth = createAuthGateway();
@@ -77,5 +79,16 @@ export function createAppServices() {
     pieceRepo,
   });
 
-  return { identity, ensemble, repertoire, agenda };
+  const offlineStorage = createOfflineStorage();
+
+  const offline = createOfflineUseCases({
+    pieceRepo,
+    fileRepo: pieceFileRepo,
+    fileStorage,
+    annotationRepo,
+    playlistRepo,
+    offlineStorage,
+  });
+
+  return { identity, ensemble, repertoire, agenda, offline };
 }

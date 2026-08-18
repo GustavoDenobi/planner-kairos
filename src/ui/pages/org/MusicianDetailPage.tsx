@@ -11,11 +11,13 @@ import type {
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
+import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 
 type AssignmentFormState = {
   groupId: string;
@@ -53,6 +55,7 @@ export function MusicianDetailPage() {
   const [email, setEmail] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('musician-detail', isLoading);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -330,7 +333,7 @@ export function MusicianDetailPage() {
       : parts;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/musicos`} />
         <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>

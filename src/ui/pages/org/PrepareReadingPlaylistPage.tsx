@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { EventDetail } from '@/domain/agenda';
@@ -11,6 +11,7 @@ import {
 import { useAgenda, useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackButton } from '@/ui/components/BackButton';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { IconPlus, IconTrash } from '@/ui/components/icons';
@@ -23,7 +24,10 @@ import {
   readingPlaylistEditPath,
   readingPlaylistsPath,
 } from '@/ui/features/repertoire/reading-playlist-routes';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 
 type ProgramRowState = {
   programItemId: string;
@@ -53,10 +57,10 @@ export function PrepareReadingPlaylistPage() {
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [rows, setRows] = useState<ProgramRowState[]>([]);
-  const [userPartIds, setUserPartIds] = useState<string[]>([]);
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
   const [playlistName, setPlaylistName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('prepare-reading-playlist', isLoading);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +73,14 @@ export function PrepareReadingPlaylistPage() {
     }
 
     let cancelled = false;
+    const orgId = org.id;
+    const currentUserId = userId;
 
     async function load() {
       setIsLoading(true);
       setError(null);
 
-      const eventResult = await agenda.getEvent(org.id, eventId!);
+      const eventResult = await agenda.getEvent(orgId, eventId!);
       if (cancelled) {
         return;
       }
@@ -88,16 +94,16 @@ export function PrepareReadingPlaylistPage() {
       const eventDetail = eventResult.value;
       setEvent(eventDetail);
 
-      const partsResult = await ensemble.listParts(org.id);
+      const partsResult = await ensemble.listParts(orgId);
       if (!cancelled && partsResult.ok) {
         setParts(partsResult.value);
       }
 
       let partIds: string[] = [];
-      const musicianResult = await ensemble.getMyMusician(org.id, userId);
+      const musicianResult = await ensemble.getMyMusician(orgId, currentUserId);
       if (!cancelled && musicianResult.ok) {
         const assignmentsResult = await ensemble.listAssignmentsForMusician(
-          org.id,
+          orgId,
           musicianResult.value.id,
         );
         if (assignmentsResult.ok) {
@@ -106,10 +112,6 @@ export function PrepareReadingPlaylistPage() {
             .filter((id): id is string => Boolean(id));
         }
       }
-      if (!cancelled) {
-        setUserPartIds(partIds);
-      }
-
       const nextRows: ProgramRowState[] = [];
 
       for (const item of eventDetail.program) {
@@ -128,7 +130,7 @@ export function PrepareReadingPlaylistPage() {
           continue;
         }
 
-        const pieceResult = await repertoire.getPiece(org.id, item.pieceId);
+        const pieceResult = await repertoire.getPiece(orgId, item.pieceId);
         if (!pieceResult.ok) {
           nextRows.push({
             programItemId: item.id,
@@ -165,7 +167,7 @@ export function PrepareReadingPlaylistPage() {
         const displayTitle = eventDisplayTitle(eventDetail, {
           name: eventDetail.type.name,
         });
-        const dateLabel = formatEventTime(eventDetail.startsAt);
+        const dateLabel = formatEventTime(eventDetail.startsAt, eventDetail.endsAt);
         setPlaylistName(`${displayTitle} - ${dateLabel}`);
         setIsLoading(false);
       }
@@ -235,7 +237,7 @@ export function PrepareReadingPlaylistPage() {
 
   if (isLoading) {
     return (
-      <div className={`mx-auto max-w-2xl ${orgListPageHeightClass}`}>
+      <div className={`${orgPageContentClass} ${orgListPageHeightClass}`}>
         <p className="text-sm text-muted">Carregando programação…</p>
       </div>
     );
@@ -243,7 +245,7 @@ export function PrepareReadingPlaylistPage() {
 
   if (!event) {
     return (
-      <div className={`mx-auto max-w-2xl ${orgListPageHeightClass}`}>
+      <div className={`${orgPageContentClass} ${orgListPageHeightClass}`}>
         <div className="space-y-4">
           <BackButton fallbackTo={backTo} />
           <p className="text-sm text-muted">{error ?? 'Evento não encontrado.'}</p>
@@ -255,7 +257,7 @@ export function PrepareReadingPlaylistPage() {
   const eventTitle = eventDisplayTitle(event, { name: event.type.name });
 
   return (
-    <div className={`mx-auto max-w-2xl ${orgListPageHeightClass} overflow-y-auto`}>
+    <div className={`${orgPageContentClass} ${orgListPageHeightClass} overflow-y-auto`}>
       <section className="mb-6 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo={backTo} />

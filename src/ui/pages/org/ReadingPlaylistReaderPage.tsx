@@ -4,11 +4,13 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { CreatePdfAnnotationInput, PdfAnnotation, ReadingPlaylistDetail } from '@/domain/repertoire';
 
-import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 
 import { useOrg } from '@/ui/app/OrgProvider';
+
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 
 import { BackLink } from '@/ui/components/BackButton';
 
@@ -39,6 +41,18 @@ import {
 } from '@/ui/features/repertoire/reading-playlist-routes';
 
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
+
+import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
+
+import {
+
+  OfflineDownloadButton,
+
+  OfflineFileStatusBadge,
+
+} from '@/ui/features/pwa/OfflineDownloadButton';
+
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 
 
@@ -114,6 +128,8 @@ export function ReadingPlaylistReaderPage() {
 
   const repertoire = useRepertoire();
 
+  const offline = useOffline();
+
   const ensemble = useEnsemble();
 
   const { userId } = useAuth();
@@ -146,9 +162,15 @@ export function ReadingPlaylistReaderPage() {
 
   const [isLoadingItem, setIsLoadingItem] = useState(true);
 
+  useLoadingBar('reading-playlist-reader', isLoadingPlaylist || isLoadingItem);
+
   const [error, setError] = useState<string | null>(null);
 
   const [skipUnavailable, setSkipUnavailable] = useState(false);
+
+  const [isCachedLocally, setIsCachedLocally] = useState(false);
+
+  const online = useOnlineStatus();
 
 
 
@@ -194,6 +216,18 @@ export function ReadingPlaylistReaderPage() {
 
     if (!result.ok) {
 
+      const cached = await offline.getCachedReadingPlaylist(playlistId);
+
+      if (cached) {
+
+        setPlaylist(cached);
+
+        setIsLoadingPlaylist(false);
+
+        return cached;
+
+      }
+
       setError(readingPlaylistErrorMessage(result.error));
 
       setPlaylist(null);
@@ -212,7 +246,7 @@ export function ReadingPlaylistReaderPage() {
 
     return result.value;
 
-  }, [org, userId, playlistId, repertoire]);
+  }, [org, userId, playlistId, repertoire, offline]);
 
 
 
@@ -354,6 +388,8 @@ export function ReadingPlaylistReaderPage() {
 
         setAnnotations(cached.annotations);
 
+        setIsCachedLocally(cached.isCachedLocally);
+
         setSkipUnavailable(false);
 
         setIsLoadingItem(false);
@@ -376,7 +412,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await itemCacheRef.current.load(index, () =>
 
-        loadPlaylistItemData(repertoire, org.id, item),
+        loadPlaylistItemData(offline, org.id, item),
 
       );
 
@@ -402,6 +438,8 @@ export function ReadingPlaylistReaderPage() {
 
       setAnnotations(result.annotations);
 
+      setIsCachedLocally(result.isCachedLocally);
+
       setSkipUnavailable(false);
 
       setIsLoadingItem(false);
@@ -410,7 +448,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, playlist, repertoire],
+    [org, playlist, offline],
 
   );
 
@@ -528,11 +566,11 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-      itemCacheRef.current.prefetch(index, () => loadPlaylistItemData(repertoire, org.id, item));
+      itemCacheRef.current.prefetch(index, () => loadPlaylistItemData(offline, org.id, item));
 
     }
 
-  }, [playlist, org, itemIndex, repertoire]);
+  }, [playlist, org, itemIndex, offline]);
 
 
 
@@ -634,7 +672,7 @@ export function ReadingPlaylistReaderPage() {
 
     const cached = await itemCacheRef.current.load(previousIndex, () =>
 
-      loadPlaylistItemData(repertoire, org.id, playlist.items[previousIndex]),
+      loadPlaylistItemData(offline, org.id, playlist.items[previousIndex]),
 
     );
 
@@ -652,7 +690,7 @@ export function ReadingPlaylistReaderPage() {
 
     });
 
-  }, [playlist, org, itemIndex, goToItem, repertoire]);
+  }, [playlist, org, itemIndex, goToItem, offline]);
 
 
 
@@ -718,9 +756,13 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
+      if (!online && input.layer === 'section') {
 
+        return null;
 
-      const result = await repertoire.createPieceFileAnnotation(
+      }
+
+      const result = await offline.createPieceFileAnnotation(
 
         org.id,
 
@@ -754,7 +796,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, userId, currentItem, repertoire],
+    [org, userId, currentItem, offline, online],
 
   );
 
@@ -772,7 +814,7 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-      const result = await repertoire.deletePieceFileAnnotation(
+      const result = await offline.deletePieceFileAnnotation(
 
         org.id,
 
@@ -794,7 +836,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, currentItem, repertoire],
+    [org, currentItem, offline],
 
   );
 
@@ -934,7 +976,7 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  if (!downloadUrl) {
+  if (!downloadUrl && !cachedCurrentItem?.pdfDocument) {
 
     return (
 
@@ -1014,6 +1056,26 @@ export function ReadingPlaylistReaderPage() {
 
       downloadName={currentItem.fileTitle}
 
+      offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
+
+      headerActions={
+
+        org && currentItem.pieceId ? (
+
+          <OfflineDownloadButton
+
+            organizationId={org.id}
+
+            pieceId={currentItem.pieceId}
+
+            fileId={currentItem.pieceFileId}
+
+          />
+
+        ) : null
+
+      }
+
       centerContent={
 
         <PdfViewerPlaylistNav
@@ -1030,11 +1092,21 @@ export function ReadingPlaylistReaderPage() {
 
     >
 
+      {org && currentItem.pieceId && (
+        <div className="px-4 pt-2">
+          <OfflineFileStatusBadge
+            organizationId={org.id}
+            pieceId={currentItem.pieceId}
+            fileId={currentItem.pieceFileId}
+          />
+        </div>
+      )}
+
       <PdfViewer
 
         key={currentItem.pieceFileId}
 
-        url={downloadUrl}
+        url={downloadUrl ?? ''}
 
         userId={userId}
 

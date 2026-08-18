@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthSession } from '@/application/ports';
-import { useIdentity } from '@/ui/app/AppServicesContext';
+import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -73,7 +73,9 @@ export function useRequireAuth() {
 
 export function useSignOut() {
   const identity = useIdentity();
+  const offline = useOffline();
   return useCallback(async () => {
+    await offline.clearAllOfflineData();
     await identity.signOut();
-  }, [identity]);
+  }, [identity, offline]);
 }

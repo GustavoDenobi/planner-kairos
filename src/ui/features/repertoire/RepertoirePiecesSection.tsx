@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { IconMusic } from '@/ui/components/icons';
+import { RepertoireCategoryPicker } from '@/ui/features/repertoire/RepertoireCategoryPicker';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -9,6 +10,9 @@ type RepertoirePiecesSectionProps = {
   categories: PieceCategory[];
   themes: PieceTheme[];
   isLoading: boolean;
+  isCategoriesLoading?: boolean;
+  showCategoryPicker?: boolean;
+  onCategoryPickerSelect?: (categoryId: string) => void;
   isAdmin: boolean;
   searchInput: string;
   onSearchInputChange: (value: string) => void;
@@ -26,6 +30,9 @@ export function RepertoirePiecesSection({
   categories,
   themes,
   isLoading,
+  isCategoriesLoading = false,
+  showCategoryPicker = false,
+  onCategoryPickerSelect,
   isAdmin,
   searchInput,
   onSearchInputChange,
@@ -41,6 +48,21 @@ export function RepertoirePiecesSection({
 
   const filterSelectClass =
     'w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
+
+  if (showCategoryPicker) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {isCategoriesLoading ? (
+          <p className="text-sm text-muted">Carregando…</p>
+        ) : (
+          <RepertoireCategoryPicker
+            categories={categories}
+            onSelect={(categoryId) => onCategoryPickerSelect?.(categoryId)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -99,57 +121,58 @@ export function RepertoirePiecesSection({
       </div>
 
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3 overscroll-contain">
-      {isLoading ? (
-        <p className="text-sm text-muted">Carregando…</p>
-      ) : pieces.length === 0 ? (
-        <p className="text-sm text-muted">Nenhuma obra encontrada.</p>
-      ) : (
-        <ul className="space-y-2">
-          {pieces.map((piece) => (
-            <li key={piece.id}>
-              <Link
-                to={`/${orgSlug}/repertorio/${piece.id}`}
-                className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-bg"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-text">{piece.title}</p>
-                    </div>
-                    {piece.composer && (
-                      <p className="mt-0.5 text-sm text-muted">{piece.composer}</p>
-                    )}
-                    {piece.themeIds.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {piece.themeIds.map((themeId) => {
-                          const theme = themeById.get(themeId);
-                          if (!theme) {
-                            return null;
-                          }
-                          return (
-                            <span
-                              key={themeId}
-                              className="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-                            >
-                              {theme.name}
-                            </span>
-                          );
-                        })}
+        {isLoading ? (
+          <p className="text-sm text-muted">Carregando…</p>
+        ) : pieces.length === 0 ? (
+          <p className="text-sm text-muted">Nenhuma obra encontrada.</p>
+        ) : (
+          <ul className="space-y-2">
+            {pieces.map((piece) => (
+              <li key={piece.id}>
+                <Link
+                  to={`/${orgSlug}/repertorio/${piece.id}`}
+                  className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-bg"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-text">{piece.title}</p>
+                        <IconMusic className="h-4 w-4 shrink-0 text-muted" />
                       </div>
-                    )}
+                      {piece.composer && (
+                        <p className="mt-0.5 text-sm text-muted">{piece.composer}</p>
+                      )}
+                      {piece.themeIds.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {piece.themeIds.map((themeId) => {
+                            const theme = themeById.get(themeId);
+                            if (!theme) {
+                              return null;
+                            }
+                            return (
+                              <span
+                                key={themeId}
+                                className="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+                              >
+                                {theme.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <CategoryBadge
+                      label={piece.category.name}
+                      color={piece.category.color}
+                      slug={piece.category.slug}
+                      className="shrink-0"
+                    />
                   </div>
-                  <CategoryBadge
-                    label={piece.category.name}
-                    color={piece.category.color}
-                    slug={piece.category.slug}
-                    className="shrink-0"
-                  />
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

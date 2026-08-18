@@ -3,9 +3,12 @@
   "short_name": "Kairós",
   "description": "Gestão de repertório e agenda da orquestra",
   "start_url": "/",
+  "id": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#fafafa",
-  "theme_color": "#4f46e5",
+  "theme_color": "#31b7ff",
   "icons": [
     {
       "src": "/logo.svg",

@@ -12,6 +12,7 @@
   --color-border: #d0d3da;
 
   --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --font-brand: Ubuntu, sans-serif;
 }
 
 .dark {
@@ -154,5 +155,26 @@
 @media (prefers-reduced-motion: reduce) {
   .pdf-fullscreen-controls {
     transition: none;
+  }
+}
+
+@keyframes top-loading-bar-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.top-loading-bar-indicator {
+  animation: top-loading-bar-slide 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-loading-bar-indicator {
+    animation: none;
+    width: 100%;
   }
 }

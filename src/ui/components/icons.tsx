@@ -270,6 +270,14 @@ export function IconArrowDown(props: IconProps) {
   );
 }
 
+export function IconCheck(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
 export function IconAlertCircle(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

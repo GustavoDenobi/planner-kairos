@@ -20,3 +20,12 @@ export type { PieceFileRepository, CreatePieceFileInput } from './piece-file-rep
 export type { PieceFileAnnotationRepository } from './piece-file-annotation-repository';
 export type { EventTypeRepository } from './event-type-repository';
 export type { EventRepository, ListEventsInRangeOptions } from './event-repository';
+export type { ReadingPlaylistRepository } from './reading-playlist-repository';
+export type { CachedPieceFileMeta, OfflineFileCache } from './offline-file-cache';
+export type {
+  LocalPdfAnnotation,
+  OfflineAnnotationStore,
+  SyncOutboxItem,
+  AnnotationSyncStatus,
+} from './offline-annotation-store';
+export type { CachedPlaylistSnapshot, OfflinePlaylistCache } from './offline-playlist-cache';

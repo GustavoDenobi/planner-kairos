@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import type { AppServices } from '@/ui/app/AppServicesContext';
 import { AppServicesProvider } from '@/ui/app/AppServicesContext';
 import { AuthProvider } from '@/ui/app/auth/AuthProvider';
+import { LoadingBarAuthBridge, LoadingBarOrgBridge } from '@/ui/app/loading-bar/LoadingBarBridges';
+import { LoadingBarProvider } from '@/ui/app/loading-bar/LoadingBarProvider';
 import { OrgProvider } from '@/ui/app/OrgProvider';
 import { ThemeProvider } from '@/ui/app/ThemeProvider';
 
@@ -13,11 +15,15 @@ type ProvidersProps = {
 export function Providers({ children, services }: ProvidersProps) {
   return (
     <AppServicesProvider services={services}>
-      <AuthProvider>
-        <OrgProvider>
-          <ThemeProvider>{children}</ThemeProvider>
-        </OrgProvider>
-      </AuthProvider>
+      <LoadingBarProvider>
+        <AuthProvider>
+          <OrgProvider>
+            <LoadingBarAuthBridge />
+            <LoadingBarOrgBridge />
+            <ThemeProvider>{children}</ThemeProvider>
+          </OrgProvider>
+        </AuthProvider>
+      </LoadingBarProvider>
     </AppServicesProvider>
   );
 }

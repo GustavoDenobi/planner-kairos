@@ -1,31 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import type * as pdfjs from 'pdfjs-dist';
 import type { CreatePdfAnnotationInput, PdfAnnotation, PieceFileWithLinks } from '@/domain/repertoire';
-import { useRepertoire, useEnsemble } from '@/ui/app/AppServicesContext';
+import { useRepertoire, useOffline, useEnsemble } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackLink } from '@/ui/components/BackButton';
 import { PdfViewer, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
-import {
-  pieceDetailPath,
-} from '@/ui/features/repertoire/piece-file-routes';
+import { pieceDetailPath } from '@/ui/features/repertoire/piece-file-routes';
 import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
+import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
+import {
+  OfflineDownloadButton,
+  OfflineFileStatusBadge,
+} from '@/ui/features/pwa/OfflineDownloadButton';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
 
 export function PiecePdfViewerPage() {
   const { orgSlug, pieceId, fileId } = useParams();
   const repertoire = useRepertoire();
+  const offline = useOffline();
   const ensemble = useEnsemble();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((organization) => organization.slug === orgSlug);
+  const online = useOnlineStatus();
 
   const [file, setFile] = useState<PieceFileWithLinks | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [preloadedPdf, setPreloadedPdf] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('piece-pdf-viewer', isLoading);
   const [error, setError] = useState<string | null>(null);
+  const [isCachedLocally, setIsCachedLocally] = useState(false);
 
   const detailPath =
     orgSlug && pieceId ? pieceDetailPath(orgSlug, pieceId) : `/${orgSlug ?? ''}/repertorio`;
@@ -52,49 +64,75 @@ export function PiecePdfViewerPage() {
       setError(null);
       setFile(null);
       setDownloadUrl(null);
+      setPreloadedPdf(null);
       setAnnotations([]);
       setSectionLeadOptions([]);
 
-      const pieceResult = await repertoire.getPiece(organizationId, currentPieceId);
+      const statusResult = await offline.getOfflineStatus(
+        organizationId,
+        currentPieceId,
+        currentFileId,
+      );
+      if (!cancelled && statusResult.ok) {
+        setIsCachedLocally(statusResult.value.fileStatus !== 'not_cached');
+      }
+
+      let pieceFile: PieceFileWithLinks | null = null;
+      if (online) {
+        const pieceResult = await repertoire.getPiece(organizationId, currentPieceId);
+        if (!cancelled && pieceResult.ok) {
+          const found = pieceResult.value.files.find((item) => item.id === currentFileId);
+          if (!found) {
+            setError('Arquivo não encontrado.');
+            setIsLoading(false);
+            return;
+          }
+          if (found.kind !== 'score') {
+            setError('Este arquivo não é uma partitura PDF.');
+            setIsLoading(false);
+            return;
+          }
+          pieceFile = found;
+        } else if (!cancelled) {
+          setError('Obra não encontrada.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const pdfLoad = await resolvePdfDocument(
+        offline,
+        organizationId,
+        currentPieceId,
+        currentFileId,
+      );
+
       if (cancelled) {
         return;
       }
 
-      if (!pieceResult.ok) {
-        setError('Obra não encontrada.');
+      if (pdfLoad.error === 'offline_not_cached') {
+        setError('Partitura não disponível offline. Baixe para o dispositivo com conexão.');
         setIsLoading(false);
         return;
       }
 
-      const pieceFile = pieceResult.value.files.find((item) => item.id === currentFileId);
-      if (!pieceFile) {
-        setError('Arquivo não encontrado.');
+      if (pdfLoad.error || !pdfLoad.pdfDocument) {
+        setError(
+          pdfLoad.error === 'not_found'
+            ? 'Arquivo não encontrado.'
+            : repertoireErrorMessage(pdfLoad.error ?? 'load_failed'),
+        );
         setIsLoading(false);
         return;
       }
 
-      if (pieceFile.kind !== 'score') {
-        setError('Este arquivo não é uma partitura PDF.');
-        setIsLoading(false);
-        return;
-      }
+      const annotationsResult = await offline.listAnnotationsForReading(
+        organizationId,
+        currentFileId,
+      );
 
-      const [urlResult, annotationsResult] = await Promise.all([
-        repertoire.getPieceFileDownloadUrl(organizationId, currentPieceId, currentFileId),
-        repertoire.listPieceFileAnnotations(organizationId, currentFileId),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (!urlResult.ok) {
-        setError(repertoireErrorMessage(urlResult.error));
-        setIsLoading(false);
-        return;
-      }
-
-      if (userId) {
+      if (userId && online) {
         const musicianResult = await ensemble.getMyMusician(organizationId, userId);
         if (!cancelled && musicianResult.ok) {
           const assignmentsResult = await ensemble.listAssignmentsForMusician(
@@ -123,8 +161,29 @@ export function PiecePdfViewerPage() {
         }
       }
 
+      if (cancelled) {
+        return;
+      }
+
+      if (!pieceFile) {
+        pieceFile = {
+          id: currentFileId,
+          organizationId,
+          pieceId: currentPieceId,
+          kind: 'score',
+          storageKey: '',
+          mimeType: 'application/pdf',
+          title: 'Partitura',
+          originalName: 'partitura.pdf',
+          byteSize: null,
+          contentHash: null,
+          partLinks: [],
+        };
+      }
+
       setFile(pieceFile);
-      setDownloadUrl(urlResult.value);
+      setDownloadUrl(pdfLoad.downloadUrl);
+      setPreloadedPdf(pdfLoad.pdfDocument);
       if (annotationsResult.ok) {
         setAnnotations(annotationsResult.value);
       }
@@ -136,7 +195,7 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [org, pieceId, fileId, repertoire, ensemble, userId]);
+  }, [org, pieceId, fileId, repertoire, offline, ensemble, userId, online]);
 
   const handleAnnotationCreate = useCallback(
     async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
@@ -144,7 +203,11 @@ export function PiecePdfViewerPage() {
         return null;
       }
 
-      const result = await repertoire.createPieceFileAnnotation(org.id, pieceId, userId, {
+      if (!online && input.layer === 'section') {
+        return null;
+      }
+
+      const result = await offline.createPieceFileAnnotation(org.id, pieceId, userId, {
         ...input,
         pieceFileId: file.id,
       });
@@ -156,7 +219,7 @@ export function PiecePdfViewerPage() {
       setAnnotations((current) => [...current, result.value]);
       return result.value;
     },
-    [org, pieceId, fileId, userId, file, repertoire],
+    [org, pieceId, fileId, userId, file, offline, online],
   );
 
   const handleAnnotationDelete = useCallback(
@@ -165,17 +228,20 @@ export function PiecePdfViewerPage() {
         return;
       }
 
-      const result = await repertoire.deletePieceFileAnnotation(org.id, file.id, annotationId);
+      const result = await offline.deletePieceFileAnnotation(org.id, file.id, annotationId);
       if (!result.ok) {
         return;
       }
 
       setAnnotations((current) => current.filter((annotation) => annotation.id !== annotationId));
     },
-    [org, fileId, file, repertoire],
+    [org, fileId, file, offline],
   );
 
-  const viewerKey = useMemo(() => `${fileId}-${downloadUrl ?? ''}`, [fileId, downloadUrl]);
+  const viewerKey = useMemo(
+    () => `${fileId}-${downloadUrl ?? 'local'}-${preloadedPdf?.numPages ?? 0}`,
+    [fileId, downloadUrl, preloadedPdf],
+  );
 
   if (!orgSlug || !pieceId || !fileId) {
     return null;
@@ -189,7 +255,7 @@ export function PiecePdfViewerPage() {
     );
   }
 
-  if (error || !file || !downloadUrl) {
+  if (error || !file || !preloadedPdf) {
     return (
       <ReaderLayout title="Erro" backTo={detailPath}>
         <div className="space-y-4 p-4">
@@ -211,13 +277,29 @@ export function PiecePdfViewerPage() {
       backTo={detailPath}
       downloadUrl={downloadUrl}
       downloadName={file.originalName}
+      offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
+      headerActions={
+        org ? (
+          <OfflineDownloadButton
+            organizationId={org.id}
+            pieceId={pieceId}
+            fileId={fileId}
+          />
+        ) : null
+      }
     >
+      <div className="px-4 pt-2">
+        {org && (
+          <OfflineFileStatusBadge organizationId={org.id} pieceId={pieceId} fileId={fileId} />
+        )}
+      </div>
       <PdfViewer
         key={viewerKey}
-        url={downloadUrl}
+        url={downloadUrl ?? ''}
         userId={userId}
         annotations={annotations}
         sectionLeadOptions={sectionLeadOptions}
+        preloadedPdf={preloadedPdf}
         onAnnotationCreate={handleAnnotationCreate}
         onAnnotationDelete={handleAnnotationDelete}
       />

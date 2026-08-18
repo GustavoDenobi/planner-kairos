@@ -60,7 +60,7 @@ async function loadAssignmentStats(
 
   for (const row of assignments) {
     const musicianId = row.musician_id as string;
-    const groupName = (row.groups as { name: string } | null)?.name;
+    const groupName = (row.groups as unknown as { name: string } | null)?.name;
     const entry = byMusician.get(musicianId) ?? { count: 0, groups: new Set<string>() };
     entry.count += 1;
     if (groupName) {

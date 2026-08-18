@@ -13,6 +13,7 @@ import { computeFileSha256Hex } from '@/domain/shared';
 import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
@@ -27,7 +28,10 @@ import {
 } from '@/ui/features/repertoire/PieceFileUploadEntries';
 import { repertoirePath } from '@/ui/features/repertoire/repertoire-routes';
 import { piecePdfViewerPath } from '@/ui/features/repertoire/piece-file-routes';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 import {
   formatPartLinks,
   pieceFileKindLabel,
@@ -50,6 +54,7 @@ export function PieceDetailPage() {
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('piece-detail', isLoading);
   const [fichaExpanded, setFichaExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -228,6 +233,9 @@ export function PieceDetailPage() {
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
+    if (!org || !piece) {
+      return;
+    }
     setError(null);
     setIsSaving(true);
 
@@ -301,6 +309,9 @@ export function PieceDetailPage() {
   }
 
   async function handleAddFiles(files: File[]) {
+    if (!piece) {
+      return;
+    }
     setUploadError(null);
     setIsPreparingUpload(true);
 
@@ -354,6 +365,9 @@ export function PieceDetailPage() {
 
   async function handleUpload(event: React.FormEvent) {
     event.preventDefault();
+    if (!org || !piece) {
+      return;
+    }
     if (uploadEntries.length === 0) {
       setUploadError('Selecione um arquivo.');
       return;
@@ -396,7 +410,7 @@ export function PieceDetailPage() {
   }
 
   async function handleSaveFile() {
-    if (!editingFile) {
+    if (!editingFile || !org || !piece) {
       return;
     }
 
@@ -458,6 +472,9 @@ export function PieceDetailPage() {
   }
 
   async function handleDownload(fileId: string) {
+    if (!org || !piece) {
+      return;
+    }
     const result = await repertoire.getPieceFileDownloadUrl(org.id, piece.id, fileId);
     if (!result.ok) {
       setError(repertoireErrorMessage(result.error));
@@ -467,7 +484,7 @@ export function PieceDetailPage() {
   }
 
   async function handleRemoveFile() {
-    if (!editingFile) {
+    if (!editingFile || !org || !piece) {
       return;
     }
 
@@ -485,6 +502,9 @@ export function PieceDetailPage() {
   }
 
   async function handleSoftDelete() {
+    if (!org || !piece) {
+      return;
+    }
     setIsDeleting(true);
     const result = await repertoire.softDeletePiece(org.id, piece.id);
     setIsDeleting(false);
@@ -499,7 +519,7 @@ export function PieceDetailPage() {
 
   return (
     <>
-    <div className={`mx-auto flex max-w-2xl flex-col ${orgListPageHeightClass}`}>
+    <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
       <div className="shrink-0 space-y-4">
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

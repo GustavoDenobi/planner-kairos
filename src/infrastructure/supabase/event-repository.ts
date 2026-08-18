@@ -94,7 +94,7 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
   }
 
   return data.map((row) => {
-    const piece = row.pieces as {
+    const piece = row.pieces as unknown as {
       title: string;
       deleted_at: string | null;
       piece_categories: { name: string; slug: string; color: string | null } | null;

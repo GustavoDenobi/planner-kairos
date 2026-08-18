@@ -7,6 +7,7 @@ import type {
 import type { MusicianListItem } from '@/domain/ensemble';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { IconArrowUpDown } from '@/ui/components/icons';
 import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
@@ -47,6 +48,7 @@ export function MusiciansPage() {
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  useLoadingBar('musicians', isLoading || isLoadingMore);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [sortField, setSortField] = useState<MusicianSortField>('name');

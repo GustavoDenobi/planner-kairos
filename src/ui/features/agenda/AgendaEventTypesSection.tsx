@@ -1,6 +1,6 @@
-import type { EventKind, EventType } from '@/domain/agenda';
+import type { EventType } from '@/domain/agenda';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
-import { IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconPencil } from '@/ui/components/icons';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 
 type AgendaEventTypesSectionProps = {
@@ -11,7 +11,6 @@ type AgendaEventTypesSectionProps = {
 
 export function AgendaEventTypesSection({
   types,
-  onCreate,
   onEdit,
 }: AgendaEventTypesSectionProps) {
   return (

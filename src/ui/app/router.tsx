@@ -1,5 +1,6 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useNavigation } from 'react-router-dom';
 import { AuthGuard } from '@/ui/app/auth/AuthGuard';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { AppLayout } from '@/ui/layouts/AppLayout';
 import { PublicLayout } from '@/ui/layouts/PublicLayout';
 import { InvitePage } from '@/ui/pages/InvitePage';
@@ -22,49 +23,60 @@ import { ReadingPlaylistReaderPage } from '@/ui/pages/org/ReadingPlaylistReaderP
 import { ReadingPlaylistsPage } from '@/ui/pages/org/ReadingPlaylistsPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
 
+function RootLayout() {
+  const navigation = useNavigation();
+  useLoadingBar('navigation', navigation.state === 'loading');
+  return <Outlet />;
+}
+
 export const router = createBrowserRouter([
   {
-    element: <PublicLayout />,
+    element: <RootLayout />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
-      { path: '/convite/:token', element: <InvitePage /> },
-    ],
-  },
-  {
-    element: <AuthGuard />,
-    children: [
-      { path: '/orgs', element: <OrgSelectorPage /> },
       {
-        path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
-        element: <PiecePdfViewerPage />,
-      },
-      {
-        path: '/:orgSlug/leitura/:playlistId/:itemIndex',
-        element: <ReadingPlaylistReaderPage />,
-      },
-      {
-        path: '/:orgSlug',
-        element: <AppLayout />,
+        element: <PublicLayout />,
         children: [
-          { index: true, element: <Navigate to="agenda" replace /> },
-          { path: 'agenda', element: <AgendaPage /> },
-          { path: 'repertorio', element: <RepertoirePage /> },
-          { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
-          { path: 'leitura', element: <ReadingPlaylistsPage /> },
-          { path: 'leitura/novo', element: <ReadingPlaylistNewPage /> },
-          { path: 'leitura/:playlistId', element: <ReadingPlaylistEditPage /> },
-          { path: 'eventos/:eventId/preparar-partituras', element: <PrepareReadingPlaylistPage /> },
-          { path: 'eventos/:eventId', element: <EventDetailPage /> },
-          { path: 'musicos', element: <MusiciansPage /> },
-          { path: 'musicos/:musicianId', element: <MusicianDetailPage /> },
-          { path: 'grupos', element: <GroupsPage /> },
-          { path: 'grupos/:groupId', element: <GroupDetailPage /> },
-          { path: 'partes', element: <PartsPage /> },
+          { path: '/login', element: <LoginPage /> },
+          { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
+          { path: '/convite/:token', element: <InvitePage /> },
         ],
       },
+      {
+        element: <AuthGuard />,
+        children: [
+          { path: '/orgs', element: <OrgSelectorPage /> },
+          {
+            path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
+            element: <PiecePdfViewerPage />,
+          },
+          {
+            path: '/:orgSlug/leitura/:playlistId/:itemIndex',
+            element: <ReadingPlaylistReaderPage />,
+          },
+          {
+            path: '/:orgSlug',
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <Navigate to="agenda" replace /> },
+              { path: 'agenda', element: <AgendaPage /> },
+              { path: 'repertorio', element: <RepertoirePage /> },
+              { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
+              { path: 'leitura', element: <ReadingPlaylistsPage /> },
+              { path: 'leitura/novo', element: <ReadingPlaylistNewPage /> },
+              { path: 'leitura/:playlistId', element: <ReadingPlaylistEditPage /> },
+              { path: 'eventos/:eventId/preparar-partituras', element: <PrepareReadingPlaylistPage /> },
+              { path: 'eventos/:eventId', element: <EventDetailPage /> },
+              { path: 'musicos', element: <MusiciansPage /> },
+              { path: 'musicos/:musicianId', element: <MusicianDetailPage /> },
+              { path: 'grupos', element: <GroupsPage /> },
+              { path: 'grupos/:groupId', element: <GroupDetailPage /> },
+              { path: 'partes', element: <PartsPage /> },
+            ],
+          },
+        ],
+      },
+      { path: '/', element: <Navigate to="/login" replace /> },
+      { path: '*', element: <Navigate to="/login" replace /> },
     ],
   },
-  { path: '/', element: <Navigate to="/login" replace /> },
-  { path: '*', element: <Navigate to="/login" replace /> },
 ]);

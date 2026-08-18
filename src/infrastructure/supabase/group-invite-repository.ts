@@ -87,7 +87,16 @@ export function createGroupInviteRepository(): GroupInviteRepository {
         return [];
       }
 
-      return data.map(
+      return (data as Array<{
+        id: string;
+        group_id: string;
+        group_name: string;
+        token: string | null;
+        expires_at: string;
+        revoked_at: string | null;
+        redeemed_at: string | null;
+        created_at: string;
+      }>).map(
         (row) =>
           ({
             id: row.id,

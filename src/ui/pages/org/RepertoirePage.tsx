@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
 import { IconChevronLeft, IconPlus } from '@/ui/components/icons';
@@ -26,7 +27,10 @@ import {
   parseRepertoireSection,
   repertoireSectionQueryValue,
 } from '@/ui/features/repertoire/repertoire-routes';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 import {
   DEFAULT_CATEGORY_HUE,
   formatCategoryHue,
@@ -66,6 +70,7 @@ export function RepertoirePage() {
   const [categories, setCategories] = useState<PieceCategory[]>([]);
   const [themes, setThemes] = useState<PieceTheme[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTaxonomyLoading, setIsTaxonomyLoading] = useState(true);
   const [memberFiltersReady, setMemberFiltersReady] = useState(isAdmin);
 
   const [searchInput, setSearchInput] = useState('');
@@ -73,6 +78,8 @@ export function RepertoirePage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [themeFilter, setThemeFilter] = useState('');
   const [memberCategoryId, setMemberCategoryId] = useState('');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(true);
+  const previousAdminSectionRef = useRef<RepertoireAdminSection | 'menu'>(adminSection);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -89,6 +96,12 @@ export function RepertoirePage() {
 
   const showPiecesView = isAdmin ? adminSection === 'pieces' : true;
 
+  const isPageLoading =
+    isTaxonomyLoading ||
+    (showPiecesView && isLoading) ||
+    (!isAdmin && !memberFiltersReady);
+  useLoadingBar('repertoire', isPageLoading);
+
   const adminSectionTitles: Record<RepertoireAdminSection, string> = {
     pieces: 'Peças',
     categories: 'Categorias',
@@ -99,8 +112,11 @@ export function RepertoirePage() {
 
   const loadTaxonomy = useCallback(async () => {
     if (!org) {
+      setIsTaxonomyLoading(false);
       return;
     }
+
+    setIsTaxonomyLoading(true);
 
     const [categoriesResult, themesResult] = await Promise.all([
       repertoire.listPieceCategories(org.id),
@@ -116,6 +132,8 @@ export function RepertoirePage() {
     if (themesResult.ok) {
       setThemes(themesResult.value);
     }
+
+    setIsTaxonomyLoading(false);
   }, [org, repertoire, categoryId]);
 
   const loadMemberFilters = useCallback(async () => {
@@ -131,14 +149,16 @@ export function RepertoirePage() {
     const resolvedCategoryId =
       saved?.categoryId && categoryList.some((category) => category.id === saved.categoryId)
         ? saved.categoryId
-        : (categoryList[0]?.id ?? '');
+        : '';
 
     setMemberCategoryId(resolvedCategoryId);
+    setShowCategoryPicker(resolvedCategoryId === '');
     setMemberFiltersReady(true);
   }, [org, userId, isAdmin, repertoire]);
 
   const loadPieces = useCallback(async () => {
     if (!org || !showPiecesView) {
+      setIsLoading(false);
       return;
     }
 
@@ -186,6 +206,17 @@ export function RepertoirePage() {
   }, [searchInput]);
 
   useEffect(() => {
+    if (
+      isAdmin &&
+      adminSection === 'pieces' &&
+      previousAdminSectionRef.current !== 'pieces'
+    ) {
+      setShowCategoryPicker(true);
+    }
+    previousAdminSectionRef.current = adminSection;
+  }, [isAdmin, adminSection]);
+
+  useEffect(() => {
     loadTaxonomy();
     loadMemberFilters();
   }, [loadTaxonomy, loadMemberFilters]);
@@ -207,8 +238,20 @@ export function RepertoirePage() {
     return null;
   }
 
+  function handleCategoryPickerSelect(categoryId: string) {
+    if (isAdmin) {
+      setCategoryFilter(categoryId);
+    } else {
+      setMemberCategoryId(categoryId);
+    }
+    setShowCategoryPicker(false);
+  }
+
   async function handleCreatePiece(event: React.FormEvent) {
     event.preventDefault();
+    if (!org) {
+      return;
+    }
     setFormError(null);
     setIsSubmitting(true);
 
@@ -262,7 +305,7 @@ export function RepertoirePage() {
 
   async function handleSaveTaxonomy(event: React.FormEvent) {
     event.preventDefault();
-    if (!taxonomyModal) {
+    if (!taxonomyModal || !org) {
       return;
     }
 
@@ -298,7 +341,7 @@ export function RepertoirePage() {
   }
 
   async function handleDeleteTaxonomy() {
-    if (!taxonomyModal?.id) {
+    if (!taxonomyModal?.id || !org) {
       return;
     }
 
@@ -330,8 +373,8 @@ export function RepertoirePage() {
     <div
       className={
         useFixedListLayout
-          ? `mx-auto flex max-w-2xl flex-col ${orgListPageHeightClass}`
-          : 'mx-auto max-w-2xl space-y-6'
+          ? `flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`
+          : `${orgPageContentClass} space-y-6`
       }
     >
       <div
@@ -384,7 +427,10 @@ export function RepertoirePage() {
             pieces={pieces}
             categories={categories}
             themes={themes}
-            isLoading={isLoading || !memberFiltersReady}
+            isLoading={isLoading}
+            isCategoriesLoading={isTaxonomyLoading || !memberFiltersReady}
+            showCategoryPicker={showCategoryPicker}
+            onCategoryPickerSelect={handleCategoryPickerSelect}
             isAdmin={isAdmin}
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}

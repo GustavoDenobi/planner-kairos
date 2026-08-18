@@ -12,6 +12,7 @@ import { filterScoreCandidatesForUser } from '@/domain/repertoire';
 import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackButton } from '@/ui/components/BackButton';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
@@ -23,7 +24,11 @@ import {
   readingPlaylistReaderPath,
   readingPlaylistsPath,
 } from '@/ui/features/repertoire/reading-playlist-routes';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
+import { OfflinePlaylistDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 
 type EditableItem = {
   id: string;
@@ -208,6 +213,7 @@ export function ReadingPlaylistEditPage() {
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('reading-playlist-edit', isLoading);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState<PlaylistSnapshot | null>(null);
@@ -443,7 +449,7 @@ export function ReadingPlaylistEditPage() {
 
   if (isLoading) {
     return (
-      <div className={`mx-auto max-w-2xl ${orgListPageHeightClass}`}>
+      <div className={`${orgPageContentClass} ${orgListPageHeightClass}`}>
         <p className="text-sm text-muted">Carregando…</p>
       </div>
     );
@@ -467,6 +473,8 @@ export function ReadingPlaylistEditPage() {
           ? () => navigate(readingPlaylistReaderPath(orgSlug, playlistId, 0))
           : undefined
       }
+      playlistId={playlistId}
+      userId={userId ?? ''}
       autoSave
       isSaving={isSaving}
       error={error}
@@ -496,6 +504,8 @@ type PlaylistEditorShellProps = {
   onSave: (overrides?: { name?: string; items?: EditableItem[] }) => Promise<boolean>;
   onDelete?: () => Promise<boolean>;
   onOpenReader?: () => void;
+  playlistId?: string;
+  userId?: string;
   autoSave?: boolean;
   isSaving: boolean;
   error: string | null;
@@ -527,6 +537,8 @@ function PlaylistEditorShell({
   onSave,
   onDelete,
   onOpenReader,
+  playlistId,
+  userId,
   autoSave = false,
   isSaving,
   error,
@@ -636,7 +648,7 @@ function PlaylistEditorShell({
   const leaveOpen = !autoSave && blocker.state === 'blocked';
 
   return (
-    <div className={`mx-auto flex max-w-2xl flex-col ${orgListPageHeightClass}`}>
+    <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <section className="mb-6 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -663,6 +675,14 @@ function PlaylistEditorShell({
               >
                 <IconPlay className="h-4 w-4" />
               </button>
+            )}
+            {playlistId && userId && orgId && items.length > 0 && (
+              <OfflinePlaylistDownloadButton
+                organizationId={orgId}
+                playlistId={playlistId}
+                userId={userId}
+                pieceFileIds={items.map((item) => item.pieceFileId)}
+              />
             )}
           </div>
         </section>

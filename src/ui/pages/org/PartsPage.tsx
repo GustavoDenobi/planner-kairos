@@ -4,6 +4,7 @@ import type { PartDivision, PartKind } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { IconPencil } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
@@ -25,6 +26,7 @@ export function PartsPage() {
 
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('parts', isLoading);
   const [partModalOpen, setPartModalOpen] = useState(false);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [name, setName] = useState('');

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { GroupKind, GroupListItem } from '@/domain/ensemble';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
@@ -25,6 +26,7 @@ export function GroupsPage() {
   const [groups, setGroups] = useState<GroupListItem[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('groups', isLoading);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
   const [kind, setKind] = useState<GroupKind>('ensemble');

@@ -4,6 +4,7 @@ import type { ReadingPlaylist } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { IconPencil, IconPlay, IconPlus } from '@/ui/components/icons';
 import { readingPlaylistErrorMessage } from '@/ui/features/repertoire/reading-playlist-labels';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
@@ -12,7 +13,10 @@ import {
   readingPlaylistNewPath,
   readingPlaylistReaderPath,
 } from '@/ui/features/repertoire/reading-playlist-routes';
-import { orgListPageHeightClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+} from '@/ui/layouts/OrgListPageLayout';
 
 export function ReadingPlaylistsPage() {
   const { orgSlug } = useParams();
@@ -25,6 +29,7 @@ export function ReadingPlaylistsPage() {
   const [playlists, setPlaylists] = useState<ReadingPlaylist[]>([]);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  useLoadingBar('reading-playlists', isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const loadPlaylists = useCallback(async () => {
@@ -65,7 +70,7 @@ export function ReadingPlaylistsPage() {
   }
 
   return (
-    <div className={`${orgListPageHeightClass} flex flex-col`}>
+    <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
       <div className="shrink-0 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-text">Playlist</h1>
         <button

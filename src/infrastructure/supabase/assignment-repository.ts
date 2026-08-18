@@ -58,9 +58,9 @@ export function createAssignmentRepository(): AssignmentRepository {
               ensemble_role: Assignment['ensembleRole'];
             },
           ),
-          groupName: (row.groups as { name: string } | null)?.name ?? '',
-          sectionName: (row.sections as { name: string } | null)?.name ?? null,
-          partName: (row.parts as { name: string } | null)?.name ?? null,
+          groupName: (row.groups as unknown as { name: string } | null)?.name ?? '',
+          sectionName: (row.sections as unknown as { name: string } | null)?.name ?? null,
+          partName: (row.parts as unknown as { name: string } | null)?.name ?? null,
         }),
       );
     },

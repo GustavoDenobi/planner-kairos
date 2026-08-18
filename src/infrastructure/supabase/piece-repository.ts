@@ -108,7 +108,7 @@ async function loadThemesForPiece(organizationId: string, pieceId: string) {
 
   return data
     .map((row) => {
-      const theme = row.piece_themes as {
+      const theme = row.piece_themes as unknown as {
         id: string;
         organization_id: string;
         name: string;
@@ -249,7 +249,7 @@ export function createPieceRepository(): PieceRepository {
       );
 
       return filtered.map((row): PieceListItem => {
-        const categoryRow = row.piece_categories as {
+        const categoryRow = row.piece_categories as unknown as {
           id: string;
           organization_id: string;
           name: string;
@@ -286,7 +286,7 @@ export function createPieceRepository(): PieceRepository {
         return null;
       }
 
-      const categoryRow = data.piece_categories as {
+      const categoryRow = data.piece_categories as unknown as {
         id: string;
         organization_id: string;
         name: string;

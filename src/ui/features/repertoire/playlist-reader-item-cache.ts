@@ -1,12 +1,14 @@
 import * as pdfjs from 'pdfjs-dist';
 import type { PdfAnnotation, ReadingPlaylistItemDetail } from '@/domain/repertoire';
-import type { RepertoireUseCases } from '@/application/repertoire';
+import type { OfflineUseCases } from '@/application/offline';
+import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
 
 export type CachedPlaylistItem = {
-  downloadUrl: string;
+  downloadUrl: string | null;
   annotations: PdfAnnotation[];
   numPages: number;
   pdfDocument: pdfjs.PDFDocumentProxy;
+  isCachedLocally: boolean;
 };
 
 export function isPlaylistItemAvailable(item: ReadingPlaylistItemDetail): boolean {
@@ -14,7 +16,7 @@ export function isPlaylistItemAvailable(item: ReadingPlaylistItemDetail): boolea
 }
 
 export async function loadPlaylistItemData(
-  repertoire: RepertoireUseCases,
+  offline: OfflineUseCases,
   organizationId: string,
   item: ReadingPlaylistItemDetail,
 ): Promise<CachedPlaylistItem | null> {
@@ -22,25 +24,36 @@ export async function loadPlaylistItemData(
     return null;
   }
 
-  const urlResult = await repertoire.getPieceFileDownloadUrl(
+  const statusResult = await offline.getOfflineStatus(
     organizationId,
     item.pieceId,
     item.pieceFileId,
   );
-  if (!urlResult.ok) {
+  const isCachedLocally =
+    statusResult.ok && statusResult.value.fileStatus !== 'not_cached';
+
+  const pdfLoad = await resolvePdfDocument(
+    offline,
+    organizationId,
+    item.pieceId,
+    item.pieceFileId,
+  );
+
+  if (!pdfLoad.pdfDocument) {
     return null;
   }
 
-  const [annotationsResult, pdfDocument] = await Promise.all([
-    repertoire.listPieceFileAnnotations(organizationId, item.pieceFileId),
-    pdfjs.getDocument({ url: urlResult.value }).promise,
-  ]);
+  const annotationsResult = await offline.listAnnotationsForReading(
+    organizationId,
+    item.pieceFileId,
+  );
 
   return {
-    downloadUrl: urlResult.value,
+    downloadUrl: pdfLoad.downloadUrl,
     annotations: annotationsResult.ok ? annotationsResult.value : [],
-    numPages: pdfDocument.numPages,
-    pdfDocument,
+    numPages: pdfLoad.pdfDocument.numPages,
+    pdfDocument: pdfLoad.pdfDocument,
+    isCachedLocally,
   };
 }
 

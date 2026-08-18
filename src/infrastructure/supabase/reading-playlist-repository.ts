@@ -4,7 +4,6 @@ import type {
   CreateReadingPlaylistItemInput,
   PieceFilePartLink,
   ReadingPlaylist,
-  ReadingPlaylistDetail,
   ReadingPlaylistItemDetail,
   UpdateReadingPlaylistInput,
 } from '@/domain/repertoire';
@@ -179,7 +178,7 @@ async function loadItemsForPlaylist(
     return [];
   }
 
-  const rows = data as ItemRow[];
+  const rows = data as unknown as ItemRow[];
   const linksByFile = await loadPartLinksForFiles(
     organizationId,
     rows.map((row) => row.piece_file_id),

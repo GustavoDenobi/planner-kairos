@@ -6,7 +6,7 @@ import type { PieceListItem } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { SortableList } from '@/ui/components/SortableList';
-import { IconGripVertical, IconMusic, IconPlus, IconTrash } from '@/ui/components/icons';
+import { IconGripVertical, IconPlus, IconTrash } from '@/ui/components/icons';
 import { prepareReadingPlaylistPath } from '@/ui/features/repertoire/reading-playlist-routes';
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
