@@ -5,12 +5,15 @@ import {
   canRedeemGroupInvite,
   getInviteSignupFieldErrors,
   hasInviteSignupFieldErrors,
+  isGroupInviteExhausted,
   isGroupInviteValid,
   isPasswordRecoveryCodeValid,
   isValidInviteBirthDate,
   isValidInviteSignupPassword,
   normalizeInviteBirthDate,
   membershipRoleForInvite,
+  validateOrganizationImageDimensions,
+  validateOrganizationImageMime,
 } from './rules';
 
 const baseInvite = (): GroupInvite => ({
@@ -18,6 +21,7 @@ const baseInvite = (): GroupInvite => ({
   organizationId: 'org-1',
   groupId: 'group-1',
   expiresAt: new Date('2026-08-20T00:00:00Z'),
+  maxUses: 0,
   revokedAt: null,
   redeemedAt: null,
   redeemedByUserId: null,
@@ -28,37 +32,47 @@ const now = new Date('2026-08-17T12:00:00Z');
 
 describe('isGroupInviteValid', () => {
   it('returns true for active invite', () => {
-    expect(isGroupInviteValid(baseInvite(), now)).toBe(true);
+    expect(isGroupInviteValid(baseInvite(), now, 0)).toBe(true);
   });
 
   it('returns false when revoked', () => {
     const invite = { ...baseInvite(), revokedAt: new Date('2026-08-16T00:00:00Z') };
-    expect(isGroupInviteValid(invite, now)).toBe(false);
+    expect(isGroupInviteValid(invite, now, 0)).toBe(false);
   });
 
-  it('returns false when redeemed', () => {
-    const invite = { ...baseInvite(), redeemedAt: new Date('2026-08-16T00:00:00Z') };
-    expect(isGroupInviteValid(invite, now)).toBe(false);
+  it('returns false when exhausted', () => {
+    const invite = { ...baseInvite(), maxUses: 2 };
+    expect(isGroupInviteValid(invite, now, 2)).toBe(false);
   });
 
   it('returns false when expired', () => {
     const invite = { ...baseInvite(), expiresAt: new Date('2026-08-16T00:00:00Z') };
-    expect(isGroupInviteValid(invite, now)).toBe(false);
+    expect(isGroupInviteValid(invite, now, 0)).toBe(false);
+  });
+});
+
+describe('isGroupInviteExhausted', () => {
+  it('returns false when unlimited', () => {
+    expect(isGroupInviteExhausted(0, 10)).toBe(false);
+  });
+
+  it('returns true when use count reaches limit', () => {
+    expect(isGroupInviteExhausted(3, 3)).toBe(true);
   });
 });
 
 describe('canRedeemGroupInvite', () => {
   it('returns true when invite valid and no existing musician', () => {
-    expect(canRedeemGroupInvite(baseInvite(), now, false)).toBe(true);
+    expect(canRedeemGroupInvite(baseInvite(), now, 0, false)).toBe(true);
   });
 
   it('returns false when musician already exists in org', () => {
-    expect(canRedeemGroupInvite(baseInvite(), now, true)).toBe(false);
+    expect(canRedeemGroupInvite(baseInvite(), now, 0, true)).toBe(false);
   });
 
   it('returns false when invite invalid', () => {
     const invite = { ...baseInvite(), revokedAt: new Date('2026-08-16T00:00:00Z') };
-    expect(canRedeemGroupInvite(invite, now, false)).toBe(false);
+    expect(canRedeemGroupInvite(invite, now, 0, false)).toBe(false);
   });
 });
 
@@ -169,5 +183,30 @@ describe('isValidInviteSignupPassword', () => {
   it('accepts passwords with at least 6 characters', () => {
     expect(isValidInviteSignupPassword('123456')).toBe(true);
     expect(isValidInviteSignupPassword('12345')).toBe(false);
+  });
+});
+
+describe('validateOrganizationImageMime', () => {
+  it('accepts png, jpeg and webp', () => {
+    expect(validateOrganizationImageMime('image/png')).toBeNull();
+    expect(validateOrganizationImageMime('image/jpeg')).toBeNull();
+    expect(validateOrganizationImageMime('image/webp')).toBeNull();
+  });
+
+  it('rejects svg and other types', () => {
+    expect(validateOrganizationImageMime('image/svg+xml')).toBe('unsupported_type');
+    expect(validateOrganizationImageMime('application/pdf')).toBe('unsupported_type');
+  });
+});
+
+describe('validateOrganizationImageDimensions', () => {
+  it('accepts images with at least 200x200 px', () => {
+    expect(validateOrganizationImageDimensions(200, 200)).toBeNull();
+    expect(validateOrganizationImageDimensions(400, 300)).toBeNull();
+  });
+
+  it('rejects smaller images', () => {
+    expect(validateOrganizationImageDimensions(199, 200)).toBe('too_small');
+    expect(validateOrganizationImageDimensions(200, 180)).toBe('too_small');
   });
 });

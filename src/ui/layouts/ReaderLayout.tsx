@@ -55,9 +55,13 @@ export function ReaderLayout({
               download={downloadName}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-text hover:bg-bg"
+              title="Baixar arquivo"
+              aria-label="Baixar arquivo"
+              className="inline-flex items-center gap-1 rounded-lg border border-border p-2 text-sm text-text transition-colors hover:bg-bg"
             >
-              <IconArrowDown className="h-4 w-4" />
+              <IconArrowDown className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sm:hidden">Arquivo</span>
+              <span className="hidden sm:inline">Baixar arquivo</span>
             </a>
           ) : null}
         </div>

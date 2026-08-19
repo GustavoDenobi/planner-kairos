@@ -5,9 +5,10 @@ export async function createGroupInvite(
   inviteRepo: GroupInviteRepository,
   groupId: string,
   expiresAt: Date,
+  maxUses = 0,
 ) {
   try {
-    const result = await inviteRepo.create(groupId, expiresAt);
+    const result = await inviteRepo.create(groupId, expiresAt, maxUses);
     return Result.ok(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'create_invite_failed';

@@ -1,4 +1,5 @@
-import { publicOrgImageUrl } from '../ui/utils/publicOrgImageUrl';
+import { publicOrgImageUrl } from '../ui/utils/publicOrgImageUrl.js';
+import { normalizeEnvUrl } from '../domain/shared/normalizeEnvUrl.js';
 
 export type InvitePreviewRow = {
   invite_id: string;
@@ -32,7 +33,7 @@ export async function fetchInvitePreviewRow(
   supabaseUrl: string,
   supabaseAnonKey: string,
 ): Promise<InvitePreviewRow | null> {
-  const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/get_invite_preview`;
+  const url = `${normalizeEnvUrl(supabaseUrl)}/rest/v1/rpc/get_invite_preview`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -44,6 +45,7 @@ export async function fetchInvitePreviewRow(
   });
 
   if (!response.ok) {
+    console.error('get_invite_preview failed:', response.status);
     return null;
   }
 
@@ -63,12 +65,13 @@ export function buildInviteOgMeta(
   preview: InvitePreviewRow,
   options: Pick<InviteOgHtmlOptions, 'token' | 'siteOrigin' | 'supabaseUrl'>,
 ): InviteOgMeta {
-  const pageUrl = `${options.siteOrigin.replace(/\/$/, '')}/convite/${encodeURIComponent(options.token)}`;
+  const siteOrigin = normalizeEnvUrl(options.siteOrigin);
+  const pageUrl = `${siteOrigin}/convite/${encodeURIComponent(options.token)}`;
   const title = `Convite — ${preview.organization_name}`;
   const description = `Participe de ${preview.organization_name} no grupo ${preview.group_name}.`;
   const imageUrl = preview.organization_image_storage_key
     ? publicOrgImageUrl(options.supabaseUrl, preview.organization_image_storage_key)
-    : null;
+    : `${siteOrigin}/logo.png`;
 
   return {
     title,

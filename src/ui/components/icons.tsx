@@ -199,6 +199,15 @@ export function IconMinimize(props: IconProps) {
   );
 }
 
+export function IconZoomIn(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+    </svg>
+  );
+}
+
 export function IconMic(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -266,6 +275,25 @@ export function IconArrowDown(props: IconProps) {
     <svg {...defaults} {...props}>
       <path d="M12 3v14" />
       <path d="M6 13l6 6 6-6" />
+    </svg>
+  );
+}
+
+export function IconOffline(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M12 18h.01" />
+    </svg>
+  );
+}
+
+export function IconExternalLink(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     </svg>
   );
 }

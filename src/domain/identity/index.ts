@@ -6,9 +6,11 @@ export type {
   GroupInvite,
   GroupInvitePreview,
   GroupInviteListItem,
+  GroupInviteRedeemedMusician,
 } from './group-invite';
 export type { PasswordRecoveryCode } from './password-recovery-code';
 export {
+  isGroupInviteExhausted,
   isGroupInviteValid,
   canRedeemGroupInvite,
   membershipRoleForInvite,
@@ -20,10 +22,14 @@ export {
   normalizeInviteBirthDate,
   parseInviteBirthDate,
   INVITE_SIGNUP_MIN_PASSWORD_LENGTH,
+  MIN_ORGANIZATION_IMAGE_SIZE,
+  validateOrganizationImageDimensions,
+  validateOrganizationImageMime,
 } from './rules';
 export type {
   InviteSignupField,
   InviteSignupFieldErrorCode,
   InviteSignupFieldErrors,
   InviteSignupInput,
+  OrganizationImageErrorCode,
 } from './rules';

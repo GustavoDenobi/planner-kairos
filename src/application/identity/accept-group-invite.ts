@@ -22,6 +22,8 @@ export type AcceptGroupInviteInput = {
 export type AcceptGroupInviteError =
   | InviteSignupFieldErrors
   | 'signup_failed'
+  | 'email_taken'
+  | 'invalid_invite'
   | 'not_authenticated'
   | string;
 
@@ -44,10 +46,17 @@ export async function acceptGroupInvite(
       return Result.fail(fieldErrors);
     }
 
-    const session = await auth.signUp(input.email, input.password, input.displayName);
-    if (!session) {
-      return Result.fail('signup_failed');
+    const signup = await auth.signUpForInvite({
+      token: input.token,
+      email: input.email,
+      password: input.password,
+      displayName: input.displayName,
+    });
+    if (!signup.ok) {
+      return Result.fail(signup.error);
     }
+
+    const session = signup.session;
     await profileRepo.updateDisplayName(session.user.id, input.displayName);
 
     try {

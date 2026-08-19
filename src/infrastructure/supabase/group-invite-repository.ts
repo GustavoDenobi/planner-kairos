@@ -44,10 +44,11 @@ export function createGroupInviteRepository(): GroupInviteRepository {
       return data[0].organization_slug;
     },
 
-    async create(groupId, expiresAt) {
+    async create(groupId, expiresAt, maxUses = 0) {
       const { data, error } = await supabase.rpc('create_group_invite', {
         p_group_id: groupId,
         p_expires_at: expiresAt.toISOString(),
+        p_max_uses: maxUses,
       });
 
       if (error || !data || data.length === 0) {
@@ -78,6 +79,17 @@ export function createGroupInviteRepository(): GroupInviteRepository {
       }
     },
 
+    async updateMaxUses(inviteId, maxUses) {
+      const { error } = await supabase.rpc('update_group_invite_max_uses', {
+        p_invite_id: inviteId,
+        p_max_uses: maxUses,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    },
+
     async listForOrg(organizationId) {
       const { data, error } = await supabase.rpc('list_group_invites', {
         p_organization_id: organizationId,
@@ -96,6 +108,14 @@ export function createGroupInviteRepository(): GroupInviteRepository {
         revoked_at: string | null;
         redeemed_at: string | null;
         created_at: string;
+        max_uses: number;
+        use_count: number;
+        redeemed_musicians: Array<{
+          id: string;
+          full_name: string;
+          email: string | null;
+          created_at: string;
+        }> | null;
       }>).map(
         (row) =>
           ({
@@ -107,6 +127,14 @@ export function createGroupInviteRepository(): GroupInviteRepository {
             revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
             redeemedAt: row.redeemed_at ? new Date(row.redeemed_at) : null,
             createdAt: new Date(row.created_at),
+            maxUses: row.max_uses,
+            useCount: row.use_count,
+            redeemedMusicians: (row.redeemed_musicians ?? []).map((musician) => ({
+              id: musician.id,
+              fullName: musician.full_name,
+              email: musician.email,
+              createdAt: new Date(musician.created_at),
+            })),
           }) satisfies GroupInviteListItem,
       );
     },

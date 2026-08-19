@@ -9,6 +9,7 @@ import {
   injectInviteOgIntoHtml,
   parseProductionAssets,
 } from '../og/inviteOg';
+import { normalizeEnvUrl } from '../domain/shared/normalizeEnvUrl.js';
 
 type InviteOgMiddlewareOptions = {
   supabaseUrl: string;
@@ -22,7 +23,7 @@ type InviteOgMiddlewareOptions = {
 
 function getSiteOrigin(req: IncomingMessage, appUrl?: string): string {
   if (appUrl) {
-    return appUrl.replace(/\/$/, '');
+    return normalizeEnvUrl(appUrl);
   }
 
   const host = req.headers.host ?? 'localhost:5173';

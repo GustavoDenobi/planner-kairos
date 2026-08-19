@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import type { GroupInviteListItem } from '@/domain/identity';
+import { isGroupInviteExhausted } from '@/domain/identity';
 import type { Group, GroupKind, Section, SectionListItem } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
@@ -12,7 +13,7 @@ import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
-import { IconPencil, IconUsers } from '@/ui/components/icons';
+import { IconExternalLink, IconPencil, IconUsers } from '@/ui/components/icons';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 function toDateInputValue(date: Date): string {
@@ -26,7 +27,32 @@ function fromDateInputValue(value: string): Date {
   return new Date(year, month - 1, day, 23, 59, 59);
 }
 function isInviteActive(invite: GroupInviteListItem): boolean {
-  return !invite.redeemedAt && !invite.revokedAt && invite.expiresAt >= new Date();
+  const now = new Date();
+  return (
+    !invite.revokedAt &&
+    invite.expiresAt >= now &&
+    !isGroupInviteExhausted(invite.maxUses, invite.useCount)
+  );
+}
+
+function isInviteEditable(invite: GroupInviteListItem): boolean {
+  return !invite.revokedAt;
+}
+
+function inviteUsageLabel(invite: GroupInviteListItem): string {
+  if (invite.maxUses === 0) {
+    if (invite.useCount === 0) {
+      return 'Nenhum uso · ilimitado';
+    }
+    return `${invite.useCount} uso${invite.useCount === 1 ? '' : 's'} · ilimitado`;
+  }
+  return `${invite.useCount} / ${invite.maxUses} uso${invite.maxUses === 1 ? '' : 's'}`;
+}
+
+function defaultCreateInviteExpiresAt(): Date {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+  return expiresAt;
 }
 export function GroupDetailPage() {
   const { orgSlug, groupId } = useParams();
@@ -49,6 +75,11 @@ export function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [createInviteExpiresAt, setCreateInviteExpiresAt] = useState(() =>
+    toDateInputValue(defaultCreateInviteExpiresAt()),
+  );
+  const [createInviteMaxUses, setCreateInviteMaxUses] = useState('0');
+  const [expandedInviteIds, setExpandedInviteIds] = useState<Record<string, boolean>>({});
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [updatingInviteId, setUpdatingInviteId] = useState<string | null>(null);
   const [sections, setSections] = useState<SectionListItem[]>([]);
@@ -305,23 +336,42 @@ export function GroupDetailPage() {
     if (normalized.includes('invite_not_editable')) {
       return 'Este convite não pode ser editado.';
     }
+    if (normalized.includes('invalid_max_uses')) {
+      return 'O limite de usos deve ser zero ou maior.';
+    }
+    if (normalized.includes('max_uses_below_use_count')) {
+      return 'O limite não pode ser menor que a quantidade já utilizada.';
+    }
     if (normalized.includes('gen_random_bytes') || normalized.includes('digest')) {
       return 'Erro no servidor ao gerar o token do convite. Aplique as migrations do Supabase (db reset ou db push).';
     }
     return `Não foi possível gerar o convite. (${code})`;
   }
-  async function handleCreateInvite() {
+  async function handleCreateInvite(event: React.FormEvent) {
+    event.preventDefault();
     setInviteError(null);
     setIsCreatingInvite(true);
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    const result = await identity.createGroupInvite(group!.id, expiresAt);
+
+    const maxUses = createInviteMaxUses.trim() === '' ? 0 : Number(createInviteMaxUses);
+    if (!Number.isInteger(maxUses) || maxUses < 0) {
+      setIsCreatingInvite(false);
+      setInviteError('Informe um limite de usos válido (0 = ilimitado).');
+      return;
+    }
+
+    const result = await identity.createGroupInvite(
+      group!.id,
+      fromDateInputValue(createInviteExpiresAt),
+      maxUses,
+    );
     setIsCreatingInvite(false);
     if (!result.ok) {
       console.error('createGroupInvite failed:', result.error);
       setInviteError(inviteErrorMessage(result.error));
       return;
     }
+    setCreateInviteExpiresAt(toDateInputValue(defaultCreateInviteExpiresAt()));
+    setCreateInviteMaxUses('0');
     await refreshInvites();
   }
   async function handleRevoke(inviteId: string) {
@@ -346,10 +396,53 @@ export function GroupDetailPage() {
     }
     await refreshInvites();
   }
+  async function handleMaxUsesChange(
+    inviteId: string,
+    value: string,
+    currentUseCount: number,
+    currentMaxUses: number,
+  ) {
+    if (value.trim() === '') {
+      return;
+    }
+
+    const maxUses = Number(value);
+    if (!Number.isInteger(maxUses) || maxUses < 0) {
+      setInviteError('Informe um limite de usos válido (0 = ilimitado).');
+      return;
+    }
+
+    if (maxUses === currentMaxUses) {
+      return;
+    }
+
+    if (maxUses > 0 && maxUses < currentUseCount) {
+      setInviteError('O limite não pode ser menor que a quantidade já utilizada.');
+      return;
+    }
+
+    setInviteError(null);
+    setUpdatingInviteId(inviteId);
+    const result = await identity.updateGroupInviteMaxUses(inviteId, maxUses);
+    setUpdatingInviteId(null);
+    if (!result.ok) {
+      setInviteError(inviteErrorMessage(result.error));
+      return;
+    }
+    await refreshInvites();
+  }
+
+  function toggleInviteMusicians(inviteId: string) {
+    setExpandedInviteIds((current) => ({
+      ...current,
+      [inviteId]: !current[inviteId],
+    }));
+  }
+
   function statusLabel(invite: GroupInviteListItem) {
-    if (invite.redeemedAt) return 'Utilizado';
     if (invite.revokedAt) return 'Link desativado';
     if (invite.expiresAt < new Date()) return 'Expirado';
+    if (isGroupInviteExhausted(invite.maxUses, invite.useCount)) return 'Esgotado';
     return 'Ativo';
   }
   return (
@@ -498,40 +591,121 @@ export function GroupDetailPage() {
                   <ul className="mt-6 flex flex-col gap-2">
                     {invites.map((invite) => {
                       const active = isInviteActive(invite);
-                      const editable = !invite.redeemedAt && !invite.revokedAt;
+                      const editable = isInviteEditable(invite);
+                      const revoked = Boolean(invite.revokedAt);
+                      const musiciansExpanded = Boolean(expandedInviteIds[invite.id]);
                       return (
                         <li
                           key={invite.id}
-                          className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm"
+                          className={`flex flex-col gap-3 rounded-lg border border-border px-4 py-3 text-sm ${
+                            revoked ? 'bg-bg text-muted' : 'bg-surface'
+                          }`}
                         >
-                          <p className="font-medium text-text">{statusLabel(invite)}</p>
-                          {invite.token && <InviteLinkCopy token={invite.token} />}
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p className={`font-medium ${revoked ? 'text-muted' : 'text-text'}`}>
+                              {statusLabel(invite)}
+                            </p>
+                            <p className="text-muted">{inviteUsageLabel(invite)}</p>
+                          </div>
+                          {invite.token && !revoked && <InviteLinkCopy token={invite.token} />}
+                          {invite.token && revoked && (
+                            <input
+                              type="text"
+                              readOnly
+                              value={`${window.location.origin}/convite/${invite.token}`}
+                              className="min-w-0 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-muted"
+                            />
+                          )}
                           {editable ? (
-                            <div className="flex flex-col gap-2">
-                              <span className="text-muted">Expira em</span>
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                                <input
-                                  type="date"
-                                  value={toDateInputValue(invite.expiresAt)}
-                                  disabled={updatingInviteId === invite.id}
-                                  onChange={(e) => handleExpiresChange(invite.id, e.target.value)}
-                                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-50 sm:w-auto"
-                                />
-                                {active && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRevoke(invite.id)}
-                                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-bg"
-                                  >
-                                    Desativar
-                                  </button>
-                                )}
+                            <div className="flex flex-col gap-3">
+                              <div className="flex flex-col gap-2">
+                                <span className="text-muted">Expira em</span>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                                  <input
+                                    type="date"
+                                    value={toDateInputValue(invite.expiresAt)}
+                                    disabled={updatingInviteId === invite.id}
+                                    onChange={(e) => handleExpiresChange(invite.id, e.target.value)}
+                                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-50 sm:w-auto"
+                                  />
+                                  {active && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevoke(invite.id)}
+                                      className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-bg"
+                                    >
+                                      Desativar
+                                    </button>
+                                  )}
+                                </div>
                               </div>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-muted">Limite de usos (0 = ilimitado)</span>
+                                <input
+                                  type="number"
+                                  min={invite.useCount}
+                                  step={1}
+                                  defaultValue={invite.maxUses}
+                                  key={`${invite.id}-${invite.maxUses}`}
+                                  disabled={updatingInviteId === invite.id}
+                                  onBlur={(e) =>
+                                    handleMaxUsesChange(
+                                      invite.id,
+                                      e.target.value,
+                                      invite.useCount,
+                                      invite.maxUses,
+                                    )
+                                  }
+                                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-50 sm:max-w-[12rem]"
+                                />
+                              </label>
                             </div>
                           ) : (
-                            <p className="text-muted">
-                              Expira em {invite.expiresAt.toLocaleDateString('pt-BR')}
-                            </p>
+                            <div className="flex flex-col gap-1 text-muted">
+                              <p>Expira em {invite.expiresAt.toLocaleDateString('pt-BR')}</p>
+                              <p>Limite: {invite.maxUses === 0 ? 'ilimitado' : invite.maxUses}</p>
+                            </div>
+                          )}
+                          {invite.useCount > 0 && (
+                            <div className="flex flex-col gap-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleInviteMusicians(invite.id)}
+                                aria-expanded={musiciansExpanded}
+                                className="self-start text-sm font-medium text-primary hover:underline"
+                              >
+                                {musiciansExpanded
+                                  ? 'Ocultar inscritos'
+                                  : `Ver ${invite.useCount} inscrito${invite.useCount === 1 ? '' : 's'}`}
+                              </button>
+                              {musiciansExpanded && (
+                                <ul className="flex flex-col gap-2 rounded-lg border border-border bg-bg p-3">
+                                  {invite.redeemedMusicians.map((musician) => (
+                                    <li
+                                      key={musician.id}
+                                      className="flex items-start justify-between gap-3 border-b border-border pb-2 last:border-b-0 last:pb-0"
+                                    >
+                                      <div className="min-w-0 flex flex-col gap-0.5">
+                                        <span className="font-medium text-text">{musician.fullName}</span>
+                                        {musician.email && (
+                                          <span className="text-muted">{musician.email}</span>
+                                        )}
+                                        <span className="text-xs text-muted">
+                                          {musician.createdAt.toLocaleDateString('pt-BR')}
+                                        </span>
+                                      </div>
+                                      <Link
+                                        to={`/${orgSlug}/musicos/${musician.id}`}
+                                        aria-label={`Abrir ${musician.fullName}`}
+                                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-muted transition-colors hover:bg-surface hover:text-text"
+                                      >
+                                        <IconExternalLink className="h-4 w-4" />
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
                           )}
                         </li>
                       );
@@ -541,16 +715,44 @@ export function GroupDetailPage() {
                     )}
                   </ul>
                   {!isArchived && (
-                    <div className="flex w-full justify-center mt-4">
-                      <button
-                        type="button"
-                        disabled={isCreatingInvite}
-                        onClick={handleCreateInvite}
-                        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                      >
-                        {isCreatingInvite ? 'Gerando…' : '+ Link'}
-                      </button>
-                    </div>
+                    <form
+                      className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-bg p-4"
+                      onSubmit={handleCreateInvite}
+                    >
+                      <p className="text-sm font-medium text-text">Novo convite</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1 text-sm">
+                          <span className="text-muted">Expira em</span>
+                          <input
+                            type="date"
+                            required
+                            value={createInviteExpiresAt}
+                            onChange={(e) => setCreateInviteExpiresAt(e.target.value)}
+                            className="rounded-lg border border-border bg-surface px-3 py-2 text-text outline-none focus:border-primary"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1 text-sm">
+                          <span className="text-muted">Limite de usos (0 = ilimitado)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={createInviteMaxUses}
+                            onChange={(e) => setCreateInviteMaxUses(e.target.value)}
+                            className="rounded-lg border border-border bg-surface px-3 py-2 text-text outline-none focus:border-primary"
+                          />
+                        </label>
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          type="submit"
+                          disabled={isCreatingInvite}
+                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                        >
+                          {isCreatingInvite ? 'Gerando…' : '+ Link'}
+                        </button>
+                      </div>
+                    </form>
                   )}
                 </>
               ),

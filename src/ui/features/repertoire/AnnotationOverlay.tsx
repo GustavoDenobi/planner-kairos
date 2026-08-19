@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type {
   HighlightGeometry,
   NormalizedPoint,
@@ -43,6 +43,7 @@ type HighlightLayerProps = SharedProps & {
 type InteractionLayerProps = SharedProps & {
   mode: AnnotationInteractionMode;
   readOnly: boolean;
+  gesturesActive?: boolean;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (geometry: StrokeGeometry) => void;
   onHighlightComplete: (geometry: StrokeGeometry) => void;
@@ -194,6 +195,7 @@ export function AnnotationInteractionLayer({
   visibleLayers,
   mode,
   readOnly,
+  gesturesActive = false,
   canEraseAnnotation,
   onStrokeComplete,
   onHighlightComplete,
@@ -204,7 +206,7 @@ export function AnnotationInteractionLayer({
   const draftStrokeRef = useRef<NormalizedPoint[] | null>(null);
 
   const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers);
-  const interactive = !readOnly && mode !== 'read';
+  const interactive = !readOnly && mode !== 'read' && !gesturesActive;
 
   const getPoint = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -219,9 +221,20 @@ export function AnnotationInteractionLayer({
     onDraftStrokeChange(null);
   }, [onDraftStrokeChange]);
 
+  useEffect(() => {
+    if (gesturesActive) {
+      clearDraft();
+    }
+  }, [clearDraft, gesturesActive]);
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
       if (!interactive) {
+        return;
+      }
+
+      if (!event.isPrimary) {
+        clearDraft();
         return;
       }
 
@@ -249,6 +262,7 @@ export function AnnotationInteractionLayer({
     },
     [
       canEraseAnnotation,
+      clearDraft,
       getPoint,
       interactive,
       mode,
@@ -260,7 +274,7 @@ export function AnnotationInteractionLayer({
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
-      if (!interactive) {
+      if (!interactive || !event.isPrimary) {
         return;
       }
 
@@ -314,12 +328,12 @@ export function AnnotationInteractionLayer({
 
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
-      if (!interactive) {
-        return;
-      }
-
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      if (!interactive) {
+        return;
       }
 
       if (mode === 'pen' || mode === 'highlight') {

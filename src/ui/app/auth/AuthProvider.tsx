@@ -14,45 +14,88 @@ type AuthContextValue = {
   session: AuthSession | null;
   isLoading: boolean;
   userId: string | null;
+  isOfflineSession: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const identity = useIdentity();
+  const offline = useOffline();
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [isOfflineSession, setIsOfflineSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    identity.getSession().then((initial) => {
-      if (active) {
-        setSession(initial);
-        setIsLoading(false);
+    async function bootstrap() {
+      const initial = await identity.getSession();
+      if (!active) {
+        return;
       }
-    });
+
+      if (initial) {
+        setSession(initial);
+        setIsOfflineSession(false);
+        setIsLoading(false);
+        return;
+      }
+
+      const snapshot = await offline.getIdentitySnapshot();
+      if (snapshot) {
+        setSession(offline.sessionFromIdentitySnapshot(snapshot));
+        setIsOfflineSession(true);
+      } else {
+        setSession(null);
+        setIsOfflineSession(false);
+      }
+      setIsLoading(false);
+    }
+
+    void bootstrap();
 
     const unsubscribe = identity.onAuthStateChange((next) => {
-      if (active) {
-        setSession(next);
-        setIsLoading(false);
+      if (!active) {
+        return;
       }
+
+      if (next) {
+        setSession(next);
+        setIsOfflineSession(false);
+        setIsLoading(false);
+        return;
+      }
+
+      void offline.getIdentitySnapshot().then((snapshot) => {
+        if (!active) {
+          return;
+        }
+        if (snapshot) {
+          setSession(offline.sessionFromIdentitySnapshot(snapshot));
+          setIsOfflineSession(true);
+        } else {
+          setSession(null);
+          setIsOfflineSession(false);
+        }
+        setIsLoading(false);
+      });
     });
 
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [identity]);
+  }, [identity, offline]);
 
   const value = useMemo(
     () => ({
       session,
       isLoading,
       userId: session?.user.id ?? null,
+      isOfflineSession,
     }),
-    [session, isLoading],
+    [session, isLoading, isOfflineSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

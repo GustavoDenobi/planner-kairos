@@ -23,8 +23,20 @@ export function inviteSignupFieldErrorMessage(
 }
 
 export function inviteSignupSubmitErrorMessage(error: string): string {
+  if (error === 'email_taken') {
+    return 'Este e-mail já possui uma conta. Faça login para aceitar o convite.';
+  }
+
   if (error === 'signup_failed') {
     return 'Não foi possível criar a conta. Verifique o e-mail ou tente novamente.';
+  }
+
+  if (error.includes('invite_exhausted')) {
+    return 'Este convite atingiu o limite de inscrições.';
+  }
+
+  if (error.includes('invalid_invite')) {
+    return 'Este convite expirou, foi revogado ou não está mais disponível.';
   }
 
   return 'Não foi possível criar a conta. Verifique os dados ou se o convite ainda é válido.';

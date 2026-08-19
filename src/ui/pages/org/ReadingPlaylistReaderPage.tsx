@@ -4,6 +4,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { CreatePdfAnnotationInput, PdfAnnotation, ReadingPlaylistDetail } from '@/domain/repertoire';
 
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
+
 import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 
 import { useAuth } from '@/ui/app/auth/AuthProvider';
@@ -134,9 +136,9 @@ export function ReadingPlaylistReaderPage() {
 
   const { userId } = useAuth();
 
-  const { organizations } = useOrg();
+  const { resolveOrgBySlug } = useOrg();
 
-  const org = organizations.find((item) => item.slug === orgSlug);
+  const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
 
 
 
@@ -188,6 +190,12 @@ export function ReadingPlaylistReaderPage() {
 
     }
 
+    if (!online) {
+
+      return readingPlaylistsPath(orgSlug);
+
+    }
+
     if (playlist?.sourceEventId) {
 
       return eventPath(orgSlug, playlist.sourceEventId);
@@ -196,13 +204,39 @@ export function ReadingPlaylistReaderPage() {
 
     return readingPlaylistEditPath(orgSlug, playlistId);
 
-  }, [orgSlug, playlistId, playlist?.sourceEventId]);
+  }, [orgSlug, playlistId, playlist?.sourceEventId, online]);
 
 
 
   const loadPlaylist = useCallback(async () => {
 
     if (!org || !userId || !playlistId) {
+
+      setIsLoadingPlaylist(false);
+
+      return null;
+
+    }
+
+
+
+    if (!isBrowserOnline()) {
+
+      const cached = await offline.getCachedReadingPlaylist(playlistId);
+
+      if (cached) {
+
+        setPlaylist(cached);
+
+        setIsLoadingPlaylist(false);
+
+        return cached;
+
+      }
+
+      setError('Playlist não disponível offline. Baixe com conexão antes de usar sem internet.');
+
+      setPlaylist(null);
 
       setIsLoadingPlaylist(false);
 
@@ -1093,13 +1127,11 @@ export function ReadingPlaylistReaderPage() {
     >
 
       {org && currentItem.pieceId && (
-        <div className="px-4 pt-2">
-          <OfflineFileStatusBadge
-            organizationId={org.id}
-            pieceId={currentItem.pieceId}
-            fileId={currentItem.pieceFileId}
-          />
-        </div>
+        <OfflineFileStatusBadge
+          organizationId={org.id}
+          pieceId={currentItem.pieceId}
+          fileId={currentItem.pieceFileId}
+        />
       )}
 
       <PdfViewer

@@ -1,18 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useIdentity } from '@/ui/app/AppServicesContext';
+import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+
+const ORG_STORAGE_KEY = 'planner-kairos:current-org-slug';
 
 export function LoginPage() {
   const identity = useIdentity();
+  const offline = useOffline();
   const navigate = useNavigate();
+  const online = useOnlineStatus();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [offlineWithoutSnapshot, setOfflineWithoutSnapshot] = useState(false);
+
+  useEffect(() => {
+    if (online) {
+      setOfflineWithoutSnapshot(false);
+      return;
+    }
+
+    void offline.getIdentitySnapshot().then((snapshot) => {
+      if (!snapshot) {
+        setOfflineWithoutSnapshot(true);
+        return;
+      }
+
+      const slug = snapshot.currentOrgSlug ?? localStorage.getItem(ORG_STORAGE_KEY);
+      if (slug) {
+        navigate(`/${slug}/leitura`, { replace: true });
+      } else {
+        navigate('/orgs', { replace: true });
+      }
+    });
+  }, [online, offline, navigate]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (!online) {
+      setError('O login exige conexão com a internet.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const result = await identity.signIn(email, password);
@@ -24,6 +57,18 @@ export function LoginPage() {
     }
 
     navigate('/orgs');
+  }
+
+  if (offlineWithoutSnapshot) {
+    return (
+      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm text-center">
+        <h1 className="font-brand text-xl font-bold text-text">Sem conexão</h1>
+        <p className="mt-2 text-sm text-muted">
+          Conecte-se à internet para fazer login. Se você já usou o app online e baixou playlists,
+          abra o app instalado com a conexão ativa uma vez para ativar o modo offline.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -68,7 +113,7 @@ export function LoginPage() {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !online}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {isSubmitting ? 'Entrando…' : 'Entrar'}

@@ -6,10 +6,13 @@ import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { ThemeToggle } from '@/ui/components/ThemeToggle';
 import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function OrgSelectorPage() {
-  const { organizations, isLoading, setCurrentOrgBySlug, refreshOrganizations } = useOrg();
+  const { organizations, isLoading, isOfflineData, setCurrentOrgBySlug, refreshOrganizations } =
+    useOrg();
   const navigate = useNavigate();
+  const online = useOnlineStatus();
   const [editingOrg, setEditingOrg] = useState<OrganizationWithRole | null>(null);
 
   useEffect(() => {
@@ -19,7 +22,11 @@ export function OrgSelectorPage() {
   async function handleSelect(slug: string) {
     const ok = await setCurrentOrgBySlug(slug);
     if (ok) {
-      navigate(`/${slug}/agenda`);
+      if (!online || isOfflineData) {
+        navigate(`/${slug}/leitura`);
+      } else {
+        navigate(`/${slug}/agenda`);
+      }
     }
   }
 
@@ -38,13 +45,24 @@ export function OrgSelectorPage() {
           <ThemeToggle variant="compact" />
         </div>
         <div className="rounded-xl border border-border bg-surface p-6 text-center">
-          <h1 className="text-xl font-semibold text-text">Sem acesso</h1>
-          <p className="mt-2 text-sm text-muted">
-            Você não pertence a nenhuma organização. Peça um convite ao maestro.
-          </p>
-          <Link to="/login" className="mt-4 inline-block text-sm text-primary hover:underline">
-            Voltar ao login
-          </Link>
+          {isOfflineData || !online ? (
+            <>
+              <h1 className="text-xl font-semibold text-text">Sem dados offline</h1>
+              <p className="mt-2 text-sm text-muted">
+                Conecte-se à internet e abra o app uma vez para sincronizar suas organizações.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-semibold text-text">Sem acesso</h1>
+              <p className="mt-2 text-sm text-muted">
+                Você não pertence a nenhuma organização. Peça um convite ao maestro.
+              </p>
+              <Link to="/login" className="mt-4 inline-block text-sm text-primary hover:underline">
+                Voltar ao login
+              </Link>
+            </>
+          )}
         </div>
       </div>
     );
@@ -58,6 +76,11 @@ export function OrgSelectorPage() {
       <div className="mb-6 flex items-center justify-center">
         <h1 className="text-2xl font-bold text-text">Selecione</h1>
       </div>
+      {(isOfflineData || !online) && (
+        <p className="mb-4 text-center text-sm text-muted">
+          Modo offline — apenas playlists baixadas estão disponíveis.
+        </p>
+      )}
       <ul className="flex flex-col gap-3">
         {organizations.map((org) => {
           const isAdmin = org.accessRole === 'admin' || org.accessRole === 'owner';
@@ -71,7 +94,7 @@ export function OrgSelectorPage() {
                 <p className="font-medium text-text">{org.name}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {isAdmin && (
+                {isAdmin && online && !isOfflineData && (
                   <button
                     type="button"
                     onClick={() => setEditingOrg(org)}

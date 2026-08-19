@@ -25,8 +25,8 @@ export function PiecePdfViewerPage() {
   const offline = useOffline();
   const ensemble = useEnsemble();
   const { userId } = useAuth();
-  const { organizations } = useOrg();
-  const org = organizations.find((organization) => organization.slug === orgSlug);
+  const { resolveOrgBySlug } = useOrg();
+  const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
   const online = useOnlineStatus();
 
   const [file, setFile] = useState<PieceFileWithLinks | null>(null);
@@ -288,11 +288,9 @@ export function PiecePdfViewerPage() {
         ) : null
       }
     >
-      <div className="px-4 pt-2">
-        {org && (
-          <OfflineFileStatusBadge organizationId={org.id} pieceId={pieceId} fileId={fileId} />
-        )}
-      </div>
+      {org && (
+        <OfflineFileStatusBadge organizationId={org.id} pieceId={pieceId} fileId={fileId} />
+      )}
       <PdfViewer
         key={viewerKey}
         url={downloadUrl ?? ''}

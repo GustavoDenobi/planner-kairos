@@ -3,6 +3,7 @@ export type GroupInvite = {
   organizationId: string;
   groupId: string;
   expiresAt: Date;
+  maxUses: number;
   revokedAt: Date | null;
   redeemedAt: Date | null;
   redeemedByUserId: string | null;
@@ -20,6 +21,13 @@ export type GroupInvitePreview = {
   expiresAt: Date;
 };
 
+export type GroupInviteRedeemedMusician = {
+  id: string;
+  fullName: string;
+  email: string | null;
+  createdAt: Date;
+};
+
 export type GroupInviteListItem = {
   id: string;
   groupId: string;
@@ -29,4 +37,7 @@ export type GroupInviteListItem = {
   revokedAt: Date | null;
   redeemedAt: Date | null;
   createdAt: Date;
+  maxUses: number;
+  useCount: number;
+  redeemedMusicians: GroupInviteRedeemedMusician[];
 };

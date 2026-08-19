@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, Outlet, useNavigation } from 'react-router-dom';
 import { AuthGuard } from '@/ui/app/auth/AuthGuard';
+import { HomeRedirect } from '@/ui/app/HomeRedirect';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { AppLayout } from '@/ui/layouts/AppLayout';
 import { PublicLayout } from '@/ui/layouts/PublicLayout';
@@ -75,8 +76,8 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      { path: '/', element: <Navigate to="/login" replace /> },
-      { path: '*', element: <Navigate to="/login" replace /> },
+      { path: '/', element: <HomeRedirect /> },
+      { path: '*', element: <HomeRedirect /> },
     ],
   },
 ]);

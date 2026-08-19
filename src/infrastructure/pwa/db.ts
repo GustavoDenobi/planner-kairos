@@ -47,11 +47,21 @@ export type CachedPlaylistRecord = {
   cachedAt: string;
 };
 
+export type IdentitySnapshotRecord = {
+  id: 'current';
+  userId: string;
+  email: string;
+  organizationsJson: string;
+  currentOrgSlug: string | null;
+  cachedAt: string;
+};
+
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
   syncOutbox!: Table<SyncOutboxRecord, string>;
   cachedPlaylists!: Table<CachedPlaylistRecord, string>;
+  identitySnapshot!: Table<IdentitySnapshotRecord, string>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -61,6 +71,14 @@ export class PlannerKairosOfflineDb extends Dexie {
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
       syncOutbox: 'id, createdAt',
       cachedPlaylists: 'playlistId, organizationId',
+    });
+    this.version(2).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
     });
   }
 }

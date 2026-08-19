@@ -20,8 +20,10 @@ import {
   IconMaximize,
   IconMinimize,
   IconMoon,
+  IconPencil,
   IconUndo,
   IconSun,
+  IconZoomIn,
 } from '@/ui/components/icons';
 import { Modal } from '@/ui/components/Modal';
 import {
@@ -39,11 +41,16 @@ import {
   savePdfReaderPreferences,
   type PdfNavigationMode,
 } from '@/ui/features/repertoire/pdf-reader-preference-storage';
+import {
+  isScaleZoomed,
+  MIN_PDF_SCALE,
+  nextDoubleTapFitMode,
+} from '@/ui/features/repertoire/pdf-viewport-gestures';
+import { usePdfViewportGestures } from '@/ui/features/repertoire/usePdfViewportGestures';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const SWIPE_THRESHOLD_PX = 48;
-const TAP_THRESHOLD_PX = 10;
 
 export type SectionLeadOption = {
   id: string;
@@ -134,6 +141,7 @@ type PdfPageFrameProps = {
   onStrokeComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
   onHighlightComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
+  gesturesActive: boolean;
 };
 
 function PdfPageFrame({
@@ -151,6 +159,7 @@ function PdfPageFrame({
   onStrokeComplete,
   onHighlightComplete,
   onEraseAnnotation,
+  gesturesActive,
 }: PdfPageFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -206,7 +215,7 @@ function PdfPageFrame({
 
   return (
     <div
-      className="relative mx-auto max-w-full"
+      className="relative mx-auto shrink-0"
       style={{
         width: dimensions.width > 0 ? dimensions.width : undefined,
         height: dimensions.height > 0 ? dimensions.height : undefined,
@@ -215,7 +224,7 @@ function PdfPageFrame({
       <div className={`relative ${inverted ? 'invert' : ''}`}>
         <canvas
           ref={canvasRef}
-          className={`block w-full ${inverted ? 'bg-black' : 'bg-white'} ${
+          className={`block ${inverted ? 'bg-black' : 'bg-white'} ${
             inverted ? '' : 'shadow-sm'
           }`}
         />
@@ -247,6 +256,7 @@ function PdfPageFrame({
             visibleLayers={visibleLayers}
             mode={interactionMode}
             readOnly={readOnly}
+            gesturesActive={gesturesActive}
             canEraseAnnotation={canEraseAnnotation}
             onStrokeComplete={handleStrokeComplete}
             onHighlightComplete={handleHighlightComplete}
@@ -326,6 +336,7 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const tapStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -339,6 +350,13 @@ export function PdfViewer({
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const fitScaleRef = useRef(fitScale);
+  fitScaleRef.current = fitScale;
+  const doubleTapFitRef = useRef<() => void>(() => {});
+  const viewportSingleTapRef = useRef<(point: { x: number; y: number }) => void>(() => {});
   const [loading, setLoading] = useState(true);
   useLoadingBar('pdf', loading);
   const [error, setError] = useState<string | null>(null);
@@ -364,6 +382,7 @@ export function PdfViewer({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
+  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | 'annotate' | null>(null);
 
   useEffect(() => {
     if (leadOptions.length === 0) {
@@ -442,6 +461,7 @@ export function PdfViewer({
     setPendingDeletionIds([]);
     setInteractionMode('pen');
     setIsAnnotating(true);
+    setMobileToolbarPanel(null);
   }, []);
 
   const exitAnnotationMode = useCallback(() => {
@@ -450,6 +470,7 @@ export function PdfViewer({
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
     setShowDiscardConfirm(false);
+    setMobileToolbarPanel(null);
   }, []);
 
   useEffect(() => {
@@ -507,53 +528,97 @@ export function PdfViewer({
     return navigation === 'horizontal' ? viewportRef.current : scrollRef.current;
   }, [navigation]);
 
-  const fitToWidth = useCallback(async () => {
-    if (!pdf) {
+  const { pan, isGesturing, isZoomed, resetPan } = usePdfViewportGestures({
+    viewportRef: navigation === 'horizontal' ? viewportRef : scrollRef,
+    contentRef,
+    scale,
+    setScale,
+    fitScale,
+    navigation,
+    isAnnotating,
+    enabled: Boolean(pdf) && numPages > 0,
+    onDoubleTap: () => doubleTapFitRef.current(),
+    onSingleTap: (point) => viewportSingleTapRef.current(point),
+  });
+
+  const applyFitScale = useCallback(
+    (next: number, force = false) => {
+      setFitScale(next);
+      if (force || !isScaleZoomed(scaleRef.current, fitScaleRef.current)) {
+        setScale(next);
+        resetPan();
+      }
+    },
+    [resetPan],
+  );
+
+  const computeFitScale = useCallback(
+    async (mode: 'width' | 'page') => {
+      if (!pdf) {
+        return null;
+      }
+
+      const container = getViewportElement();
+      if (!container) {
+        return null;
+      }
+
+      const page = await pdf.getPage(navigation === 'horizontal' ? currentPage : 1);
+      const viewport = page.getViewport({ scale: 1 });
+      const containerWidth = container.clientWidth - 16;
+      const containerHeight = container.clientHeight - 16;
+      if (containerWidth <= 0 || viewport.width <= 0) {
+        return null;
+      }
+
+      if (mode === 'width') {
+        return containerWidth / viewport.width;
+      }
+
+      if (containerHeight <= 0 || viewport.height <= 0) {
+        return null;
+      }
+
+      return Math.min(containerWidth / viewport.width, containerHeight / viewport.height);
+    },
+    [pdf, getViewportElement, navigation, currentPage],
+  );
+
+  const fitToWidth = useCallback(async (force = false) => {
+    const next = await computeFitScale('width');
+    if (next == null) {
+      return;
+    }
+    applyFitScale(next, force);
+  }, [applyFitScale, computeFitScale]);
+
+  const fitToPage = useCallback(async (force = false) => {
+    const next = await computeFitScale('page');
+    if (next == null) {
+      return;
+    }
+    applyFitScale(next, force);
+  }, [applyFitScale, computeFitScale]);
+
+  const handleDoubleTapFit = useCallback(async () => {
+    const [widthScale, pageScale] = await Promise.all([
+      computeFitScale('width'),
+      computeFitScale('page'),
+    ]);
+    if (widthScale == null || pageScale == null) {
       return;
     }
 
-    const container = getViewportElement();
-    if (!container) {
+    if (nextDoubleTapFitMode(scaleRef.current, widthScale, pageScale) === 'page') {
+      await fitToPage(true);
       return;
     }
 
-    const page = await pdf.getPage(navigation === 'horizontal' ? currentPage : 1);
-    const viewport = page.getViewport({ scale: 1 });
-    const containerWidth = container.clientWidth - 16;
-    if (containerWidth <= 0 || viewport.width <= 0) {
-      return;
-    }
-
-    setScale(containerWidth / viewport.width);
-  }, [pdf, getViewportElement, navigation, currentPage]);
-
-  const fitToPage = useCallback(async () => {
-    if (!pdf) {
-      return;
-    }
-
-    const container = getViewportElement();
-    if (!container) {
-      return;
-    }
-
-    const page = await pdf.getPage(navigation === 'horizontal' ? currentPage : 1);
-    const viewport = page.getViewport({ scale: 1 });
-    const containerWidth = container.clientWidth - 16;
-    const containerHeight = container.clientHeight - 16;
-    if (
-      containerWidth <= 0 ||
-      containerHeight <= 0 ||
-      viewport.width <= 0 ||
-      viewport.height <= 0
-    ) {
-      return;
-    }
-
-    const scaleX = containerWidth / viewport.width;
-    const scaleY = containerHeight / viewport.height;
-    setScale(Math.min(scaleX, scaleY));
-  }, [pdf, getViewportElement, navigation, currentPage]);
+    await fitToWidth(true);
+  }, [computeFitScale, fitToPage, fitToWidth]);
+  doubleTapFitRef.current = () => {
+    void handleDoubleTapFit();
+  };
 
   useEffect(() => {
     if (!pdf || numPages === 0) {
@@ -592,6 +657,10 @@ export function PdfViewer({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [pdf, numPages, navigation, fitToPage, fitToWidth]);
+
+  useEffect(() => {
+    resetPan();
+  }, [currentPage, navigation, resetPan]);
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -694,6 +763,47 @@ export function PdfViewer({
     navigateHorizontal('next');
   }, [currentPage, isAnnotating, numPages, navigateHorizontal, navigation, playlist]);
 
+  const handleViewportSingleTap = useCallback(
+    (point: { x: number; y: number }) => {
+      if (isAnnotating) {
+        return;
+      }
+
+      const viewport = getViewportElement();
+      if (!viewport) {
+        return;
+      }
+
+      const relativeX = point.x - viewport.getBoundingClientRect().left;
+      const third = viewport.clientWidth / 3;
+
+      if (!isZoomed && navigation === 'horizontal') {
+        if (relativeX < third) {
+          goToPreviousPage();
+          return;
+        }
+        if (relativeX > third * 2) {
+          goToNextPage();
+          return;
+        }
+      }
+
+      if (isFullscreen) {
+        setFullscreenControlsVisible((current) => !current);
+      }
+    },
+    [
+      getViewportElement,
+      goToNextPage,
+      goToPreviousPage,
+      isAnnotating,
+      isFullscreen,
+      isZoomed,
+      navigation,
+    ],
+  );
+  viewportSingleTapRef.current = handleViewportSingleTap;
+
   const goToPreviousItem = useCallback(() => {
     if (isAnnotating || !playlist?.canGoPrevious) {
       return;
@@ -750,7 +860,7 @@ export function PdfViewer({
 
   const handleTouchStart = useCallback(
     (event: React.TouchEvent) => {
-      if (isFullscreen) {
+      if (isFullscreen || isZoomed || isGesturing || event.touches.length !== 1) {
         return;
       }
 
@@ -760,23 +870,23 @@ export function PdfViewer({
       }
       touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     },
-    [isFullscreen],
+    [isFullscreen, isGesturing, isZoomed],
   );
 
   const handleFullscreenPointerDown = useCallback(
     (event: React.PointerEvent) => {
-      if (!isFullscreen || isAnnotating) {
+      if (!isFullscreen || isAnnotating || isGesturing) {
         return;
       }
 
       tapStartRef.current = { x: event.clientX, y: event.clientY };
     },
-    [isFullscreen, isAnnotating],
+    [isFullscreen, isAnnotating, isGesturing],
   );
 
   const handleFullscreenPointerUp = useCallback(
     (event: React.PointerEvent) => {
-      if (!isFullscreen || isAnnotating || !tapStartRef.current) {
+      if (!isFullscreen || isAnnotating || isGesturing || !tapStartRef.current) {
         return;
       }
 
@@ -789,45 +899,27 @@ export function PdfViewer({
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
 
-      if (navigation === 'horizontal' && absX >= SWIPE_THRESHOLD_PX && absX > absY) {
+      if (!isZoomed && navigation === 'horizontal' && absX >= SWIPE_THRESHOLD_PX && absX > absY) {
         if (deltaX < 0) {
           goToNextPage();
         } else {
           goToPreviousPage();
         }
-        return;
       }
-
-      if (Math.hypot(deltaX, deltaY) > TAP_THRESHOLD_PX) {
-        return;
-      }
-
-      if (navigation === 'horizontal') {
-        const viewport = viewportRef.current;
-        if (viewport) {
-          const relativeX = event.clientX - viewport.getBoundingClientRect().left;
-          const third = viewport.clientWidth / 3;
-
-          if (relativeX < third) {
-            goToPreviousPage();
-            return;
-          }
-
-          if (relativeX > third * 2) {
-            goToNextPage();
-            return;
-          }
-        }
-      }
-
-      setFullscreenControlsVisible((current) => !current);
     },
-    [isFullscreen, isAnnotating, navigation, goToNextPage, goToPreviousPage],
+    [isFullscreen, isAnnotating, isGesturing, isZoomed, navigation, goToNextPage, goToPreviousPage],
   );
 
   const handleTouchEnd = useCallback(
     (event: React.TouchEvent) => {
-      if (isFullscreen || navigation !== 'horizontal' || !touchStartRef.current || isAnnotating) {
+      if (
+        isFullscreen ||
+        navigation !== 'horizontal' ||
+        !touchStartRef.current ||
+        isAnnotating ||
+        isZoomed ||
+        isGesturing
+      ) {
         return;
       }
 
@@ -851,7 +943,7 @@ export function PdfViewer({
         goToPreviousPage();
       }
     },
-    [isFullscreen, navigation, isAnnotating, goToNextPage, goToPreviousPage],
+    [isFullscreen, navigation, isAnnotating, isGesturing, isZoomed, goToNextPage, goToPreviousPage],
   );
 
   const displayAnnotations = useMemo(() => {
@@ -1046,6 +1138,7 @@ export function PdfViewer({
     onStrokeComplete: handleStrokeComplete,
     onHighlightComplete: handleHighlightComplete,
     onEraseAnnotation: handleEraseAnnotation,
+    gesturesActive: isGesturing,
   };
 
   const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
@@ -1069,7 +1162,193 @@ export function PdfViewer({
     : {};
 
   const controlsRowClass =
-    'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4';
+    'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-3 pb-2 sm:px-4';
+  const toolbarIconButtonClass = (active = false) =>
+    `inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+      active ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text'
+    }`;
+  const mobilePanelButtonClass = (active: boolean) =>
+    `${toolbarIconButtonClass(active)} sm:hidden`;
+  const mobilePanelRowClass = `${controlsRowClass} border-t border-border sm:hidden`;
+
+  const renderZoomControls = () => (
+    <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+      <button
+        type="button"
+        onClick={() => setScale((current) => Math.max(MIN_PDF_SCALE, current - 0.15))}
+        className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        aria-label="Diminuir zoom"
+      >
+        −
+      </button>
+      <span className="min-w-10 text-center text-sm text-text sm:min-w-12">
+        {Math.round(scale * 100)}%
+      </span>
+      <button
+        type="button"
+        onClick={() => setScale((current) => current + 0.15)}
+        className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        aria-label="Aumentar zoom"
+      >
+        +
+      </button>
+      <button
+        type="button"
+        onClick={() => void fitToWidth(true)}
+        className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        aria-label="Ajustar largura"
+        title="Ajustar largura"
+      >
+        <span className="sm:hidden">Largura</span>
+        <span className="hidden sm:inline">Ajustar largura</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => void fitToPage(true)}
+        className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        aria-label="Ajustar página"
+        title="Ajustar página"
+      >
+        <span className="sm:hidden">Página</span>
+        <span className="hidden sm:inline">Ajustar página</span>
+      </button>
+    </div>
+  );
+
+  const renderViewAnnotationControls = () => (
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          setVisibleLayers((current) => ({ ...current, personal: !current.personal }))
+        }
+        aria-pressed={visibleLayers.personal}
+        aria-label="Mostrar anotações pessoais"
+        title="Mostrar anotações pessoais"
+        className={`rounded-lg border px-2 py-1 text-sm ${
+          visibleLayers.personal
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-border text-text'
+        }`}
+      >
+        <span className="sm:hidden">Pessoais</span>
+        <span className="hidden sm:inline">Ver pessoais</span>
+      </button>
+      {canEditSectionLayer && (
+        <button
+          type="button"
+          onClick={() =>
+            setVisibleLayers((current) => ({ ...current, section: !current.section }))
+          }
+          aria-pressed={visibleLayers.section}
+          aria-label="Mostrar anotações do naipe"
+          title="Mostrar anotações do naipe"
+          className={`rounded-lg border px-2 py-1 text-sm ${
+            visibleLayers.section
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-text'
+          }`}
+        >
+          <span className="sm:hidden">Naipe</span>
+          <span className="hidden sm:inline">Ver naipe</span>
+        </button>
+      )}
+      {userId && (
+        <button
+          type="button"
+          onClick={enterAnnotationMode}
+          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        >
+          Anotar
+        </button>
+      )}
+    </>
+  );
+
+  const renderAnnotationToolControls = () => (
+    <>
+      {canEditSectionLayer && (
+        <>
+          <span className="text-sm text-muted">Camada:</span>
+          <button
+            type="button"
+            onClick={() => setActiveLayer('personal')}
+            aria-pressed={activeLayer === 'personal'}
+            className={`rounded-lg border px-2 py-1 text-sm ${
+              activeLayer === 'personal'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-text'
+            }`}
+          >
+            Pessoal
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveLayer('section')}
+            aria-pressed={activeLayer === 'section'}
+            className={`rounded-lg border px-2 py-1 text-sm ${
+              activeLayer === 'section'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-text'
+            }`}
+          >
+            Naipe
+          </button>
+          {activeLayer === 'section' && leadOptions.length > 1 && (
+            <select
+              value={activeSectionId ?? ''}
+              onChange={(event) => setActiveSectionId(event.target.value || null)}
+              className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text"
+              aria-label="Naipe para anotação"
+            >
+              {leadOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <span className="mx-2 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
+        </>
+      )}
+      <button
+        type="button"
+        onClick={() => setInteractionMode('pen')}
+        aria-pressed={interactionMode === 'pen'}
+        className={`rounded-lg border px-2 py-1 text-sm ${
+          interactionMode === 'pen'
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-border text-text'
+        }`}
+      >
+        Caneta
+      </button>
+      <button
+        type="button"
+        onClick={() => setInteractionMode('highlight')}
+        aria-pressed={interactionMode === 'highlight'}
+        className={`rounded-lg border px-2 py-1 text-sm ${
+          interactionMode === 'highlight'
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-border text-text'
+        }`}
+      >
+        Marca-texto
+      </button>
+      <button
+        type="button"
+        onClick={() => setInteractionMode('eraser')}
+        aria-pressed={interactionMode === 'eraser'}
+        className={`rounded-lg border px-2 py-1 text-sm ${
+          interactionMode === 'eraser'
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-border text-text'
+        }`}
+      >
+        Borracha
+      </button>
+    </>
+  );
 
   const playlistBar = playlist && isFullscreen
     ? (
@@ -1091,260 +1370,137 @@ export function PdfViewer({
       onClick={(event) => event.stopPropagation()}
     >
       {playlistBar}
-      <div className={controlsRowClass}>
       {isAnnotating ? (
         <>
-          {canEditSectionLayer && (
-            <>
-              <span className="text-sm text-muted">Camada:</span>
-              <button
-                type="button"
-                onClick={() => setActiveLayer('personal')}
-                aria-pressed={activeLayer === 'personal'}
-                className={`rounded-lg border px-2 py-1 text-sm ${
-                  activeLayer === 'personal'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-text'
-                }`}
-              >
-                Pessoal
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveLayer('section')}
-                aria-pressed={activeLayer === 'section'}
-                className={`rounded-lg border px-2 py-1 text-sm ${
-                  activeLayer === 'section'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-text'
-                }`}
-              >
-                Naipe
-              </button>
-              {activeLayer === 'section' && leadOptions.length > 1 && (
-                <select
-                  value={activeSectionId ?? ''}
-                  onChange={(event) => setActiveSectionId(event.target.value || null)}
-                  className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text"
-                  aria-label="Naipe para anotação"
-                >
-                  {leadOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </>
-          )}
-          <span className="mx-2 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setInteractionMode('pen')}
-            aria-pressed={interactionMode === 'pen'}
-            className={`rounded-lg border px-2 py-1 text-sm ${
-              interactionMode === 'pen'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            Caneta
-          </button>
-          <button
-            type="button"
-            onClick={() => setInteractionMode('highlight')}
-            aria-pressed={interactionMode === 'highlight'}
-            className={`rounded-lg border px-2 py-1 text-sm ${
-              interactionMode === 'highlight'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            Marca-texto
-          </button>
-          <button
-            type="button"
-            onClick={() => setInteractionMode('eraser')}
-            aria-pressed={interactionMode === 'eraser'}
-            className={`rounded-lg border px-2 py-1 text-sm ${
-              interactionMode === 'eraser'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            Borracha
-          </button>
-          <button
-            type="button"
-            onClick={handleUndoLast}
-            disabled={draftAnnotations.length === 0}
-            className="rounded-lg border border-border px-2 py-1 text-sm text-text disabled:opacity-50"
-          >
-            <IconUndo className="h-5 w-5" />
-          </button>
-          
-          <span className="flex-1" aria-hidden />
-          <button
-            type="button"
-            onClick={() => void handleSaveAnnotations()}
-            disabled={isSaving}
-            className="rounded-lg border border-primary bg-primary px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {isSaving ? 'Salvando…' : 'Salvar'}
-          </button>
-          <button
-            type="button"
-            onClick={handleDiscardAnnotations}
-            disabled={isSaving}
-            className="rounded-lg border border-border px-3 py-1 text-sm text-text disabled:opacity-50"
-          >
-            Descartar
-          </button>
-        </>
-      ) : (
-        <>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setScale((current) => Math.max(0.5, current - 0.15))}
-              className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-              aria-label="Diminuir zoom"
-            >
-              −
-            </button>
-            <span className="min-w-10 text-center text-sm text-text sm:min-w-12">
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => setScale((current) => Math.min(3, current + 0.15))}
-              className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-              aria-label="Aumentar zoom"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={() => void fitToWidth()}
-              className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-              aria-label="Ajustar largura"
-              title="Ajustar largura"
-            >
-              <span className="sm:hidden">Largura</span>
-              <span className="hidden sm:inline">Ajustar largura</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void fitToPage()}
-              className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-              aria-label="Ajustar página"
-              title="Ajustar página"
-            >
-              <span className="sm:hidden">Página</span>
-              <span className="hidden sm:inline">Ajustar página</span>
-            </button>
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-2 sm:gap-x-2">
-            <button
-              type="button"
-              onClick={toggleNavigation}
-              aria-pressed={navigation === 'horizontal'}
-              aria-label={
-                navigation === 'horizontal'
-                  ? 'Usar navegação vertical'
-                  : 'Usar navegação lateral'
-              }
-              title={navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm ${
-                navigation === 'horizontal'
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border text-text'
-              }`}
-            >
-              <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
-              <span className="hidden sm:inline">
-                {navigation === 'horizontal' ? 'Lateral' : 'Vertical'}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={toggleInvert}
-              aria-pressed={inverted}
-              aria-label={inverted ? 'Desativar inversão de cores' : 'Inverter cores da partitura'}
-              title={inverted ? 'Cores normais' : 'Inverter cores'}
-              className={`rounded-lg border px-2 py-1 text-sm ${
-                inverted
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border text-text'
-              }`}
-            >
-              {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              aria-pressed={isFullscreen}
-              aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              className={`rounded-lg border px-2 py-1 text-sm ${
-                isFullscreen
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border text-text'
-              }`}
-            >
-              {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
-            </button>
-            <span className="mx-0.5 hidden h-6 w-px bg-border sm:mx-1 sm:inline-block" aria-hidden="true" />
+          <div className={controlsRowClass}>
             <button
               type="button"
               onClick={() =>
-                setVisibleLayers((current) => ({ ...current, personal: !current.personal }))
+                setMobileToolbarPanel((current) => (current === 'annotate' ? null : 'annotate'))
               }
-              aria-pressed={visibleLayers.personal}
-              aria-label="Mostrar anotações pessoais"
-              title="Mostrar anotações pessoais"
-              className={`rounded-lg border px-2 py-1 text-sm ${
-                visibleLayers.personal
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border text-text'
-              }`}
+              aria-label="Ferramentas de anotação"
+              aria-expanded={mobileToolbarPanel === 'annotate'}
+              aria-pressed={mobileToolbarPanel === 'annotate'}
+              className={mobilePanelButtonClass(mobileToolbarPanel === 'annotate')}
             >
-              <span className="sm:hidden">Pessoais</span>
-              <span className="hidden sm:inline">Ver pessoais</span>
+              <IconPencil className="h-4 w-4" />
             </button>
-            {canEditSectionLayer && (
-              <button
-                type="button"
-                onClick={() =>
-                  setVisibleLayers((current) => ({ ...current, section: !current.section }))
-                }
-                aria-pressed={visibleLayers.section}
-                aria-label="Mostrar anotações do naipe"
-                title="Mostrar anotações do naipe"
-                className={`rounded-lg border px-2 py-1 text-sm ${
-                  visibleLayers.section
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-text'
-                }`}
-              >
-                <span className="sm:hidden">Naipe</span>
-                <span className="hidden sm:inline">Ver naipe</span>
-              </button>
-            )}
-            {userId && (
-              <button
-                type="button"
-                onClick={enterAnnotationMode}
-                className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-              >
-                Anotar
-              </button>
-            )}
+            <div className="hidden flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:flex">
+              {renderAnnotationToolControls()}
+            </div>
+            <button
+              type="button"
+              onClick={handleUndoLast}
+              disabled={draftAnnotations.length === 0}
+              className={`${toolbarIconButtonClass()} disabled:opacity-50`}
+              aria-label="Desfazer"
+            >
+              <IconUndo className="h-4 w-4" />
+            </button>
+            <span className="flex-1" aria-hidden />
+            <button
+              type="button"
+              onClick={() => void handleSaveAnnotations()}
+              disabled={isSaving}
+              className="rounded-lg border border-primary bg-primary px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {isSaving ? 'Salvando…' : 'Salvar'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardAnnotations}
+              disabled={isSaving}
+              className="rounded-lg border border-border px-3 py-1 text-sm text-text disabled:opacity-50"
+            >
+              Descartar
+            </button>
           </div>
+          {mobileToolbarPanel === 'annotate' && (
+            <div className={mobilePanelRowClass}>{renderAnnotationToolControls()}</div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className={controlsRowClass}>
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setMobileToolbarPanel((current) => (current === 'zoom' ? null : 'zoom'))
+              }
+              aria-label="Opções de zoom"
+              aria-expanded={mobileToolbarPanel === 'zoom'}
+              aria-pressed={mobileToolbarPanel === 'zoom'}
+              className={mobilePanelButtonClass(mobileToolbarPanel === 'zoom')}
+            >
+              <IconZoomIn className="h-4 w-4" />
+            </button>
+            <div className="hidden sm:block">{renderZoomControls()}</div>
+
+              <button
+                type="button"
+                onClick={toggleNavigation}
+                aria-pressed={navigation === 'horizontal'}
+                aria-label={
+                  navigation === 'horizontal'
+                    ? 'Usar navegação vertical'
+                    : 'Usar navegação lateral'
+                }
+                title={navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
+                className={`${toolbarIconButtonClass(navigation === 'horizontal')} sm:h-auto sm:w-auto sm:gap-1 sm:px-2 sm:py-1`}
+              >
+                <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
+                <span className="hidden sm:inline">
+                  {navigation === 'horizontal' ? 'Lateral' : 'Vertical'}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleInvert}
+                aria-pressed={inverted}
+                aria-label={inverted ? 'Desativar inversão de cores' : 'Inverter cores da partitura'}
+                title={inverted ? 'Cores normais' : 'Inverter cores'}
+                className={toolbarIconButtonClass(inverted)}
+              >
+                {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-pressed={isFullscreen}
+                aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                className={toolbarIconButtonClass(isFullscreen)}
+              >
+                {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
+              </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setMobileToolbarPanel((current) => (current === 'annotate' ? null : 'annotate'))
+              }
+              aria-label="Opções de anotação"
+              aria-expanded={mobileToolbarPanel === 'annotate'}
+              aria-pressed={mobileToolbarPanel === 'annotate'}
+              className={mobilePanelButtonClass(mobileToolbarPanel === 'annotate')}
+            >
+              <IconPencil className="h-4 w-4" />
+            </button>
+            </div>
+            <div className="hidden items-center gap-x-1.5 sm:flex sm:gap-x-2">
+              <span className="h-6 w-px bg-border" aria-hidden="true" />
+              {renderViewAnnotationControls()}
+            </div>
+          </div>
+          {mobileToolbarPanel === 'zoom' && (
+            <div className={mobilePanelRowClass}>{renderZoomControls()}</div>
+          )}
+          {mobileToolbarPanel === 'annotate' && (
+            <div className={mobilePanelRowClass}>{renderViewAnnotationControls()}</div>
+          )}
         </>
       )}
-      </div>
     </div>
   );
 
@@ -1355,30 +1511,39 @@ export function PdfViewer({
       {navigation === 'horizontal' ? (
         <div
           ref={viewportRef}
-          className={`relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden ${viewportPadding} ${surfaceClass}`}
+          className={`relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden ${viewportPadding} ${surfaceClass}`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           {...viewportInteractionProps}
         >
           <div key={currentPage} className={`flex w-full items-center justify-center ${slideClass}`}>
-            <PdfPageFrame pageNumber={currentPage} {...pageFrameProps} />
+            <div
+              ref={contentRef}
+              className="shrink-0"
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px)`,
+                willChange: 'transform',
+              }}
+            >
+              <PdfPageFrame pageNumber={currentPage} {...pageFrameProps} />
+            </div>
           </div>
 
-          {!isAnnotating && !isFullscreen && (
+          {!isAnnotating && !isFullscreen && !isZoomed && (
             <>
               <button
                 type="button"
                 onClick={goToPreviousPage}
                 disabled={!canGoPrevious}
                 aria-label="Página anterior"
-                className="absolute inset-y-0 left-0 z-10 w-1/3 disabled:cursor-default"
+                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 disabled:cursor-default"
               />
               <button
                 type="button"
                 onClick={goToNextPage}
                 disabled={!canGoNext}
                 aria-label="Próxima página"
-                className="absolute inset-y-0 right-0 z-10 w-1/3 disabled:cursor-default"
+                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-1/3 disabled:cursor-default"
               />
             </>
           )}
@@ -1386,12 +1551,23 @@ export function PdfViewer({
       ) : (
         <div
           ref={scrollRef}
-          className={`min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain ${viewportPadding} ${surfaceClass}`}
+          className={`flex min-h-0 flex-1 flex-col items-center overscroll-contain ${
+            isZoomed ? 'overflow-auto touch-pan-x touch-pan-y' : 'overflow-y-auto touch-pan-y'
+          } ${viewportPadding} ${surfaceClass}`}
           {...viewportInteractionProps}
         >
-          {pageNumbers.map((pageNumber) => (
-            <PdfPageFrame key={pageNumber} pageNumber={pageNumber} {...pageFrameProps} />
-          ))}
+          <div
+            ref={contentRef}
+            className="mx-auto w-max max-w-none space-y-2"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+              willChange: 'transform',
+            }}
+          >
+            {pageNumbers.map((pageNumber) => (
+              <PdfPageFrame key={pageNumber} pageNumber={pageNumber} {...pageFrameProps} />
+            ))}
+          </div>
         </div>
       )}
       <Modal

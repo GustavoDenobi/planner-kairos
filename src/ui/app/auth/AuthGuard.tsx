@@ -26,7 +26,7 @@ export function AuthGuard() {
 
 function OrgGuard({ children }: { children: React.ReactNode }) {
   const { orgSlug } = useParams();
-  const { organizations, isLoading, currentOrg } = useOrg();
+  const { organizations, isLoading, resolveOrgBySlug } = useOrg();
 
   if (!orgSlug) {
     return <>{children}</>;
@@ -40,14 +40,19 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const isMember = organizations.some((o) => o.slug === orgSlug);
-  if (!isMember) {
+  const isMember = resolveOrgBySlug(orgSlug) !== null;
+  if (!isMember && organizations.length > 0) {
     return <Navigate to="/orgs" replace />;
   }
 
-  if (currentOrg?.slug !== orgSlug) {
-    // slug valid but not selected — still allow navigation
-    return <>{children}</>;
+  if (!isMember) {
+    return (
+      <div className="mx-auto max-w-md p-6 text-center">
+        <p className="text-sm text-muted">
+          Organização não encontrada. Conecte-se à internet para sincronizar seus dados.
+        </p>
+      </div>
+    );
   }
 
   return <>{children}</>;

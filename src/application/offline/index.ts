@@ -1,6 +1,7 @@
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
+import type { OfflineIdentityStore } from '@/application/ports/offline-identity-store';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
@@ -29,12 +30,20 @@ import {
   removeCachedPlaylist,
   syncPendingOfflineChanges,
 } from './playlist-cache-use-cases';
+import {
+  clearIdentitySnapshot,
+  findOrganizationBySlug,
+  getIdentitySnapshot,
+  saveIdentitySnapshot,
+  sessionFromIdentitySnapshot,
+} from './identity-snapshot-use-cases';
 import type { CachePlaylistProgress } from './types';
 
 export type OfflineStoragePorts = {
   fileCache: OfflineFileCache;
   annotationStore: OfflineAnnotationStore;
   playlistCache: OfflinePlaylistCache;
+  identityStore: OfflineIdentityStore;
 };
 
 export type OfflineUseCaseDeps = {
@@ -50,6 +59,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const fileCache = deps.offlineStorage.fileCache;
   const annotationStore = deps.offlineStorage.annotationStore;
   const playlistCache = deps.offlineStorage.playlistCache;
+  const identityStore = deps.offlineStorage.identityStore;
 
   return {
     cachePieceFileForOffline: (organizationId: string, pieceId: string, fileId: string) =>
@@ -172,6 +182,21 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     getCachedReadingPlaylist: (playlistId: string) =>
       getCachedReadingPlaylist(playlistCache, playlistId),
 
+    listCachedPlaylistsForOrganization: (organizationId: string) =>
+      playlistCache.listForOrganization(organizationId),
+
+    getIdentitySnapshot: () => getIdentitySnapshot(identityStore),
+
+    saveIdentitySnapshot: (
+      session: import('@/application/ports/auth-gateway').AuthSession,
+      organizations: import('@/application/ports/organization-repository').OrganizationWithRole[],
+      currentOrgSlug: string | null,
+    ) => saveIdentitySnapshot(identityStore, session, organizations, currentOrgSlug),
+
+    sessionFromIdentitySnapshot: sessionFromIdentitySnapshot,
+
+    findOrganizationBySlug: findOrganizationBySlug,
+
     estimatePlaylistCacheSize: (organizationId: string, pieceFileIds: string[]) =>
       estimatePlaylistCacheSize(deps.fileRepo, organizationId, pieceFileIds),
 
@@ -182,6 +207,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
       await fileCache.clearAll();
       await annotationStore.clearAll();
       await playlistCache.clearAll();
+      await clearIdentitySnapshot(identityStore);
     },
   };
 }

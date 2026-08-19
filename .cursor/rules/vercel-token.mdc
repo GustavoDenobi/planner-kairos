@@ -1,0 +1,52 @@
+---
+description: Autenticação Vercel via VERCEL_TOKEN do .env.local
+alwaysApply: true
+---
+
+# Vercel — autenticação por token
+
+Toda operação relacionada à Vercel (CLI, deploy, env, logs, MCP, etc.) deve usar o **`VERCEL_TOKEN`** definido em **`.env.local`**.
+
+## Obrigatório
+
+- **Não** usar login global da CLI (`vercel login`, `vc login`) nem depender de credenciais em `~/.vercel`.
+- **Sempre** carregar o token do `.env.local` antes de executar comandos Vercel.
+- O `.env.local` contém segredos — **nunca** commitar, expor em logs ou citar o valor do token.
+
+## PowerShell (Windows)
+
+Carregar o token e executar o comando na mesma sessão:
+
+```powershell
+foreach ($line in Get-Content .env.local) {
+  if ($line -match '^VERCEL_TOKEN=(.+)$') { $env:VERCEL_TOKEN = $matches[1]; break }
+}
+vercel deploy
+```
+
+Encadeado em uma linha:
+
+```powershell
+$env:VERCEL_TOKEN = ((Get-Content .env.local | Select-String '^VERCEL_TOKEN=').Line -split '=', 2)[1]; vercel ls
+```
+
+## Exemplos
+
+```powershell
+# ❌ BAD — login global
+vercel login
+vercel deploy
+
+# ❌ BAD — assumir auth já configurada no sistema
+vercel env ls
+
+# ✅ GOOD — token do .env.local
+$env:VERCEL_TOKEN = ((Get-Content .env.local | Select-String '^VERCEL_TOKEN=').Line -split '=', 2)[1]
+vercel deploy
+npx vercel env pull
+```
+
+## MCP e scripts
+
+- Ao invocar ferramentas MCP da Vercel, garantir que `VERCEL_TOKEN` esteja definido no ambiente (carregado do `.env.local`).
+- Em scripts npm, preferir `cross-env VERCEL_TOKEN=...` lendo do `.env.local` ou documentar o carregamento explícito.

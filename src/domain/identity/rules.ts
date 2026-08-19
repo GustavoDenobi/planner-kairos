@@ -120,16 +120,25 @@ export function isValidInviteSignupPassword(password: string): boolean {
   return password.length >= INVITE_SIGNUP_MIN_PASSWORD_LENGTH;
 }
 
-export function isGroupInviteValid(invite: GroupInvite, now: Date): boolean {
-  return invite.revokedAt === null && invite.redeemedAt === null && invite.expiresAt > now;
+export function isGroupInviteExhausted(maxUses: number, useCount: number): boolean {
+  return maxUses > 0 && useCount >= maxUses;
+}
+
+export function isGroupInviteValid(invite: GroupInvite, now: Date, useCount: number): boolean {
+  return (
+    invite.revokedAt === null &&
+    invite.expiresAt > now &&
+    !isGroupInviteExhausted(invite.maxUses, useCount)
+  );
 }
 
 export function canRedeemGroupInvite(
   invite: GroupInvite,
   now: Date,
+  useCount: number,
   existingMusicianInOrg: boolean,
 ): boolean {
-  if (!isGroupInviteValid(invite, now)) {
+  if (!isGroupInviteValid(invite, now, useCount)) {
     return false;
   }
 
@@ -146,4 +155,29 @@ export function membershipRoleForInvite(): AccessRole {
 
 export function isPasswordRecoveryCodeValid(code: PasswordRecoveryCode, now: Date): boolean {
   return code.usedAt === null && code.expiresAt > now;
+}
+
+export const MIN_ORGANIZATION_IMAGE_SIZE = 200;
+
+export const ORGANIZATION_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+
+export type OrganizationImageErrorCode = 'unsupported_type' | 'too_small' | 'unreadable';
+
+export function validateOrganizationImageMime(mimeType: string): OrganizationImageErrorCode | null {
+  if (!(ORGANIZATION_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType)) {
+    return 'unsupported_type';
+  }
+
+  return null;
+}
+
+export function validateOrganizationImageDimensions(
+  width: number,
+  height: number,
+): OrganizationImageErrorCode | null {
+  if (width < MIN_ORGANIZATION_IMAGE_SIZE || height < MIN_ORGANIZATION_IMAGE_SIZE) {
+    return 'too_small';
+  }
+
+  return null;
 }

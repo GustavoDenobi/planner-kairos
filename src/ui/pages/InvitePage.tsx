@@ -239,7 +239,7 @@ export function InvitePage() {
 
     if (!result.ok) {
 
-      setSubmitError('Não foi possível aceitar o convite. Talvez já tenha sido usado.');
+      setSubmitError('Não foi possível aceitar o convite. Talvez tenha expirado ou atingido o limite de usos.');
 
       return;
 
@@ -353,7 +353,7 @@ export function InvitePage() {
 
         <p className="mt-2 text-sm text-muted">
 
-          Este link expirou, foi revogado ou já foi utilizado.
+          Este link expirou, foi revogado ou atingiu o limite de inscrições.
 
         </p>
 

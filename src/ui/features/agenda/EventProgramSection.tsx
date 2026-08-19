@@ -6,7 +6,7 @@ import type { PieceListItem } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { SortableList } from '@/ui/components/SortableList';
-import { IconGripVertical, IconPlus, IconTrash } from '@/ui/components/icons';
+import { IconGripVertical, IconPlus, IconTrash, IconPlay } from '@/ui/components/icons';
 import { prepareReadingPlaylistPath } from '@/ui/features/repertoire/reading-playlist-routes';
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
@@ -176,7 +176,9 @@ export function EventProgramSection({
                 to={prepareReadingPlaylistPath(orgSlug, eventId)}
                 className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-bg"
               >
-                Preparar partituras
+                
+                <IconPlay className="h-4 w-4" />
+                Preparar playlist
               </Link>
             )}
             {isAdmin && (

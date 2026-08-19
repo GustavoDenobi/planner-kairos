@@ -3,6 +3,7 @@ import type { OrganizationWithRole } from '@/application/ports';
 import { useIdentity } from '@/ui/app/AppServicesContext';
 import { Modal } from '@/ui/components/Modal';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { organizationImageErrorMessage } from '@/ui/utils/organizationImageValidation';
 
 type OrganizationEditModalProps = {
   organization: OrganizationWithRole;
@@ -50,17 +51,21 @@ export function OrganizationEditModal({
   async function handleUpload(file: File) {
     setIsBusy(true);
     setError(null);
-    try {
-      await identity.setOrganizationImage(
-        organization.id,
-        file,
-        organization.imageStorageKey,
-      );
-      onUpdated();
-    } catch {
-      setError('Não foi possível enviar a imagem.');
-    }
+
+    const result = await identity.setOrganizationImage(
+      organization.id,
+      file,
+      organization.imageStorageKey,
+    );
+
     setIsBusy(false);
+
+    if (!result.ok) {
+      setError(organizationImageErrorMessage(result.error));
+      return;
+    }
+
+    onUpdated();
   }
 
   async function handleRemove() {
@@ -98,11 +103,11 @@ export function OrganizationEditModal({
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-text">Imagem da organização</label>
           <p className="text-xs text-muted">
-            PNG, JPEG, WebP ou SVG. Usada no menu e no seletor de organizações.
+            PNG, JPEG ou WebP, mínimo 200×200 px. Usada no menu, convites e prévia no WhatsApp.
           </p>
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            accept="image/png,image/jpeg,image/webp"
             disabled={isBusy}
             className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             onChange={(e) => {

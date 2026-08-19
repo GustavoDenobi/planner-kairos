@@ -29,3 +29,4 @@ export type {
   AnnotationSyncStatus,
 } from './offline-annotation-store';
 export type { CachedPlaylistSnapshot, OfflinePlaylistCache } from './offline-playlist-cache';
+export type { IdentitySnapshot, OfflineIdentityStore } from './offline-identity-store';

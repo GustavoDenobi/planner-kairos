@@ -21,6 +21,7 @@ import { setThemePreference } from './set-theme-preference';
 import { signIn } from './sign-in';
 import { signOut } from './sign-out';
 import { updateGroupInviteExpires } from './update-group-invite-expires';
+import { updateGroupInviteMaxUses } from './update-group-invite-max-uses';
 
 export type IdentityDeps = {
   auth: AuthGateway;
@@ -50,11 +51,13 @@ export function createIdentityUseCases(deps: IdentityDeps) {
     setOrganizationName: (organizationId: string, name: string) =>
       setOrganizationName(deps.orgRepo, organizationId, name),
     previewGroupInvite: (token: string) => previewGroupInvite(deps.inviteRepo, token),
-    createGroupInvite: (groupId: string, expiresAt: Date) =>
-      createGroupInvite(deps.inviteRepo, groupId, expiresAt),
+    createGroupInvite: (groupId: string, expiresAt: Date, maxUses = 0) =>
+      createGroupInvite(deps.inviteRepo, groupId, expiresAt, maxUses),
     revokeGroupInvite: (inviteId: string) => revokeGroupInvite(deps.inviteRepo, inviteId),
     updateGroupInviteExpires: (inviteId: string, expiresAt: Date) =>
       updateGroupInviteExpires(deps.inviteRepo, inviteId, expiresAt),
+    updateGroupInviteMaxUses: (inviteId: string, maxUses: number) =>
+      updateGroupInviteMaxUses(deps.inviteRepo, inviteId, maxUses),
     listGroupInvites: (organizationId: string) =>
       listGroupInvites(deps.inviteRepo, organizationId),
     acceptGroupInvite: (input: Parameters<typeof acceptGroupInvite>[3]) =>
