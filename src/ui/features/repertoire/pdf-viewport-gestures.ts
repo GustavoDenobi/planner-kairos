@@ -64,7 +64,7 @@ export function isScaleZoomed(
 export function nextDoubleTapFitMode(
   scale: number,
   widthScale: number,
-  pageScale: number,
+  _pageScale: number,
 ): 'width' | 'page' {
   if (isScaleNear(scale, widthScale)) {
     return 'page';

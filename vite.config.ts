@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       inviteOgPlugin(env),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['logo.svg', 'logo.png'],
         manifest: pwaManifest,
         workbox: {

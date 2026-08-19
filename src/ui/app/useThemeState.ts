@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { THEME_STORAGE_KEY, type ThemeMode } from '@/ui/theme/tokens';
+import { getThemeColor, THEME_STORAGE_KEY, type ThemeMode } from '@/ui/theme/tokens';
 
 export type ThemeContextValue = {
   theme: ThemeMode;
@@ -22,6 +22,12 @@ function getInitialTheme(): ThemeMode {
 
 function applyTheme(theme: ThemeMode) {
   document.documentElement.classList.toggle('dark', theme === 'dark');
+
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getThemeColor(theme));
+
+  document
+    .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+    ?.setAttribute('content', theme === 'dark' ? 'black' : 'default');
 }
 
 export function useThemeState(): ThemeContextValue {

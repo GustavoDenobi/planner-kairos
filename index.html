@@ -6,9 +6,26 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#31b7ff" />
+    <meta name="theme-color" content="#f0f1f4" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script>
+      (function () {
+        var key = 'theme';
+        var stored = localStorage.getItem(key);
+        var dark =
+          stored === 'dark' ||
+          (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+        document.querySelector('meta[name="theme-color"]')?.setAttribute(
+          'content',
+          dark ? '#09090b' : '#f0f1f4',
+        );
+        document
+          .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+          ?.setAttribute('content', dark ? 'black' : 'default');
+      })();
+    </script>
     <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

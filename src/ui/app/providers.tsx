@@ -6,6 +6,7 @@ import { LoadingBarAuthBridge, LoadingBarOrgBridge } from '@/ui/app/loading-bar/
 import { LoadingBarProvider } from '@/ui/app/loading-bar/LoadingBarProvider';
 import { OrgProvider } from '@/ui/app/OrgProvider';
 import { ThemeProvider } from '@/ui/app/ThemeProvider';
+import { PwaUpdateProvider } from '@/ui/features/pwa/PwaUpdateProvider';
 
 type ProvidersProps = {
   children: ReactNode;
@@ -20,7 +21,9 @@ export function Providers({ children, services }: ProvidersProps) {
           <OrgProvider>
             <LoadingBarAuthBridge />
             <LoadingBarOrgBridge />
-            <ThemeProvider>{children}</ThemeProvider>
+            <ThemeProvider>
+              <PwaUpdateProvider>{children}</PwaUpdateProvider>
+            </ThemeProvider>
           </OrgProvider>
         </AuthProvider>
       </LoadingBarProvider>

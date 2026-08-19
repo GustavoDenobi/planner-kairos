@@ -2,6 +2,16 @@ export type ThemeMode = 'light' | 'dark';
 
 export const THEME_STORAGE_KEY = 'theme';
 
+/** Cor da barra de status do navegador/PWA — alinhada ao fundo da página. */
+export const themeColor = {
+  light: '#f0f1f4',
+  dark: '#09090b',
+} as const;
+
+export function getThemeColor(mode: ThemeMode): string {
+  return themeColor[mode];
+}
+
 export const colors = {
   light: {
     bg: '#f0f1f4',
