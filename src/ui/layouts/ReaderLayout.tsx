@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BackButton } from '@/ui/components/BackButton';
 import { IconArrowDown } from '@/ui/components/icons';
 import { useLoadingBarPlacement } from '@/ui/app/loading-bar/useLoadingBar';
+import { downloadFromUrl } from '@/ui/utils/download-url';
 
 type ReaderLayoutProps = {
   title?: string;
@@ -28,10 +29,29 @@ export function ReaderLayout({
 }: ReaderLayoutProps) {
   useLoadingBarPlacement('belowReaderHeader');
 
+  async function handleDownload() {
+    if (!downloadUrl) {
+      return;
+    }
+    try {
+      await downloadFromUrl(downloadUrl, downloadName);
+    } catch {
+      /* Keep the reader open if the download cannot start. */
+    }
+  }
+
   return (
-    <div className="flex h-dvh flex-col bg-bg">
+    <div className="flex h-[var(--app-vh)] flex-col bg-bg">
       {offlineBanner}
-      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-3">
+      <header
+        className="flex shrink-0 items-center gap-2 border-b border-border bg-surface py-3"
+        style={{
+          minHeight: 'var(--app-header-offset)',
+          paddingTop: 'max(0.75rem, var(--safe-area-top))',
+          paddingLeft: 'max(1rem, var(--safe-area-left))',
+          paddingRight: 'max(1rem, var(--safe-area-right))',
+        }}
+      >
         <div className="shrink-0">
           <BackButton fallbackTo={backTo} variant="close" />
         </div>
@@ -50,17 +70,15 @@ export function ReaderLayout({
         <div className="flex shrink-0 items-center gap-2">
           {headerActions}
           {downloadUrl ? (
-            <a
-              href={downloadUrl}
-              download={downloadName}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => void handleDownload()}
               title="Baixar arquivo"
               aria-label="Baixar arquivo"
               className="inline-flex items-center gap-1 rounded-lg border border-border p-2 text-sm text-text transition-colors hover:bg-bg"
             >
               <IconArrowDown className="h-4 w-4 shrink-0" aria-hidden />
-            </a>
+            </button>
           ) : null}
         </div>
       </header>

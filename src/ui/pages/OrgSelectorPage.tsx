@@ -32,7 +32,7 @@ export function OrgSelectorPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted">
+      <div className="flex min-h-dvh items-center justify-center text-muted">
         Carregando organizações…
       </div>
     );

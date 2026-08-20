@@ -3,7 +3,7 @@ import type { ReactNode, Ref } from 'react';
 export const orgPageContentClass = 'w-full max-w-6xl';
 
 export const orgListPageHeightClass =
-  'h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-6.5rem)]';
+  'h-[calc(var(--app-vh)-var(--app-header-offset)-var(--app-bottom-nav-offset)-2rem)] md:h-[calc(var(--app-vh)-6.5rem)]';
 
 type OrgListPageLayoutProps = {
   header: ReactNode;

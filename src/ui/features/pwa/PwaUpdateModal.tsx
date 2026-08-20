@@ -1,12 +1,25 @@
+import { useBodyScrollLock } from '@/ui/components/useBodyScrollLock';
+
 type PwaUpdateModalProps = {
   updating: boolean;
   onUpdate: () => void;
 };
 
 export function PwaUpdateModal({ updating, onUpdate }: PwaUpdateModalProps) {
+  useBodyScrollLock(true);
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+      data-modal-overlay
+      className="fixed inset-x-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60"
+      style={{
+        paddingTop: 'max(1rem, var(--safe-area-top))',
+        paddingRight: 'max(1rem, var(--safe-area-right))',
+        paddingBottom: 'max(1rem, var(--safe-area-bottom))',
+        paddingLeft: 'max(1rem, var(--safe-area-left))',
+        top: 'var(--vv-offset-top)',
+        height: 'var(--app-vh)',
+      }}
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="pwa-update-title"

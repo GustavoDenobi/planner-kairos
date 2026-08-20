@@ -27,7 +27,7 @@ function toAuthSession(session: Session): AuthSession {
 function mapInviteSignUpError(data: unknown): InviteSignUpError {
   if (data && typeof data === 'object' && 'error' in data) {
     const error = String((data as { error: string }).error);
-    if (error === 'email_taken' || error === 'invalid_invite') {
+    if (error === 'email_taken' || error === 'invalid_invite' || error === 'invite_exhausted') {
       return error;
     }
   }
@@ -76,11 +76,7 @@ export function createAuthGateway(): AuthGateway {
         body: { token, email, password, displayName },
       });
 
-      if (error) {
-        return { ok: false, error: 'signup_failed' };
-      }
-
-      if (!data || typeof data !== 'object' || !('ok' in data) || !(data as { ok: boolean }).ok) {
+      if (error || !data || typeof data !== 'object' || !('ok' in data) || !(data as { ok: boolean }).ok) {
         return { ok: false, error: mapInviteSignUpError(data) };
       }
 

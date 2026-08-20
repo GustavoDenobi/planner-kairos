@@ -20,9 +20,9 @@ export function AppLayout() {
   const showOfflineFallback = !online && !isOfflineAllowedPath(location.pathname);
 
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="flex min-h-dvh bg-bg">
       <Sidebar orgSlug={orgSlug} />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-dvh flex-1 flex-col">
         <MobileHeader orgSlug={orgSlug} />
         {!online && (
           <div className="px-4 pt-2 md:px-6">
@@ -31,12 +31,12 @@ export function AppLayout() {
         )}
         <div
           className="shrink-0 md:hidden"
-          style={{ height: spacing.headerHeight }}
+          style={{ height: spacing.headerOffset }}
           aria-hidden
         />
         <main
           className="flex-1 px-4 py-4 md:p-6"
-          style={{ paddingBottom: `calc(${spacing.bottomNavHeight} + 1rem)` }}
+          style={{ paddingBottom: `calc(${spacing.bottomNavOffset} + 1rem)` }}
         >
           {showOfflineFallback ? <OfflineUnavailableMessage /> : <Outlet />}
         </main>

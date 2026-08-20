@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Modal } from '@/ui/components/Modal';
 import { IconArrowDown } from '@/ui/components/icons';
+import { downloadFromUrl } from '@/ui/utils/download-url';
 
 type AudioPlayerModalProps = {
   open: boolean;
@@ -43,16 +44,19 @@ export function AudioPlayerModal({
         )}
         {url && (
           <div className="flex justify-center border-t border-border pt-4">
-            <a
-              href={url}
-              download={downloadName}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                if (!url) {
+                  return;
+                }
+                void downloadFromUrl(url, downloadName).catch(() => {});
+              }}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               <IconArrowDown className="h-4 w-4" />
               Baixar arquivo
-            </a>
+            </button>
           </div>
         )}
       </div>

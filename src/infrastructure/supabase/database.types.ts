@@ -1401,25 +1401,12 @@ export type Database = {
         Args: { p_musician_id: string; p_org_id: string }
         Returns: boolean
       }
-      redeem_group_invite:
-        | {
-            Args: { p_token: string }
-            Returns: {
-              organization_slug: string
-            }[]
-          }
-        | {
-            Args: { p_phone?: string; p_token: string }
-            Returns: {
-              organization_slug: string
-            }[]
-          }
-        | {
-            Args: { p_birth_date?: string; p_phone?: string; p_token: string }
-            Returns: {
-              organization_slug: string
-            }[]
-          }
+      redeem_group_invite: {
+        Args: { p_birth_date?: string; p_phone?: string; p_token: string }
+        Returns: {
+          organization_slug: string
+        }[]
+      }
       revoke_group_invite: { Args: { p_invite_id: string }; Returns: undefined }
       revoke_org_admin: {
         Args: { p_organization_id: string; p_user_id: string }

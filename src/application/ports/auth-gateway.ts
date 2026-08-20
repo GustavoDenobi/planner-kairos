@@ -16,7 +16,11 @@ export type InviteSignUpInput = {
   displayName: string;
 };
 
-export type InviteSignUpError = 'signup_failed' | 'email_taken' | 'invalid_invite';
+export type InviteSignUpError =
+  | 'signup_failed'
+  | 'email_taken'
+  | 'invalid_invite'
+  | 'invite_exhausted';
 
 export type InviteSignUpResult =
   | { ok: true; session: AuthSession }

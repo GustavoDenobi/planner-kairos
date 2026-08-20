@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useBodyScrollLock } from '@/ui/components/useBodyScrollLock';
 
 type ModalProps = {
   open: boolean;
@@ -9,6 +10,8 @@ type ModalProps = {
 };
 
 export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+  useBodyScrollLock(open);
+
   if (!open) {
     return null;
   }
@@ -16,7 +19,18 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   const maxWidthClass = size === 'lg' ? 'max-w-2xl' : 'max-w-md';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      data-modal-overlay
+      className="fixed inset-x-0 z-50 flex items-center justify-center overflow-y-auto"
+      style={{
+        paddingTop: 'max(1rem, var(--safe-area-top))',
+        paddingRight: 'max(1rem, var(--safe-area-right))',
+        paddingBottom: 'max(1rem, var(--safe-area-bottom))',
+        paddingLeft: 'max(1rem, var(--safe-area-left))',
+        top: 'var(--vv-offset-top)',
+        height: 'var(--app-vh)',
+      }}
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/50"

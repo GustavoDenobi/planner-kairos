@@ -33,7 +33,7 @@ export function Sidebar({ orgSlug }: SidebarProps) {
 
   return (
     <aside
-      className="hidden h-screen flex-col border-r border-border bg-surface md:flex"
+      className="hidden h-dvh flex-col border-r border-border bg-surface md:flex"
       style={{ width: spacing.sidebarWidth }}
     >
       <div className="border-b border-border px-4 py-4">

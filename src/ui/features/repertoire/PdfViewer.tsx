@@ -1143,12 +1143,12 @@ export function PdfViewer({
 
   const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
   const controlsBarClass = isFullscreen
-    ? `pdf-fullscreen-controls absolute inset-x-0 top-0 z-20 flex flex-col border-b border-border bg-surface/95 shadow-md backdrop-blur-sm ${
+    ? `pdf-fullscreen-controls absolute inset-x-0 top-0 z-20 flex flex-col border-b border-border bg-surface/95 pt-[var(--safe-area-top)] shadow-md backdrop-blur-sm ${
         showFullscreenControls ? '' : 'pdf-fullscreen-controls-hidden'
       }`
     : 'flex shrink-0 flex-col border-b border-border';
   const rootClass = isFullscreen
-    ? `fixed inset-0 z-50 flex flex-col ${surfaceClass}`
+    ? `fixed inset-x-0 z-50 flex flex-col ${surfaceClass}`
     : 'flex min-h-0 flex-1 flex-col';
   const viewportPadding = isFullscreen ? 'p-0' : 'p-2';
   const viewportInteractionProps = isFullscreen && !isAnnotating
@@ -1505,7 +1505,14 @@ export function PdfViewer({
   );
 
   return (
-    <div className={rootClass}>
+    <div
+      className={rootClass}
+      style={
+        isFullscreen
+          ? { top: 'var(--vv-offset-top)', height: 'var(--app-vh)' }
+          : undefined
+      }
+    >
       {controlsBar}
 
       {navigation === 'horizontal' ? (

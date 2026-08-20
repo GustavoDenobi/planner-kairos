@@ -14,6 +14,7 @@ import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
+import { downloadFromUrl } from '@/ui/utils/download-url';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
@@ -489,7 +490,7 @@ export function PieceDetailPage() {
     setAudioLoading(false);
   }
 
-  async function handleDownload(fileId: string) {
+  async function handleDownload(fileId: string, filename?: string) {
     if (!org || !piece) {
       return;
     }
@@ -498,7 +499,11 @@ export function PieceDetailPage() {
       setError(repertoireErrorMessage(result.error));
       return;
     }
-    window.open(result.value, '_blank', 'noopener,noreferrer');
+    try {
+      await downloadFromUrl(result.value, filename);
+    } catch {
+      setError('Não foi possível baixar o arquivo.');
+    }
   }
 
   async function handleRemoveFile() {
@@ -898,7 +903,7 @@ export function PieceDetailPage() {
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => handleDownload(editingFile.id)}
+                onClick={() => void handleDownload(editingFile.id, editingFile.originalName)}
                 className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
               >
                 <IconArrowDown className="h-4 w-4" />

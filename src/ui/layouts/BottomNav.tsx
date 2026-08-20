@@ -14,8 +14,15 @@ export function BottomNav({ orgSlug }: BottomNavProps) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface md:hidden"
-      style={{ height: spacing.bottomNavHeight }}
+      data-app-bottom-nav
+      className="fixed inset-x-0 z-10 flex border-t border-border bg-surface md:hidden"
+      style={{
+        bottom: 0,
+        height: spacing.bottomNavOffset,
+        paddingBottom: 'var(--safe-area-bottom)',
+        paddingLeft: 'var(--safe-area-left)',
+        paddingRight: 'var(--safe-area-right)',
+      }}
     >
       {navItems.map((item) => (
         <NavLink

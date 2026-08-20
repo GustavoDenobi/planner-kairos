@@ -6,9 +6,9 @@ type TopLoadingBarProps = {
 };
 
 const placementClass: Record<LoadingBarPlacement, string> = {
-  default: 'top-0',
-  belowAppHeader: 'top-[3.5rem] md:top-0',
-  belowReaderHeader: 'top-[3.5rem] md:top-0',
+  default: 'top-[var(--vv-offset-top)]',
+  belowAppHeader: 'top-[calc(var(--vv-offset-top)+var(--app-header-offset))] md:top-0',
+  belowReaderHeader: 'top-[calc(var(--vv-offset-top)+var(--app-header-offset))] md:top-0',
 };
 
 export function TopLoadingBar({ isLoading, placement }: TopLoadingBarProps) {

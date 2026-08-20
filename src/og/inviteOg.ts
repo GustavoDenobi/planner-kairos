@@ -135,7 +135,18 @@ export async function buildInviteOgHtml(options: InviteOgHtmlOptions): Promise<s
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="format-detection" content="telephone=no" />
+    <script>
+      (function () {
+        function preventGestureZoom(event) {
+          event.preventDefault();
+        }
+        document.addEventListener('gesturestart', preventGestureZoom);
+        document.addEventListener('gesturechange', preventGestureZoom);
+        document.addEventListener('gestureend', preventGestureZoom);
+      })();
+    </script>
     <title>${escapeHtml(meta.title)}</title>
     ${renderInviteOgHeadTags(meta)}
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />

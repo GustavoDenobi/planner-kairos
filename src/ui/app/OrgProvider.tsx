@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -36,6 +37,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isOfflineData, setIsOfflineData] = useState(false);
+  const loadGenerationRef = useRef(0);
 
   const resolveOrgBySlug = useCallback(
     (slug: string) => organizations.find((org) => org.slug === slug) ?? null,
@@ -44,16 +46,21 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
   const refreshOrganizations = useCallback(async () => {
     if (!userId) {
+      loadGenerationRef.current += 1;
       setOrganizations([]);
       setIsOfflineData(false);
       setIsLoading(false);
       return;
     }
 
+    const generation = ++loadGenerationRef.current;
     setIsLoading(true);
 
     if (!isBrowserOnline()) {
       const snapshot = await offline.getIdentitySnapshot();
+      if (generation !== loadGenerationRef.current) {
+        return;
+      }
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
@@ -63,6 +70,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     }
 
     const result = await identity.listMyOrganizations(userId);
+    if (generation !== loadGenerationRef.current) {
+      return;
+    }
     if (result.ok) {
       setOrganizations(result.value);
       setIsOfflineData(false);
@@ -75,6 +85,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       }
     } else {
       const snapshot = await offline.getIdentitySnapshot();
+      if (generation !== loadGenerationRef.current) {
+        return;
+      }
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
@@ -118,14 +131,18 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      loadGenerationRef.current += 1;
+      setOrganizations((prev) =>
+        prev.some((org) => org.id === result.value.id) ? prev : [...prev, result.value],
+      );
       setCurrentSlug(slug);
       localStorage.setItem(ORG_STORAGE_KEY, slug);
-      if (session) {
-        await offline.saveIdentitySnapshot(session, organizations, slug);
-      }
+      setIsLoading(false);
+
+      await refreshOrganizations();
       return true;
     },
-    [identity, userId, organizations, session, offline],
+    [identity, userId, organizations, session, offline, refreshOrganizations],
   );
 
   const value = useMemo(

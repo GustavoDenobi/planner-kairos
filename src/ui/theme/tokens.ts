@@ -73,4 +73,6 @@ export const spacing = {
   sidebarWidth: '16rem',
   headerHeight: '3.5rem',
   bottomNavHeight: '4rem',
+  headerOffset: 'var(--app-header-offset)',
+  bottomNavOffset: 'var(--app-bottom-nav-offset)',
 } as const;

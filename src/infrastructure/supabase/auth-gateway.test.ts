@@ -6,6 +6,7 @@ const mockGetSession = vi.fn();
 const mockSignOut = vi.fn();
 const mockOnAuthStateChange = vi.fn();
 const mockSignInWithPassword = vi.fn();
+const mockFunctionsInvoke = vi.fn();
 
 vi.mock('./client', () => ({
   supabase: {
@@ -14,6 +15,9 @@ vi.mock('./client', () => ({
       signOut: (...args: unknown[]) => mockSignOut(...args),
       getSession: (...args: unknown[]) => mockGetSession(...args),
       onAuthStateChange: (...args: unknown[]) => mockOnAuthStateChange(...args),
+    },
+    functions: {
+      invoke: (...args: unknown[]) => mockFunctionsInvoke(...args),
     },
   },
 }));
@@ -106,5 +110,31 @@ describe('auth-gateway offline session preservation', () => {
 
     expect(received[0]?.user.id).toBe('user-1');
     expect(received[1]).toBeNull();
+  });
+});
+
+describe('auth-gateway invite signup errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    });
+  });
+
+  it('maps function body errors even when invoke returns an HTTP error', async () => {
+    mockFunctionsInvoke.mockResolvedValueOnce({
+      data: { error: 'invalid_invite' },
+      error: { message: 'Edge Function returned a non-2xx status code' },
+    });
+
+    const gateway = createAuthGateway();
+    const result = await gateway.signUpForInvite({
+      token: 'token',
+      email: 'musico@example.com',
+      password: 'secret1',
+      displayName: 'Músico',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_invite' });
   });
 });
