@@ -23,6 +23,9 @@ function isOfflineAllowedPath(pathname: string): boolean {
   if (pathname.includes('/musicos')) {
     return true;
   }
+  if (pathname.includes('/grupos')) {
+    return true;
+  }
   return false;
 }
 

@@ -10,6 +10,8 @@ import type { OfflineMusicianCache } from '@/application/ports/offline-musician-
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type {
   AssignmentWithDetails,
+  Group,
+  GroupAssignmentListItem,
   GroupListItem,
   Musician,
   MusicianListItem,
@@ -17,11 +19,14 @@ import type {
 } from '@/domain/ensemble';
 import { normalizePhone } from '@/domain/ensemble';
 import { Result } from '@/domain/shared';
-import { listAssignmentsForMusician } from '@/application/ensemble/assignment-use-cases';
+import {
+  listAssignmentsForGroup,
+  listAssignmentsForMusician,
+} from '@/application/ensemble/assignment-use-cases';
 import { listGroups } from '@/application/ensemble/list-groups';
 import { listMusicians } from '@/application/ensemble/musician-use-cases';
 import { listParts } from '@/application/ensemble/part-use-cases';
-import { listSections } from '@/application/ensemble/section-use-cases';
+import { listSections, listSectionPartIdsByGroup } from '@/application/ensemble/section-use-cases';
 import { isBrowserOnline } from './file-cache-use-cases';
 
 function normalizeSearchText(value: string): string {
@@ -41,10 +46,19 @@ export type CachedMusiciansListResult = {
   cachedAt: string | null;
 };
 
+export type CachedGroupsListResult = {
+  groups: GroupListItem[];
+  cachedAt: string | null;
+};
+
 export type CachedMusiciansFilterData = {
   groups: GroupListItem[];
   parts: PartWithDivisions[];
   sections: SectionListItem[];
+};
+
+export type ListCachedGroupsOptions = {
+  includeArchived?: boolean;
 };
 
 type ParsedSnapshot = {
@@ -53,8 +67,20 @@ type ParsedSnapshot = {
   groups: GroupListItem[];
   parts: PartWithDivisions[];
   sections: SectionListItem[];
+  assignmentsByGroup: Record<string, GroupAssignmentListItem[]>;
+  sectionPartIdsByGroup: Record<string, Record<string, string[]>>;
   cachedAt: string;
 };
+
+function reviveGroupDates(group: GroupListItem): GroupListItem {
+  if (group.archivedAt === null || group.archivedAt === undefined) {
+    return { ...group, archivedAt: null };
+  }
+  if (group.archivedAt instanceof Date) {
+    return group;
+  }
+  return { ...group, archivedAt: new Date(group.archivedAt as unknown as string) };
+}
 
 function parseSnapshot(snapshot: {
   musiciansJson: string;
@@ -62,17 +88,29 @@ function parseSnapshot(snapshot: {
   groupsJson: string;
   partsJson: string;
   sectionsJson: string;
+  assignmentsByGroupJson?: string;
+  sectionPartIdsByGroupJson?: string;
   cachedAt: string;
 }): ParsedSnapshot {
+  const rawGroups = JSON.parse(snapshot.groupsJson) as GroupListItem[];
+
   return {
     musicians: JSON.parse(snapshot.musiciansJson) as MusicianListItem[],
     assignmentsByMusician: JSON.parse(snapshot.assignmentsJson) as Record<
       string,
       AssignmentWithDetails[]
     >,
-    groups: JSON.parse(snapshot.groupsJson) as GroupListItem[],
+    groups: rawGroups.map(reviveGroupDates),
     parts: JSON.parse(snapshot.partsJson) as PartWithDivisions[],
     sections: JSON.parse(snapshot.sectionsJson) as SectionListItem[],
+    assignmentsByGroup: JSON.parse(snapshot.assignmentsByGroupJson ?? '{}') as Record<
+      string,
+      GroupAssignmentListItem[]
+    >,
+    sectionPartIdsByGroup: JSON.parse(snapshot.sectionPartIdsByGroupJson ?? '{}') as Record<
+      string,
+      Record<string, string[]>
+    >,
     cachedAt: snapshot.cachedAt,
   };
 }
@@ -193,7 +231,7 @@ export async function cacheMusiciansForOffline(
 
   const [allMusicians, groupsResult, partsResult] = await Promise.all([
     fetchAllMusicians(musicianRepo, organizationId),
-    listGroups(groupRepo, organizationId),
+    listGroups(groupRepo, organizationId, { includeArchived: true }),
     listParts(partRepo, organizationId),
   ]);
 
@@ -219,6 +257,22 @@ export async function cacheMusiciansForOffline(
     }),
   );
 
+  const assignmentsByGroup: Record<string, GroupAssignmentListItem[]> = {};
+  const sectionPartIdsByGroup: Record<string, Record<string, string[]>> = {};
+
+  await Promise.all(
+    groups.map(async (group) => {
+      const [assignmentsResult, partIdsResult] = await Promise.all([
+        listAssignmentsForGroup(assignmentRepo, organizationId, group.id),
+        listSectionPartIdsByGroup(sectionRepo, organizationId, group.id),
+      ]);
+      assignmentsByGroup[group.id] = assignmentsResult.ok ? assignmentsResult.value : [];
+      sectionPartIdsByGroup[group.id] = partIdsResult.ok
+        ? Object.fromEntries(partIdsResult.value)
+        : {};
+    }),
+  );
+
   await musicianCache.put({
     organizationId,
     userId,
@@ -228,6 +282,8 @@ export async function cacheMusiciansForOffline(
     groupsJson: JSON.stringify(groups),
     partsJson: JSON.stringify(partsResult.value),
     sectionsJson: JSON.stringify(sections),
+    assignmentsByGroupJson: JSON.stringify(assignmentsByGroup),
+    sectionPartIdsByGroupJson: JSON.stringify(sectionPartIdsByGroup),
   });
 
   return Result.ok(undefined);
@@ -300,6 +356,96 @@ export async function listCachedAssignmentsForMusician(
   return parsed.assignmentsByMusician[musicianId] ?? [];
 }
 
+export async function listCachedGroups(
+  musicianCache: OfflineMusicianCache,
+  organizationId: string,
+  userId: string,
+  options: ListCachedGroupsOptions = {},
+): Promise<CachedGroupsListResult> {
+  const snapshot = await musicianCache.get(organizationId, userId);
+  if (!snapshot) {
+    return { groups: [], cachedAt: null };
+  }
+
+  const parsed = parseSnapshot(snapshot);
+  const includeArchived = options.includeArchived ?? false;
+  const groups = includeArchived
+    ? parsed.groups
+    : parsed.groups.filter((group) => !group.archivedAt);
+
+  return {
+    groups,
+    cachedAt: parsed.cachedAt,
+  };
+}
+
+export async function getCachedGroup(
+  musicianCache: OfflineMusicianCache,
+  organizationId: string,
+  userId: string,
+  groupId: string,
+): Promise<Group | null> {
+  const snapshot = await musicianCache.get(organizationId, userId);
+  if (!snapshot) {
+    return null;
+  }
+
+  const parsed = parseSnapshot(snapshot);
+  const listItem = parsed.groups.find((group) => group.id === groupId);
+  if (!listItem) {
+    return null;
+  }
+
+  const { memberCount: _memberCount, ...group } = listItem;
+  return group;
+}
+
+export async function listCachedAssignmentsForGroup(
+  musicianCache: OfflineMusicianCache,
+  organizationId: string,
+  userId: string,
+  groupId: string,
+): Promise<GroupAssignmentListItem[]> {
+  const snapshot = await musicianCache.get(organizationId, userId);
+  if (!snapshot) {
+    return [];
+  }
+
+  const parsed = parseSnapshot(snapshot);
+  return parsed.assignmentsByGroup[groupId] ?? [];
+}
+
+export async function listCachedSectionsForGroup(
+  musicianCache: OfflineMusicianCache,
+  organizationId: string,
+  userId: string,
+  groupId: string,
+): Promise<SectionListItem[]> {
+  const snapshot = await musicianCache.get(organizationId, userId);
+  if (!snapshot) {
+    return [];
+  }
+
+  const parsed = parseSnapshot(snapshot);
+  return parsed.sections.filter((section) => section.groupId === groupId);
+}
+
+export async function getCachedSectionPartIdsByGroup(
+  musicianCache: OfflineMusicianCache,
+  organizationId: string,
+  userId: string,
+  groupId: string,
+): Promise<Map<string, string[]>> {
+  const snapshot = await musicianCache.get(organizationId, userId);
+  if (!snapshot) {
+    return new Map();
+  }
+
+  const parsed = parseSnapshot(snapshot);
+  const bySection = parsed.sectionPartIdsByGroup[groupId] ?? {};
+  return new Map(Object.entries(bySection));
+}
+
 export async function getCachedMusiciansFilterData(
   musicianCache: OfflineMusicianCache,
   organizationId: string,
@@ -312,7 +458,7 @@ export async function getCachedMusiciansFilterData(
 
   const parsed = parseSnapshot(snapshot);
   return {
-    groups: parsed.groups,
+    groups: parsed.groups.filter((group) => !group.archivedAt),
     parts: parsed.parts,
     sections: parsed.sections,
     cachedAt: parsed.cachedAt,

@@ -79,6 +79,8 @@ export type CachedMusiciansRecord = {
   groupsJson: string;
   partsJson: string;
   sectionsJson: string;
+  assignmentsByGroupJson?: string;
+  sectionPartIdsByGroupJson?: string;
 };
 
 export class PlannerKairosOfflineDb extends Dexie {
@@ -117,6 +119,16 @@ export class PlannerKairosOfflineDb extends Dexie {
       cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
     });
     this.version(4).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+    });
+    this.version(5).stores({
       cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
       cachedAnnotations:
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',

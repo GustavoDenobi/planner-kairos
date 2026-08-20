@@ -59,11 +59,16 @@ import {
 } from './agenda-cache-use-cases';
 import {
   cacheMusiciansForOffline,
+  getCachedGroup,
   getCachedMusician,
   getCachedMusiciansFilterData,
   getCachedMusiciansMeta,
+  getCachedSectionPartIdsByGroup,
+  listCachedAssignmentsForGroup,
   listCachedAssignmentsForMusician,
+  listCachedGroups,
   listCachedMusicians,
+  listCachedSectionsForGroup,
 } from './musician-cache-use-cases';
 import type { CachePlaylistProgress } from './types';
 
@@ -328,6 +333,27 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     getCachedMusiciansMeta: (organizationId: string, userId: string) =>
       getCachedMusiciansMeta(musicianCache, organizationId, userId),
 
+    listCachedGroups: (
+      organizationId: string,
+      userId: string,
+      options?: import('./musician-cache-use-cases').ListCachedGroupsOptions,
+    ) => listCachedGroups(musicianCache, organizationId, userId, options),
+
+    getCachedGroup: (organizationId: string, userId: string, groupId: string) =>
+      getCachedGroup(musicianCache, organizationId, userId, groupId),
+
+    listCachedAssignmentsForGroup: (
+      organizationId: string,
+      userId: string,
+      groupId: string,
+    ) => listCachedAssignmentsForGroup(musicianCache, organizationId, userId, groupId),
+
+    listCachedSectionsForGroup: (organizationId: string, userId: string, groupId: string) =>
+      listCachedSectionsForGroup(musicianCache, organizationId, userId, groupId),
+
+    getCachedSectionPartIdsByGroup: (organizationId: string, userId: string, groupId: string) =>
+      getCachedSectionPartIdsByGroup(musicianCache, organizationId, userId, groupId),
+
     clearAllOfflineData: async () => {
       await fileCache.clearAll();
       await annotationStore.clearAll();
@@ -344,4 +370,4 @@ export type OfflineUseCases = ReturnType<typeof createOfflineUseCases>;
 export type { CachePlaylistProgress, OfflineStatus, ResolvedPieceFile } from './types';
 export type { OfflineFileStatus } from './types';
 export type { CachedEventsInRangeOptions, CachedEventsInRangeResult } from './agenda-cache-use-cases';
-export type { CachedMusiciansListResult } from './musician-cache-use-cases';
+export type { CachedMusiciansListResult, CachedGroupsListResult } from './musician-cache-use-cases';

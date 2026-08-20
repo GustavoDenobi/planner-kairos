@@ -23,6 +23,8 @@ export function createOfflineMusicianCache(): OfflineMusicianCache {
         groupsJson: record.groupsJson,
         partsJson: record.partsJson,
         sectionsJson: record.sectionsJson,
+        assignmentsByGroupJson: record.assignmentsByGroupJson ?? '{}',
+        sectionPartIdsByGroupJson: record.sectionPartIdsByGroupJson ?? '{}',
       };
     },
 
@@ -37,6 +39,8 @@ export function createOfflineMusicianCache(): OfflineMusicianCache {
         groupsJson: snapshot.groupsJson,
         partsJson: snapshot.partsJson,
         sectionsJson: snapshot.sectionsJson,
+        assignmentsByGroupJson: snapshot.assignmentsByGroupJson,
+        sectionPartIdsByGroupJson: snapshot.sectionPartIdsByGroupJson,
       });
     },
 

@@ -7,6 +7,8 @@ export type CachedMusiciansSnapshot = {
   groupsJson: string;
   partsJson: string;
   sectionsJson: string;
+  assignmentsByGroupJson: string;
+  sectionPartIdsByGroupJson: string;
 };
 
 export type OfflineMusicianCache = {

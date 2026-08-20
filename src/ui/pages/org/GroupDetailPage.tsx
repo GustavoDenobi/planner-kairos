@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type { GroupInviteListItem } from '@/domain/identity';
 import { isGroupInviteExhausted } from '@/domain/identity';
 import {
@@ -14,7 +15,8 @@ import {
 } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
-import { useIdentity } from '@/ui/app/AppServicesContext';
+import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
+import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { InviteLinkCopy } from '@/ui/components/InviteLinkCopy';
@@ -25,6 +27,7 @@ import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconExternalLink, IconPencil, IconUsers, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -101,6 +104,9 @@ export function GroupDetailPage() {
   const { orgSlug, groupId } = useParams();
   const ensemble = useEnsemble();
   const identity = useIdentity();
+  const offline = useOffline();
+  const { userId } = useAuth();
+  const online = useOnlineStatus();
   const navigate = useNavigate();
   const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
@@ -118,6 +124,7 @@ export function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [createInviteModalOpen, setCreateInviteModalOpen] = useState(false);
   const [createInviteExpiresAt, setCreateInviteExpiresAt] = useState(() =>
     toDateInputValue(defaultCreateInviteExpiresAt()),
   );
@@ -146,12 +153,43 @@ export function GroupDetailPage() {
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isRemovingAssignment, setIsRemovingAssignment] = useState(false);
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const isOfflineReadOnly = !online;
+  const canEdit = isAdmin && !isOfflineReadOnly;
   const isArchived = group?.archivedAt !== null && group?.archivedAt !== undefined;
+
   useEffect(() => {
-    if (!org || !groupId) {
+    if (!org || !groupId || !userId) {
       return;
     }
+
     setIsLoading(true);
+
+    if (!isBrowserOnline()) {
+      void Promise.all([
+        offline.getCachedGroup(org.id, userId, groupId),
+        offline.listCachedSectionsForGroup(org.id, userId, groupId),
+        offline.getCachedMusiciansFilterData(org.id, userId),
+        offline.listCachedAssignmentsForGroup(org.id, userId, groupId),
+        offline.getCachedSectionPartIdsByGroup(org.id, userId, groupId),
+      ]).then(([cachedGroup, cachedSections, filterData, cachedAssignments, partIdsMap]) => {
+        if (cachedGroup) {
+          setGroup(cachedGroup);
+          setName(cachedGroup.name);
+          setKind(cachedGroup.kind);
+          setNotes(cachedGroup.notes ?? '');
+        } else {
+          setGroup(null);
+        }
+        setSections(cachedSections);
+        setOrgParts(filterData?.parts ?? []);
+        setAssignments(cachedAssignments);
+        setAssignmentSectionPartIds(partIdsMap);
+        setInvites([]);
+        setIsLoading(false);
+      });
+      return;
+    }
+
     ensemble.getGroup(org.id, groupId).then((result) => {
       if (result.ok) {
         setGroup(result.value);
@@ -186,7 +224,7 @@ export function GroupDetailPage() {
         setAssignmentSectionPartIds(result.value);
       }
     });
-  }, [ensemble, identity, org, groupId]);
+  }, [ensemble, identity, offline, org, groupId, userId]);
   async function refreshInvites() {
     const listResult = await identity.listGroupInvites(org!.id);
     if (listResult.ok) {
@@ -504,6 +542,25 @@ export function GroupDetailPage() {
     }
     return `Não foi possível gerar o convite. (${code})`;
   }
+  function resetCreateInviteForm() {
+    setCreateInviteExpiresAt(toDateInputValue(defaultCreateInviteExpiresAt()));
+    setCreateInviteMaxUses('0');
+    setInviteError(null);
+  }
+
+  function openCreateInviteModal() {
+    resetCreateInviteForm();
+    setCreateInviteModalOpen(true);
+  }
+
+  function closeCreateInviteModal() {
+    if (isCreatingInvite) {
+      return;
+    }
+    setCreateInviteModalOpen(false);
+    setInviteError(null);
+  }
+
   async function handleCreateInvite(event: React.FormEvent) {
     event.preventDefault();
     setInviteError(null);
@@ -527,8 +584,8 @@ export function GroupDetailPage() {
       setInviteError(inviteErrorMessage(result.error));
       return;
     }
-    setCreateInviteExpiresAt(toDateInputValue(defaultCreateInviteExpiresAt()));
-    setCreateInviteMaxUses('0');
+    setCreateInviteModalOpen(false);
+    resetCreateInviteForm();
     await refreshInvites();
   }
   async function handleRevoke(inviteId: string) {
@@ -615,9 +672,14 @@ export function GroupDetailPage() {
     <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/grupos`} />
-        <h1 className={`text-2xl font-semibold ${isArchived ? 'text-muted' : 'text-text'}`}>
-          {group.name}
-        </h1>
+        <div>
+          <h1 className={`text-2xl font-semibold ${isArchived ? 'text-muted' : 'text-text'}`}>
+            {group.name}
+          </h1>
+          {isOfflineReadOnly && (
+            <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
+          )}
+        </div>
       </div>
       {isArchived && group.archivedAt && (
         <p className="mt-3 text-sm text-muted">
@@ -639,7 +701,8 @@ export function GroupDetailPage() {
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                        disabled={!canEdit}
+                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
                     </label>
                     <label className="flex flex-col gap-1 text-sm">
@@ -647,7 +710,8 @@ export function GroupDetailPage() {
                       <select
                         value={kind}
                         onChange={(e) => setKind(e.target.value as GroupKind)}
-                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+                        disabled={!canEdit}
+                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       >
                         {GROUP_KIND_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -659,20 +723,24 @@ export function GroupDetailPage() {
                       <textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
+                        disabled={!canEdit}
                         rows={3}
-                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                        className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
                     </label>
                     {error && <p className="text-sm text-red-600">{error}</p>}
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={handleSave}
-                      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                    >
-                      {isSaving ? 'Salvando…' : 'Salvar'}
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={handleSave}
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {isSaving ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    )}
                   </div>
+                  {canEdit && (
                   <div className="mt-8 flex w-full md:justify-end">
                     {isArchived ? (
                       <button
@@ -693,6 +761,7 @@ export function GroupDetailPage() {
                       </button>
                     )}
                   </div>
+                  )}
                   {archiveError && !archiveOpen && (
                     <p className="mt-2 text-right text-sm text-red-600">{archiveError}</p>
                   )}
@@ -738,14 +807,16 @@ export function GroupDetailPage() {
                               <IconWhatsApp className="h-4 w-4" />
                             </a>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => openEditAssignmentModal(assignment)}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:bg-bg hover:text-text"
-                            aria-label={`Editar atribuição de ${assignment.musicianName}`}
-                          >
-                            <IconPencil className="h-4 w-4" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => openEditAssignmentModal(assignment)}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:bg-bg hover:text-text"
+                              aria-label={`Editar atribuição de ${assignment.musicianName}`}
+                            >
+                              <IconPencil className="h-4 w-4" />
+                            </button>
+                          )}
                         </li>
                         );
                       })}
@@ -759,15 +830,26 @@ export function GroupDetailPage() {
               label: 'Naipes',
               content: (
                 <>
+                  {canEdit && (
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={openCreateSectionModal}
+                        className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                      >
+                        + Naipe
+                      </button>
+                    </div>
+                  )}
                   {sections.length === 0 ? (
                     <p className="text-sm text-muted">Nenhum naipe cadastrado.</p>
-                  ) : (
+                  ) : canEdit ? (
                     <SortableList
                       items={sections}
                       onReorder={handleReorderSections}
                       disabled={isReorderingSections}
                       ariaLabel="Naipes"
-                      className="mb-4 flex flex-col gap-2"
+                      className="flex flex-col gap-2"
                       renderItem={(section, handle) => (
                         <div className="flex items-center gap-1 rounded-lg border border-border bg-surface py-3 pr-4 pl-1.5 text-sm">
                           <SortableDragHandle {...handle} label={`Reordenar ${section.name}`} />
@@ -787,16 +869,22 @@ export function GroupDetailPage() {
                         </div>
                       )}
                     />
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {sections.map((section) => (
+                        <li
+                          key={section.id}
+                          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm"
+                        >
+                          <span className="min-w-0 flex-1 font-medium text-text">{section.name}</span>
+                          <span className="flex shrink-0 items-center gap-1 text-sm text-muted">
+                            <IconUsers className="h-4 w-4" />
+                            {section.memberCount}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  <div className="flex items-center justify-center gap-4 mt-4">
-                    <button
-                      type="button"
-                      onClick={openCreateSectionModal}
-                      className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-                    >
-                      + Naipe
-                    </button>
-                  </div>
                   {sectionError && !sectionModalOpen && (
                     <p className="mt-2 text-sm text-red-600">{sectionError}</p>
                   )}
@@ -806,10 +894,25 @@ export function GroupDetailPage() {
             {
               id: 'convites',
               label: 'Convites',
-              content: (
+              content: isOfflineReadOnly ? (
+                <p className="text-sm text-muted">Convites não disponíveis offline.</p>
+              ) : (
                 <>
-                  {inviteError && <p className="mt-2 text-sm text-red-600">{inviteError}</p>}
-                  <ul className="mt-6 flex flex-col gap-2">
+                  {!isArchived && (
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={openCreateInviteModal}
+                        className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                      >
+                        + Link
+                      </button>
+                    </div>
+                  )}
+                  {inviteError && !createInviteModalOpen && (
+                    <p className="mb-4 text-sm text-red-600">{inviteError}</p>
+                  )}
+                  <ul className="flex flex-col gap-2">
                     {invites.map((invite) => {
                       const active = isInviteActive(invite);
                       const editable = isInviteEditable(invite);
@@ -935,46 +1038,6 @@ export function GroupDetailPage() {
                       <p className="text-sm text-muted">Nenhum convite para este grupo.</p>
                     )}
                   </ul>
-                  {!isArchived && (
-                    <form
-                      className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-bg p-4"
-                      onSubmit={handleCreateInvite}
-                    >
-                      <p className="text-sm font-medium text-text">Novo convite</p>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-sm">
-                          <span className="text-muted">Expira em</span>
-                          <input
-                            type="date"
-                            required
-                            value={createInviteExpiresAt}
-                            onChange={(e) => setCreateInviteExpiresAt(e.target.value)}
-                            className="rounded-lg border border-border bg-surface px-3 py-2 text-text outline-none focus:border-primary"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm">
-                          <span className="text-muted">Limite de usos (0 = ilimitado)</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={createInviteMaxUses}
-                            onChange={(e) => setCreateInviteMaxUses(e.target.value)}
-                            className="rounded-lg border border-border bg-surface px-3 py-2 text-text outline-none focus:border-primary"
-                          />
-                        </label>
-                      </div>
-                      <div className="flex justify-center">
-                        <button
-                          type="submit"
-                          disabled={isCreatingInvite}
-                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                        >
-                          {isCreatingInvite ? 'Gerando…' : '+ Link'}
-                        </button>
-                      </div>
-                    </form>
-                  )}
                 </>
               ),
             },
@@ -1137,6 +1200,55 @@ export function GroupDetailPage() {
               className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-red-600 hover:bg-bg disabled:opacity-50"
             >
               {isRemovingAssignment ? 'Removendo…' : 'Remover'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={createInviteModalOpen}
+        onClose={closeCreateInviteModal}
+        title="Novo convite"
+      >
+        <form className="flex flex-col gap-4" onSubmit={handleCreateInvite}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-text">Expira em</span>
+              <input
+                type="date"
+                required
+                value={createInviteExpiresAt}
+                onChange={(e) => setCreateInviteExpiresAt(e.target.value)}
+                className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-text">Limite de usos (0 = ilimitado)</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={createInviteMaxUses}
+                onChange={(e) => setCreateInviteMaxUses(e.target.value)}
+                className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+              />
+            </label>
+          </div>
+          {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={isCreatingInvite}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {isCreatingInvite ? 'Gerando…' : 'Gerar link'}
+            </button>
+            <button
+              type="button"
+              disabled={isCreatingInvite}
+              onClick={closeCreateInviteModal}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50"
+            >
+              Cancelar
             </button>
           </div>
         </form>
