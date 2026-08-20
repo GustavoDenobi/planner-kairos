@@ -56,12 +56,39 @@ export type IdentitySnapshotRecord = {
   cachedAt: string;
 };
 
+export type CachedAgendaRecord = {
+  cacheKey: string;
+  organizationId: string;
+  userId: string;
+  cachedAt: string;
+  rangeFrom: string;
+  rangeTo: string;
+  eventsJson: string;
+  eventDetailsJson: string;
+  eventTypesJson: string;
+  audienceJson: string;
+};
+
+export type CachedMusiciansRecord = {
+  cacheKey: string;
+  organizationId: string;
+  userId: string;
+  cachedAt: string;
+  musiciansJson: string;
+  assignmentsJson: string;
+  groupsJson: string;
+  partsJson: string;
+  sectionsJson: string;
+};
+
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
   syncOutbox!: Table<SyncOutboxRecord, string>;
   cachedPlaylists!: Table<CachedPlaylistRecord, string>;
   identitySnapshot!: Table<IdentitySnapshotRecord, string>;
+  cachedAgenda!: Table<CachedAgendaRecord, string>;
+  cachedMusicians!: Table<CachedMusiciansRecord, string>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -79,6 +106,25 @@ export class PlannerKairosOfflineDb extends Dexie {
       syncOutbox: 'id, createdAt',
       cachedPlaylists: 'playlistId, organizationId',
       identitySnapshot: 'id, userId',
+    });
+    this.version(3).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+    });
+    this.version(4).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
     });
   }
 }

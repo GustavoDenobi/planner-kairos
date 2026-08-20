@@ -3,6 +3,16 @@ import type { OfflineAnnotationStore } from '@/application/ports/offline-annotat
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflineIdentityStore } from '@/application/ports/offline-identity-store';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
+import type { OfflineAgendaCache } from '@/application/ports/offline-agenda-cache';
+import type { OfflineMusicianCache } from '@/application/ports/offline-musician-cache';
+import type { EventRepository } from '@/application/ports/event-repository';
+import type { EventTypeRepository } from '@/application/ports/event-type-repository';
+import type { AssignmentRepository } from '@/application/ports/assignment-repository';
+import type { GroupRepository } from '@/application/ports/group-repository';
+import type { PartRepository } from '@/application/ports/part-repository';
+import type { SectionRepository } from '@/application/ports/section-repository';
+import type { MembershipRepository } from '@/application/ports/membership-repository';
+import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
@@ -39,6 +49,22 @@ import {
   sessionFromIdentitySnapshot,
   sessionFromOfflineSnapshot,
 } from './identity-snapshot-use-cases';
+import {
+  cacheAgendaForOffline,
+  getCachedAgendaMeta,
+  getCachedAssociableAudience,
+  getCachedEventDetail,
+  getCachedEventTypes,
+  listCachedEventsInRange,
+} from './agenda-cache-use-cases';
+import {
+  cacheMusiciansForOffline,
+  getCachedMusician,
+  getCachedMusiciansFilterData,
+  getCachedMusiciansMeta,
+  listCachedAssignmentsForMusician,
+  listCachedMusicians,
+} from './musician-cache-use-cases';
 import type { CachePlaylistProgress } from './types';
 
 export type OfflineStoragePorts = {
@@ -46,6 +72,8 @@ export type OfflineStoragePorts = {
   annotationStore: OfflineAnnotationStore;
   playlistCache: OfflinePlaylistCache;
   identityStore: OfflineIdentityStore;
+  agendaCache: OfflineAgendaCache;
+  musicianCache: OfflineMusicianCache;
 };
 
 export type OfflineUseCaseDeps = {
@@ -55,6 +83,14 @@ export type OfflineUseCaseDeps = {
   annotationRepo: PieceFileAnnotationRepository;
   playlistRepo: ReadingPlaylistRepository;
   offlineStorage: OfflineStoragePorts;
+  eventRepo: EventRepository;
+  eventTypeRepo: EventTypeRepository;
+  membershipRepo: MembershipRepository;
+  musicianRepo: MusicianRepository;
+  assignmentRepo: AssignmentRepository;
+  groupRepo: GroupRepository;
+  partRepo: PartRepository;
+  sectionRepo: SectionRepository;
 };
 
 export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
@@ -62,6 +98,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const annotationStore = deps.offlineStorage.annotationStore;
   const playlistCache = deps.offlineStorage.playlistCache;
   const identityStore = deps.offlineStorage.identityStore;
+  const agendaCache = deps.offlineStorage.agendaCache;
+  const musicianCache = deps.offlineStorage.musicianCache;
 
   return {
     cachePieceFileForOffline: (organizationId: string, pieceId: string, fileId: string) =>
@@ -226,10 +264,76 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     syncPendingOfflineChanges: () =>
       syncPendingOfflineChanges(deps.annotationRepo, annotationStore),
 
+    cacheAgendaForOffline: (organizationId: string, userId: string) =>
+      cacheAgendaForOffline(
+        deps.eventRepo,
+        deps.eventTypeRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.groupRepo,
+        agendaCache,
+        organizationId,
+        userId,
+      ),
+
+    listCachedEventsInRange: (
+      organizationId: string,
+      userId: string,
+      options: import('./agenda-cache-use-cases').CachedEventsInRangeOptions,
+    ) => listCachedEventsInRange(agendaCache, organizationId, userId, options),
+
+    getCachedEventDetail: (organizationId: string, userId: string, eventId: string) =>
+      getCachedEventDetail(agendaCache, organizationId, userId, eventId),
+
+    getCachedEventTypes: (organizationId: string, userId: string) =>
+      getCachedEventTypes(agendaCache, organizationId, userId),
+
+    getCachedAssociableAudience: (organizationId: string, userId: string) =>
+      getCachedAssociableAudience(agendaCache, organizationId, userId),
+
+    getCachedAgendaMeta: (organizationId: string, userId: string) =>
+      getCachedAgendaMeta(agendaCache, organizationId, userId),
+
+    cacheMusiciansForOffline: (organizationId: string, userId: string) =>
+      cacheMusiciansForOffline(
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.groupRepo,
+        deps.partRepo,
+        deps.sectionRepo,
+        musicianCache,
+        organizationId,
+        userId,
+      ),
+
+    listCachedMusicians: (
+      organizationId: string,
+      userId: string,
+      options?: import('@/application/ports/musician-repository').ListMusiciansOptions,
+    ) => listCachedMusicians(musicianCache, organizationId, userId, options),
+
+    getCachedMusician: (organizationId: string, userId: string, musicianId: string) =>
+      getCachedMusician(musicianCache, organizationId, userId, musicianId),
+
+    listCachedAssignmentsForMusician: (
+      organizationId: string,
+      userId: string,
+      musicianId: string,
+    ) => listCachedAssignmentsForMusician(musicianCache, organizationId, userId, musicianId),
+
+    getCachedMusiciansFilterData: (organizationId: string, userId: string) =>
+      getCachedMusiciansFilterData(musicianCache, organizationId, userId),
+
+    getCachedMusiciansMeta: (organizationId: string, userId: string) =>
+      getCachedMusiciansMeta(musicianCache, organizationId, userId),
+
     clearAllOfflineData: async () => {
       await fileCache.clearAll();
       await annotationStore.clearAll();
       await playlistCache.clearAll();
+      await agendaCache.clearAll();
+      await musicianCache.clearAll();
       await clearIdentitySnapshot(identityStore);
     },
   };
@@ -239,3 +343,5 @@ export type OfflineUseCases = ReturnType<typeof createOfflineUseCases>;
 
 export type { CachePlaylistProgress, OfflineStatus, ResolvedPieceFile } from './types';
 export type { OfflineFileStatus } from './types';
+export type { CachedEventsInRangeOptions, CachedEventsInRangeResult } from './agenda-cache-use-cases';
+export type { CachedMusiciansListResult } from './musician-cache-use-cases';

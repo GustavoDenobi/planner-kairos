@@ -95,6 +95,14 @@ export function createAppServices() {
     annotationRepo,
     playlistRepo,
     offlineStorage,
+    eventRepo,
+    eventTypeRepo,
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    groupRepo,
+    partRepo,
+    sectionRepo,
   });
 
   return { identity, ensemble, repertoire, agenda, offline };

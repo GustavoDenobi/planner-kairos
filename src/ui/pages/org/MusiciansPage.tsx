@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type {
   MusicianSortDirection,
   MusicianSortField,
@@ -12,12 +13,14 @@ import {
   type MusicianListItem,
   type SectionListItem,
 } from '@/domain/ensemble';
-import { useEnsemble } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useOffline } from '@/ui/app/AppServicesContext';
+import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { IconArrowUpDown, IconFilter, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
 import { normalizeSearchText } from '@/ui/utils/normalize-search-text';
 
@@ -61,15 +64,20 @@ function musicianWhatsAppUrl(phone: string | null): string | null {
 export function MusiciansPage() {
   const { orgSlug } = useParams();
   const ensemble = useEnsemble();
+  const offline = useOffline();
+  const { userId } = useAuth();
+  const online = useOnlineStatus();
   const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const isOfflineReadOnly = !online;
 
   const [musicians, setMusicians] = useState<MusicianListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
   useLoadingBar('musicians', isLoading || isLoadingMore);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -100,7 +108,7 @@ export function MusiciansPage() {
 
   const loadPage = useCallback(
     async (offset: number, replace: boolean) => {
-      if (!org) {
+      if (!org || !userId) {
         return;
       }
 
@@ -111,6 +119,38 @@ export function MusiciansPage() {
       } else {
         setIsLoadingMore(true);
       }
+
+      if (!isBrowserOnline()) {
+        const cached = await offline.listCachedMusicians(org.id, userId, {
+          query: debouncedQuery,
+          sortBy: sortField,
+          sortDirection,
+          groupId: filterGroupId || undefined,
+          sectionId: filterSectionId || undefined,
+          partId: filterPartId || undefined,
+          ensembleRole: filterRole || undefined,
+          limit: PAGE_SIZE,
+          offset,
+        });
+
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        setMusicians((prev) => (replace ? cached.items : [...prev, ...cached.items]));
+        setTotalCount(cached.totalCount);
+        setHasMore(cached.hasMore);
+        setOfflineCachedAt(cached.cachedAt);
+
+        if (replace) {
+          setIsLoading(false);
+        } else {
+          setIsLoadingMore(false);
+        }
+        return;
+      }
+
+      setOfflineCachedAt(null);
 
       const result = await ensemble.listMusicians(org.id, {
         query: debouncedQuery,
@@ -149,18 +189,36 @@ export function MusiciansPage() {
       filterPartId,
       filterRole,
       filterSectionId,
+      offline,
       org,
       sortDirection,
       sortField,
+      userId,
     ],
   );
 
   useEffect(() => {
-    if (!org) {
+    if (!org || !userId) {
       return;
     }
 
     let cancelled = false;
+
+    if (!isBrowserOnline()) {
+      void offline.getCachedMusiciansFilterData(org.id, userId).then((filterData) => {
+        if (cancelled || !filterData) {
+          return;
+        }
+
+        setGroups(filterData.groups);
+        setParts(filterData.parts);
+        setSections(filterData.sections);
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void Promise.all([ensemble.listGroups(org.id), ensemble.listParts(org.id)]).then(
       async ([groupsResult, partsResult]) => {
@@ -190,7 +248,7 @@ export function MusiciansPage() {
     return () => {
       cancelled = true;
     };
-  }, [ensemble, org]);
+  }, [ensemble, offline, org, userId]);
 
   useEffect(() => {
     if (!org) {
@@ -265,7 +323,22 @@ export function MusiciansPage() {
     <OrgListPageLayout
       scrollRef={scrollRef}
       header={
-        <h1 className="text-2xl font-semibold text-text">Músicos</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-text">Músicos</h1>
+          {isOfflineReadOnly && (
+            <p className="mt-1 text-sm text-muted">
+              Modo offline — somente leitura
+              {offlineCachedAt
+                ? ` · dados de ${new Intl.DateTimeFormat('pt-BR', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(offlineCachedAt))}`
+                : ''}
+            </p>
+          )}
+        </div>
       }
       toolbar={
         !isLoading && (totalCount > 0 || isFiltering) ? (

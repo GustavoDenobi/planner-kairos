@@ -3,7 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { EventKind, EventListItem, EventType } from '@/domain/agenda';
 import { eventHasNoAudience, extraAudienceMusicianIds } from '@/domain/agenda';
 import type { AssociableAudience } from '@/application/agenda';
-import { useAgenda } from '@/ui/app/AppServicesContext';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
+import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -41,6 +42,7 @@ import {
   orgListPageHeightClass,
   orgPageContentClass,
 } from '@/ui/layouts/OrgListPageLayout';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
 
@@ -63,6 +65,8 @@ export function AgendaPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const agenda = useAgenda();
+  const offline = useOffline();
+  const online = useOnlineStatus();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
@@ -84,9 +88,12 @@ export function AgendaPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [audience, setAudience] = useState<AssociableAudience | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
+  const [offlineRangeError, setOfflineRangeError] = useState(false);
   useLoadingBar('agenda', isLoading);
 
-  const canCreateEvents = isAdmin || Boolean(audience?.canCreateEvents);
+  const isOfflineReadOnly = !online;
+  const canCreateEvents = !isOfflineReadOnly && (isAdmin || Boolean(audience?.canCreateEvents));
 
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmEmptyAudience, setConfirmEmptyAudience] = useState(false);
@@ -168,11 +175,49 @@ export function AgendaPage() {
     }
 
     if (showEventTypesView) {
+      if (!isBrowserOnline()) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       await loadEventTypes();
       setIsLoading(false);
       return;
     }
+
+    if (!isBrowserOnline()) {
+      setIsLoading(true);
+      setOfflineRangeError(false);
+      const { from, to } = getWeekRange(anchor);
+      const range = toIsoRange(from, to);
+      const cached = await offline.listCachedEventsInRange(org.id, userId, {
+        ...range,
+        mineOnly: isAdmin && scope === 'mine',
+        typeId: filterTypeId || null,
+        kind: filterKind || null,
+        groupId: filterGroupId || null,
+      });
+
+      if (!cached.withinCachedRange) {
+        setOfflineRangeError(true);
+        setEvents([]);
+      } else {
+        setOfflineRangeError(false);
+        setEvents(cached.events);
+      }
+
+      setOfflineCachedAt(cached.cachedAt);
+      setEventTypes(await offline.getCachedEventTypes(org.id, userId));
+      const cachedAudience = await offline.getCachedAssociableAudience(org.id, userId);
+      if (cachedAudience) {
+        setAudience(cachedAudience);
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    setOfflineCachedAt(null);
+    setOfflineRangeError(false);
 
     setIsLoading(true);
     const { from, to } = getWeekRange(anchor);
@@ -207,6 +252,7 @@ export function AgendaPage() {
     setIsLoading(false);
   }, [
     agenda,
+    offline,
     org,
     userId,
     anchor,
@@ -387,7 +433,7 @@ export function AgendaPage() {
               )}
               <h1 className="text-2xl font-semibold text-text">{pageTitle}</h1>
             </div>
-            {(isAdmin || canCreateEvents) && !showEventTypesView && (
+            {(isAdmin || canCreateEvents) && !showEventTypesView && !isOfflineReadOnly && (
               <div className="flex shrink-0 items-center gap-2">
                 {isAdmin && (
                   <button
@@ -414,7 +460,7 @@ export function AgendaPage() {
                 )}
               </div>
             )}
-            {isAdmin && showEventTypesView && (
+            {isAdmin && showEventTypesView && !isOfflineReadOnly && (
               <button
                 type="button"
                 onClick={openCreateTypeModal}
@@ -425,6 +471,20 @@ export function AgendaPage() {
               </button>
             )}
           </div>
+
+          {!showEventTypesView && isOfflineReadOnly && (
+            <p className="text-sm text-muted">
+              Modo offline — somente leitura
+              {offlineCachedAt
+                ? ` · dados de ${new Intl.DateTimeFormat('pt-BR', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(offlineCachedAt))}`
+                : ''}
+            </p>
+          )}
 
           {!showEventTypesView && (
             <>
@@ -454,7 +514,11 @@ export function AgendaPage() {
         </div>
 
         <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-          {showEventTypesView ? (
+          {showEventTypesView && isOfflineReadOnly ? (
+            <p className="text-sm text-muted">
+              Gerir tipos de evento exige conexão com a internet.
+            </p>
+          ) : showEventTypesView ? (
             isLoading ? (
               <p className="text-sm text-muted">Carregando…</p>
             ) : (
@@ -464,6 +528,11 @@ export function AgendaPage() {
                 onEdit={openEditTypeModal}
               />
             )
+          ) : offlineRangeError ? (
+            <p className="text-sm text-muted">
+              Esta semana está fora do intervalo disponível offline (semana atual até 90 dias à
+              frente).
+            </p>
           ) : (
             <AgendaEventsSection orgSlug={orgSlug ?? ''} events={events} isLoading={isLoading} />
           )}

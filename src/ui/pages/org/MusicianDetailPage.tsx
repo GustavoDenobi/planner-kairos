@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type {
   AssignmentInput,
   AssignmentWithDetails,
@@ -10,7 +11,7 @@ import type {
 } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { AccessRole } from '@/domain/identity';
-import { useEnsemble, useIdentity } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -19,6 +20,7 @@ import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 
 type AssignmentFormState = {
@@ -61,9 +63,12 @@ export function MusicianDetailPage() {
   const navigate = useNavigate();
   const ensemble = useEnsemble();
   const identity = useIdentity();
+  const offline = useOffline();
   const { userId } = useAuth();
+  const online = useOnlineStatus();
   const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
+  const isOfflineReadOnly = !online;
 
   const [musician, setMusician] = useState<Musician | null>(null);
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
@@ -104,13 +109,34 @@ export function MusicianDetailPage() {
   const [isUpdatingAdmin, setIsUpdatingAdmin] = useState(false);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const canEdit = isAdmin && !isOfflineReadOnly;
 
   useEffect(() => {
-    if (!org || !musicianId) {
+    if (!org || !musicianId || !userId) {
       return;
     }
 
     setIsLoading(true);
+
+    if (!isBrowserOnline()) {
+      void Promise.all([
+        offline.getCachedMusician(org.id, userId, musicianId),
+        offline.listCachedAssignmentsForMusician(org.id, userId, musicianId),
+      ]).then(([cachedMusician, cachedAssignments]) => {
+        if (cachedMusician) {
+          setMusician(cachedMusician);
+          setFullName(cachedMusician.fullName);
+          setBirthDate(cachedMusician.birthDate ?? '');
+          setPhone(cachedMusician.phone ?? '');
+          setEmail(cachedMusician.email ?? '');
+        } else {
+          setMusician(null);
+        }
+        setAssignments(cachedAssignments);
+        setIsLoading(false);
+      });
+      return;
+    }
 
     Promise.all([
       ensemble.getMusician(org.id, musicianId),
@@ -136,10 +162,10 @@ export function MusicianDetailPage() {
       }
       setIsLoading(false);
     });
-  }, [ensemble, org, musicianId]);
+  }, [ensemble, offline, org, musicianId, userId]);
 
   useEffect(() => {
-    if (!org || !musician?.userId || !isAdmin) {
+    if (!org || !musician?.userId || !isAdmin || isOfflineReadOnly) {
       setTargetAccessRole(null);
       setIsLoadingTargetRole(false);
       return;
@@ -160,7 +186,7 @@ export function MusicianDetailPage() {
     return () => {
       active = false;
     };
-  }, [identity, org, musician?.userId, isAdmin]);
+  }, [identity, isOfflineReadOnly, org, musician?.userId, isAdmin]);
 
   async function loadSectionsForGroup(groupId: string) {
     if (!org || sectionsByGroup.has(groupId)) {
@@ -437,7 +463,12 @@ export function MusicianDetailPage() {
     <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/musicos`} />
-        <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>
+          {isOfflineReadOnly && (
+            <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
+          )}
+        </div>
       </div>
 
       <div className="mt-6">
@@ -455,7 +486,7 @@ export function MusicianDetailPage() {
                         type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
                     </label>
@@ -465,7 +496,7 @@ export function MusicianDetailPage() {
                         type="date"
                         value={birthDate}
                         onChange={(e) => setBirthDate(e.target.value)}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
                     </label>
@@ -475,7 +506,7 @@ export function MusicianDetailPage() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         placeholder="(00) 00000-0000"
                         className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
@@ -486,13 +517,13 @@ export function MusicianDetailPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         placeholder="nome@exemplo.com"
                         className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary disabled:opacity-60"
                       />
                     </label>
                     {error && <p className="text-sm text-red-600">{error}</p>}
-                    {isAdmin && (
+                    {canEdit && (
                       <button
                         type="button"
                         disabled={isSaving}
@@ -503,7 +534,7 @@ export function MusicianDetailPage() {
                       </button>
                     )}
                   </div>
-                  {showAccessRoleSection && (
+                  {showAccessRoleSection && !isOfflineReadOnly && (
                     <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
                       <div>
                         <h2 className="text-sm font-semibold text-text">
@@ -534,7 +565,7 @@ export function MusicianDetailPage() {
                       )}
                     </div>
                   )}
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="mt-8 flex w-full md:justify-end">
                       <button
                         type="button"
@@ -567,7 +598,7 @@ export function MusicianDetailPage() {
                             {assignment.partName ? ` · ${assignment.partName}` : ''}
                           </p>
                         </div>
-                        {isAdmin && (
+                        {canEdit && (
                           <button
                             type="button"
                             onClick={() => openEditAssignmentModal(assignment)}
@@ -583,7 +614,7 @@ export function MusicianDetailPage() {
                       <p className="text-sm text-muted">Nenhuma atribuição cadastrada.</p>
                     )}
                   </ul>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="mt-4 flex justify-center">
                       <button
                         type="button"

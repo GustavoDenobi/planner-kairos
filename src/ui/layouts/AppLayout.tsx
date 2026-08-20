@@ -11,7 +11,19 @@ import { Sidebar } from '@/ui/layouts/Sidebar';
 import { spacing } from '@/ui/theme/tokens';
 
 function isOfflineAllowedPath(pathname: string): boolean {
-  return pathname.includes('/leitura');
+  if (pathname.includes('/leitura')) {
+    return true;
+  }
+  if (pathname.includes('/agenda')) {
+    return true;
+  }
+  if (pathname.includes('/eventos/') && !pathname.includes('/preparar-partituras')) {
+    return true;
+  }
+  if (pathname.includes('/musicos')) {
+    return true;
+  }
+  return false;
 }
 
 export function AppLayout() {

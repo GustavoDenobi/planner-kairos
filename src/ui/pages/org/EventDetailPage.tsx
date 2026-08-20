@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { AssociableAudience } from '@/application/agenda';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type { EventDetail, EventType } from '@/domain/agenda';
 import {
   canWriteEvent,
@@ -8,7 +9,7 @@ import {
   eventHasNoAudience,
   extraAudienceMusicianIds,
 } from '@/domain/agenda';
-import { useAgenda } from '@/ui/app/AppServicesContext';
+import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -31,6 +32,7 @@ import {
   orgListPageHeightClass,
   orgPageContentClass,
 } from '@/ui/layouts/OrgListPageLayout';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 function mergeOptions<T extends { id: string }>(primary: T[], extra: T[]): T[] {
   const byId = new Map<string, T>();
@@ -48,6 +50,8 @@ export function EventDetailPage() {
   const { orgSlug, eventId } = useParams();
   const navigate = useNavigate();
   const agenda = useAgenda();
+  const offline = useOffline();
+  const online = useOnlineStatus();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
@@ -82,6 +86,42 @@ export function EventDetailPage() {
     setIsLoading(true);
     setError(null);
 
+    if (!isBrowserOnline()) {
+      if (!userId) {
+        setEvent(null);
+        setError('Evento não disponível offline.');
+        setIsLoading(false);
+        return;
+      }
+
+      const detail = await offline.getCachedEventDetail(org.id, userId, eventId);
+      const types = await offline.getCachedEventTypes(org.id, userId);
+      const cachedAudience = await offline.getCachedAssociableAudience(org.id, userId);
+
+      setEventTypes(types);
+      if (cachedAudience) {
+        setAudience(cachedAudience);
+      }
+
+      if (!detail) {
+        setEvent(null);
+        setError('Evento não disponível offline.');
+        setIsLoading(false);
+        return;
+      }
+
+      setEvent(detail);
+      setTypeId(detail.typeId);
+      setTitle(detail.title ?? '');
+      setStartsAt(toDatetimeLocalValue(detail.startsAt));
+      setEndsAt(detail.endsAt ? toDatetimeLocalValue(detail.endsAt) : '');
+      setNotes(detail.notes ?? '');
+      setGroupIds(detail.groups.map((group) => group.id));
+      setMusicianIds(detail.musicians.map((musician) => musician.id));
+      setIsLoading(false);
+      return;
+    }
+
     const [eventResult, typesResult, audienceResult] = await Promise.all([
       agenda.getEvent(org.id, eventId),
       agenda.listEventTypes(org.id),
@@ -113,14 +153,17 @@ export function EventDetailPage() {
     setGroupIds(detail.groups.map((group) => group.id));
     setMusicianIds(detail.musicians.map((musician) => musician.id));
     setIsLoading(false);
-  }, [agenda, org, eventId, userId]);
+  }, [agenda, offline, org, eventId, userId]);
 
   useEffect(() => {
     void loadEvent();
   }, [loadEvent]);
 
+  const isOfflineReadOnly = !online;
+
   const canWrite = Boolean(
-    event &&
+    !isOfflineReadOnly &&
+      event &&
       userId &&
       canWriteEvent({
         isPrivileged: isAdmin,
@@ -313,6 +356,9 @@ export function EventDetailPage() {
             <p className="mt-1 text-sm text-muted">
               {formatEventTime(event.startsAt, event.endsAt)}
             </p>
+            {isOfflineReadOnly && (
+              <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
+            )}
             <EventAudienceChips
               groups={event.groups}
               musicians={event.musicians}
