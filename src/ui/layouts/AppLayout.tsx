@@ -2,6 +2,8 @@ import { Outlet, useLocation, useParams } from 'react-router-dom';
 import { useLoadingBarPlacement } from '@/ui/app/loading-bar/useLoadingBar';
 import { OfflineUnavailableMessage } from '@/ui/features/pwa/OfflineUnavailableMessage';
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
+import { PwaInstallMobileBanner } from '@/ui/features/pwa/PwaInstallMobileBanner';
+import { usePwaInstallContext } from '@/ui/features/pwa/PwaInstallContext';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { BottomNav } from '@/ui/layouts/BottomNav';
 import { MobileHeader } from '@/ui/layouts/MobileHeader';
@@ -17,6 +19,7 @@ export function AppLayout() {
   useLoadingBarPlacement('belowAppHeader');
   const online = useOnlineStatus();
   const location = useLocation();
+  const { visible: showInstallBanner } = usePwaInstallContext();
   const showOfflineFallback = !online && !isOfflineAllowedPath(location.pathname);
 
   return (
@@ -36,6 +39,8 @@ export function AppLayout() {
         >
           {showOfflineFallback ? <OfflineUnavailableMessage /> : <Outlet />}
         </main>
+        {showInstallBanner ? <div className="h-12 shrink-0 md:hidden" aria-hidden /> : null}
+        <PwaInstallMobileBanner />
         <BottomNav orgSlug={orgSlug} />
       </div>
     </div>

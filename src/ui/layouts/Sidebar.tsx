@@ -4,6 +4,7 @@ import { useSignOut } from '@/ui/app/auth/AuthProvider';
 import { IconLogOut, IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
+import { PwaInstallSidebarButton } from '@/ui/features/pwa/PwaInstallSidebarButton';
 import { UserAvatar } from '@/ui/components/UserAvatar';
 import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useUserProfile } from '@/ui/hooks/useUserProfile';
@@ -106,6 +107,7 @@ export function Sidebar({ orgSlug }: SidebarProps) {
           </button>
         </div>
         <DisplayPreferencesControls />
+        <PwaInstallSidebarButton />
       </div>
 
       {org && isAdmin && (

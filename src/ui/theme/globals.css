@@ -219,3 +219,25 @@ html[data-keyboard-open] [data-modal-overlay] {
     width: 100%;
   }
 }
+
+@keyframes pwa-install-banner-enter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pwa-install-banner-enter {
+  animation: pwa-install-banner-enter 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-install-banner-enter {
+    animation: none;
+  }
+}

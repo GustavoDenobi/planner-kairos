@@ -8,6 +8,7 @@ import { OrgProvider } from '@/ui/app/OrgProvider';
 import { ThemeProvider } from '@/ui/app/ThemeProvider';
 import { UiScaleProvider } from '@/ui/app/UiScaleProvider';
 import { VisualViewportSync } from '@/ui/app/VisualViewportSync';
+import { PwaInstallProvider } from '@/ui/features/pwa/PwaInstallProvider';
 import { PwaUpdateProvider } from '@/ui/features/pwa/PwaUpdateProvider';
 
 type ProvidersProps = {
@@ -26,7 +27,9 @@ export function Providers({ children, services }: ProvidersProps) {
             <ThemeProvider>
               <UiScaleProvider>
                 <VisualViewportSync />
-                <PwaUpdateProvider>{children}</PwaUpdateProvider>
+                <PwaUpdateProvider>
+                  <PwaInstallProvider>{children}</PwaInstallProvider>
+                </PwaUpdateProvider>
               </UiScaleProvider>
             </ThemeProvider>
           </OrgProvider>
