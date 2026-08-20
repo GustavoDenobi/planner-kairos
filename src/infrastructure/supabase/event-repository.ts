@@ -1,18 +1,21 @@
 import type { EventRepository, ListEventsInRangeOptions } from '@/application/ports/event-repository';
 import type {
+  EventAudienceGroup,
+  EventAudienceMusician,
   EventDetail,
   EventInput,
   EventKind,
   EventListItem,
   ProgramItemInput,
 } from '@/domain/agenda';
-import { normalizeOptionalText } from '@/domain/agenda';
+import type { GroupKind } from '@/domain/ensemble';
+import { normalizeOptionalText, uniqueIds } from '@/domain/agenda';
 import { supabase } from './client';
 
 const EVENT_TYPE_COLUMNS = 'id, organization_id, name, kind, sort_order, color';
 
 const EVENT_COLUMNS =
-  'id, organization_id, type_id, title, starts_at, ends_at, location, notes';
+  'id, organization_id, type_id, title, starts_at, ends_at, location, notes, created_by';
 
 type EventTypeRow = {
   id: string;
@@ -32,7 +35,13 @@ type EventRow = {
   ends_at: string | null;
   location: string | null;
   notes: string | null;
+  created_by: string | null;
   event_types: EventTypeRow | EventTypeRow[] | null;
+};
+
+type AudienceByEvent = {
+  groups: EventAudienceGroup[];
+  musicians: EventAudienceMusician[];
 };
 
 function mapEventType(row: EventTypeRow) {
@@ -77,6 +86,60 @@ async function loadProgramCounts(
   }
 
   return counts;
+}
+
+async function loadAudience(
+  organizationId: string,
+  eventIds: string[],
+): Promise<Map<string, AudienceByEvent>> {
+  const byEvent = new Map<string, AudienceByEvent>();
+  for (const eventId of eventIds) {
+    byEvent.set(eventId, { groups: [], musicians: [] });
+  }
+
+  if (eventIds.length === 0) {
+    return byEvent;
+  }
+
+  const [{ data: groupRows }, { data: musicianRows }] = await Promise.all([
+    supabase
+      .from('event_groups')
+      .select('event_id, group_id, groups(name, kind)')
+      .eq('organization_id', organizationId)
+      .in('event_id', eventIds),
+    supabase
+      .from('event_musicians')
+      .select('event_id, musician_id, musicians(full_name, user_id)')
+      .eq('organization_id', organizationId)
+      .in('event_id', eventIds),
+  ]);
+
+  for (const row of groupRows ?? []) {
+    const entry = byEvent.get(row.event_id) ?? { groups: [], musicians: [] };
+    const group = row.groups as unknown as { name: string; kind: GroupKind } | null;
+    entry.groups.push({
+      id: row.group_id,
+      name: group?.name ?? '',
+      kind: group?.kind ?? 'other',
+    });
+    byEvent.set(row.event_id, entry);
+  }
+
+  for (const row of musicianRows ?? []) {
+    const entry = byEvent.get(row.event_id) ?? { groups: [], musicians: [] };
+    const musician = row.musicians as unknown as {
+      full_name: string;
+      user_id: string | null;
+    } | null;
+    entry.musicians.push({
+      id: row.musician_id,
+      fullName: musician?.full_name ?? '',
+      userId: musician?.user_id ?? null,
+    });
+    byEvent.set(row.event_id, entry);
+  }
+
+  return byEvent;
 }
 
 async function loadProgramForEvent(organizationId: string, eventId: string) {
@@ -125,7 +188,11 @@ async function buildEventDetail(
     return null;
   }
 
-  const program = await loadProgramForEvent(organizationId, row.id);
+  const [program, audience] = await Promise.all([
+    loadProgramForEvent(organizationId, row.id),
+    loadAudience(organizationId, [row.id]),
+  ]);
+  const eventAudience = audience.get(row.id) ?? { groups: [], musicians: [] };
 
   return {
     id: row.id,
@@ -136,12 +203,15 @@ async function buildEventDetail(
     endsAt: row.ends_at,
     location: row.location,
     notes: row.notes,
+    createdBy: row.created_by,
     type: mapEventType(typeRow),
     program,
+    groups: eventAudience.groups,
+    musicians: eventAudience.musicians,
   };
 }
 
-function toEventInsert(organizationId: string, input: EventInput) {
+function toEventRow(organizationId: string, input: EventInput) {
   return {
     organization_id: organizationId,
     type_id: input.typeId,
@@ -151,6 +221,92 @@ function toEventInsert(organizationId: string, input: EventInput) {
     location: normalizeOptionalText(input.location),
     notes: normalizeOptionalText(input.notes),
   };
+}
+
+function toEventInsert(organizationId: string, input: EventInput) {
+  return {
+    ...toEventRow(organizationId, input),
+    created_by: input.createdBy ?? undefined,
+  };
+}
+
+async function replaceAudience(
+  organizationId: string,
+  eventId: string,
+  groupIds: string[],
+  musicianIds: string[],
+) {
+  const uniqueGroupIds = uniqueIds(groupIds);
+  const uniqueMusicianIds = uniqueIds(musicianIds);
+
+  const { error: deleteGroupsError } = await supabase
+    .from('event_groups')
+    .delete()
+    .eq('organization_id', organizationId)
+    .eq('event_id', eventId);
+
+  if (deleteGroupsError) {
+    throw new Error(deleteGroupsError.message);
+  }
+
+  const { error: deleteMusiciansError } = await supabase
+    .from('event_musicians')
+    .delete()
+    .eq('organization_id', organizationId)
+    .eq('event_id', eventId);
+
+  if (deleteMusiciansError) {
+    throw new Error(deleteMusiciansError.message);
+  }
+
+  if (uniqueGroupIds.length > 0) {
+    const { error: insertGroupsError } = await supabase.from('event_groups').insert(
+      uniqueGroupIds.map((groupId) => ({
+        organization_id: organizationId,
+        event_id: eventId,
+        group_id: groupId,
+      })),
+    );
+
+    if (insertGroupsError) {
+      throw new Error(insertGroupsError.message);
+    }
+  }
+
+  if (uniqueMusicianIds.length > 0) {
+    const { error: insertMusiciansError } = await supabase.from('event_musicians').insert(
+      uniqueMusicianIds.map((musicianId) => ({
+        organization_id: organizationId,
+        event_id: eventId,
+        musician_id: musicianId,
+      })),
+    );
+
+    if (insertMusiciansError) {
+      throw new Error(insertMusiciansError.message);
+    }
+  }
+}
+
+function matchesMineFilter(
+  item: {
+    createdBy: string | null;
+    groups: EventAudienceGroup[];
+    musicians: EventAudienceMusician[];
+  },
+  options: ListEventsInRangeOptions,
+): boolean {
+  if (!options.mineOnly) {
+    return true;
+  }
+  if (options.viewerUserId && item.createdBy === options.viewerUserId) {
+    return true;
+  }
+  if (options.viewerMusicianId && item.musicians.some((musician) => musician.id === options.viewerMusicianId)) {
+    return true;
+  }
+  const viewerGroupIds = options.viewerGroupIds ?? [];
+  return item.groups.some((group) => viewerGroupIds.includes(group.id));
 }
 
 async function fetchEventRow(
@@ -174,7 +330,7 @@ async function fetchEventRow(
 export function createEventRepository(): EventRepository {
   return {
     async listInRange(organizationId, options: ListEventsInRangeOptions) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('events')
         .select(`${EVENT_COLUMNS}, event_types (${EVENT_TYPE_COLUMNS})`)
         .eq('organization_id', organizationId)
@@ -182,15 +338,22 @@ export function createEventRepository(): EventRepository {
         .lt('starts_at', options.to)
         .order('starts_at');
 
+      if (options.typeId) {
+        query = query.eq('type_id', options.typeId);
+      }
+
+      const { data, error } = await query;
+
       if (error || !data) {
         return [];
       }
 
       const rows = data as EventRow[];
-      const programCounts = await loadProgramCounts(
-        organizationId,
-        rows.map((row) => row.id),
-      );
+      const eventIds = rows.map((row) => row.id);
+      const [programCounts, audience] = await Promise.all([
+        loadProgramCounts(organizationId, eventIds),
+        loadAudience(organizationId, eventIds),
+      ]);
 
       const items: EventListItem[] = [];
       for (const row of rows) {
@@ -198,7 +361,14 @@ export function createEventRepository(): EventRepository {
         if (!typeRow) {
           continue;
         }
-        items.push({
+        if (options.kind && typeRow.kind !== options.kind) {
+          continue;
+        }
+        const eventAudience = audience.get(row.id) ?? { groups: [], musicians: [] };
+        if (options.groupId && !eventAudience.groups.some((group) => group.id === options.groupId)) {
+          continue;
+        }
+        const item: EventListItem = {
           id: row.id,
           typeId: row.type_id,
           typeName: typeRow.name,
@@ -209,7 +379,14 @@ export function createEventRepository(): EventRepository {
           endsAt: row.ends_at,
           location: row.location,
           programCount: programCounts.get(row.id) ?? 0,
-        });
+          createdBy: row.created_by,
+          groups: eventAudience.groups,
+          musicians: eventAudience.musicians,
+        };
+        if (!matchesMineFilter(item, options)) {
+          continue;
+        }
+        items.push(item);
       }
 
       return items;
@@ -234,6 +411,13 @@ export function createEventRepository(): EventRepository {
         throw new Error(error?.message ?? 'create_failed');
       }
 
+      await replaceAudience(
+        organizationId,
+        data.id,
+        input.groupIds ?? [],
+        input.musicianIds ?? [],
+      );
+
       const row = await fetchEventRow(organizationId, data.id);
       if (!row) {
         throw new Error('create_failed');
@@ -248,7 +432,7 @@ export function createEventRepository(): EventRepository {
     async update(organizationId, eventId, input: EventInput) {
       const { data, error } = await supabase
         .from('events')
-        .update(toEventInsert(organizationId, input))
+        .update(toEventRow(organizationId, input))
         .eq('organization_id', organizationId)
         .eq('id', eventId)
         .select(EVENT_COLUMNS)
@@ -257,6 +441,13 @@ export function createEventRepository(): EventRepository {
       if (error || !data) {
         throw new Error(error?.message ?? 'update_failed');
       }
+
+      await replaceAudience(
+        organizationId,
+        eventId,
+        input.groupIds ?? [],
+        input.musicianIds ?? [],
+      );
 
       const row = await fetchEventRow(organizationId, data.id);
       if (!row) {
@@ -306,6 +497,18 @@ export function createEventRepository(): EventRepository {
         throw new Error('program_failed');
       }
       return built;
+    },
+
+    async delete(organizationId, eventId) {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('id', eventId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
     },
   };
 }

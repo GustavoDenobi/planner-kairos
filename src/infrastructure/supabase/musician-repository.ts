@@ -2,7 +2,7 @@ import type {
   ListMusiciansOptions,
   MusicianRepository,
 } from '@/application/ports/musician-repository';
-import type { Musician, MusicianInput, MusicianListItem } from '@/domain/ensemble';
+import type { EnsembleRole, Musician, MusicianInput, MusicianListItem } from '@/domain/ensemble';
 import { normalizePhone } from '@/domain/ensemble';
 import { supabase } from './client';
 
@@ -72,6 +72,48 @@ async function loadAssignmentStats(
   return byMusician;
 }
 
+async function findMusicianIdsMatchingAssignmentFilters(
+  organizationId: string,
+  filters: {
+    groupId?: string;
+    sectionId?: string;
+    partId?: string;
+    ensembleRole?: EnsembleRole;
+  },
+): Promise<string[] | null> {
+  const hasFilter = Boolean(
+    filters.groupId || filters.sectionId || filters.partId || filters.ensembleRole,
+  );
+  if (!hasFilter) {
+    return null;
+  }
+
+  let assignmentsQuery = supabase
+    .from('assignments')
+    .select('musician_id')
+    .eq('organization_id', organizationId);
+
+  if (filters.groupId) {
+    assignmentsQuery = assignmentsQuery.eq('group_id', filters.groupId);
+  }
+  if (filters.sectionId) {
+    assignmentsQuery = assignmentsQuery.eq('section_id', filters.sectionId);
+  }
+  if (filters.partId) {
+    assignmentsQuery = assignmentsQuery.eq('part_id', filters.partId);
+  }
+  if (filters.ensembleRole) {
+    assignmentsQuery = assignmentsQuery.eq('ensemble_role', filters.ensembleRole);
+  }
+
+  const { data, error } = await assignmentsQuery;
+  if (error || !data) {
+    return [];
+  }
+
+  return [...new Set(data.map((row) => row.musician_id))];
+}
+
 function mapMusicianListItems(
   rows: Array<{
     id: string;
@@ -102,16 +144,32 @@ export function createMusicianRepository(): MusicianRepository {
     async listForOrg(organizationId, options: ListMusiciansOptions = {}) {
       const {
         query = '',
-        sortBy = 'name',
-        sortDirection = 'asc',
+        sortBy = 'created_at',
+        sortDirection = 'desc',
+        groupId,
+        sectionId,
+        partId,
+        ensembleRole,
         limit = DEFAULT_PAGE_SIZE,
         offset = 0,
       } = options;
+
+      const assignmentMusicianIds = await findMusicianIdsMatchingAssignmentFilters(
+        organizationId,
+        { groupId, sectionId, partId, ensembleRole },
+      );
+      if (assignmentMusicianIds && assignmentMusicianIds.length === 0) {
+        return { items: [], totalCount: 0, hasMore: false };
+      }
 
       let musiciansQuery = supabase
         .from('musicians')
         .select(MUSICIAN_COLUMNS, { count: 'exact' })
         .eq('organization_id', organizationId);
+
+      if (assignmentMusicianIds) {
+        musiciansQuery = musiciansQuery.in('id', assignmentMusicianIds);
+      }
 
       const trimmedQuery = query.trim();
       if (trimmedQuery) {
@@ -149,6 +207,24 @@ export function createMusicianRepository(): MusicianRepository {
         totalCount,
         hasMore: offset + musicians.length < totalCount,
       };
+    },
+
+    async listNamesForOrg(organizationId) {
+      const { data, error } = await supabase
+        .from('musicians')
+        .select('id, full_name, user_id')
+        .eq('organization_id', organizationId)
+        .order('full_name');
+
+      if (error || !data) {
+        return [];
+      }
+
+      return data.map((row) => ({
+        id: row.id,
+        fullName: row.full_name,
+        userId: row.user_id,
+      }));
     },
 
     async getById(organizationId, musicianId) {
@@ -215,4 +291,4 @@ export function createMusicianRepository(): MusicianRepository {
     },
   };
 }
-
+

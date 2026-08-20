@@ -8,7 +8,9 @@ export type {
   AssignmentInput,
   AssignmentWithDetails,
   EnsembleRole,
+  GroupAssignmentListItem,
 } from './assignment';
+export { GROUP_WRITER_ROLES, isGroupWriterRole } from './assignment';
 export {
   isValidEmailFormat,
   isValidMusicianName,

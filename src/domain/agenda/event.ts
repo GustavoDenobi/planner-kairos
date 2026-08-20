@@ -1,4 +1,17 @@
+import type { GroupKind } from '@/domain/ensemble';
 import type { EventKind } from './event-type';
+
+export type EventAudienceGroup = {
+  id: string;
+  name: string;
+  kind: GroupKind;
+};
+
+export type EventAudienceMusician = {
+  id: string;
+  fullName: string;
+  userId: string | null;
+};
 
 export type Event = {
   id: string;
@@ -9,6 +22,7 @@ export type Event = {
   endsAt: string | null;
   location: string | null;
   notes: string | null;
+  createdBy: string | null;
 };
 
 export type EventInput = {
@@ -18,6 +32,9 @@ export type EventInput = {
   endsAt?: string | null;
   location?: string | null;
   notes?: string | null;
+  createdBy?: string | null;
+  groupIds?: string[];
+  musicianIds?: string[];
 };
 
 export type EventListItem = {
@@ -31,4 +48,7 @@ export type EventListItem = {
   endsAt: string | null;
   location: string | null;
   programCount: number;
+  createdBy: string | null;
+  groups: EventAudienceGroup[];
+  musicians: EventAudienceMusician[];
 };

@@ -7,6 +7,7 @@ import type { AssignmentInput, MusicianInput, PartDivisionInput, PartInput, Sect
 
 import {
   assignMusician,
+  listAssignmentsForGroup,
   listAssignmentsForMusician,
   removeAssignment,
   updateAssignment,
@@ -102,7 +103,10 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
     reorderSections: (organizationId: string, groupId: string, orderedSectionIds: string[]) =>
       reorderSections(deps.sectionRepo, organizationId, groupId, orderedSectionIds),
 
-    listAssignmentsForMusician: (organizationId: string, musicianId: string) =>      listAssignmentsForMusician(deps.assignmentRepo, organizationId, musicianId),
+    listAssignmentsForMusician: (organizationId: string, musicianId: string) =>
+      listAssignmentsForMusician(deps.assignmentRepo, organizationId, musicianId),
+    listAssignmentsForGroup: (organizationId: string, groupId: string) =>
+      listAssignmentsForGroup(deps.assignmentRepo, organizationId, groupId),
     assignMusician: (organizationId: string, musicianId: string, input: AssignmentInput) =>
       assignMusician(
         deps.assignmentRepo,

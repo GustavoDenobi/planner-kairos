@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import type { GroupInviteListItem } from '@/domain/identity';
 import { isGroupInviteExhausted } from '@/domain/identity';
-import type { Group, GroupKind, Section, SectionListItem } from '@/domain/ensemble';
+import {
+  normalizePhone,
+  type AssignmentInput,
+  type EnsembleRole,
+  type Group,
+  type GroupAssignmentListItem,
+  type GroupKind,
+  type Section,
+  type SectionListItem,
+} from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useIdentity } from '@/ui/app/AppServicesContext';
@@ -13,7 +22,8 @@ import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
-import { IconExternalLink, IconPencil, IconUsers } from '@/ui/components/icons';
+import { IconExternalLink, IconPencil, IconUsers, IconWhatsApp } from '@/ui/components/icons';
+import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 function toDateInputValue(date: Date): string {
@@ -54,6 +64,39 @@ function defaultCreateInviteExpiresAt(): Date {
   expiresAt.setDate(expiresAt.getDate() + 7);
   return expiresAt;
 }
+
+type AssignmentFormState = {
+  sectionId: string;
+  partId: string;
+  ensembleRole: EnsembleRole;
+};
+
+const emptyAssignmentForm = (): AssignmentFormState => ({
+  sectionId: '',
+  partId: '',
+  ensembleRole: 'member',
+});
+
+function assignmentDetailsLabel(assignment: GroupAssignmentListItem): string {
+  return [
+    ensembleRoleLabel(assignment.ensembleRole),
+    assignment.sectionName,
+    assignment.partName,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function musicianWhatsAppUrl(phone: string | null): string | null {
+  if (!phone) {
+    return null;
+  }
+  const digits = normalizePhone(phone);
+  if (digits.length === 0) {
+    return null;
+  }
+  return `https://wa.me/55${digits}`;
+}
 export function GroupDetailPage() {
   const { orgSlug, groupId } = useParams();
   const ensemble = useEnsemble();
@@ -92,6 +135,16 @@ export function GroupDetailPage() {
   const [isSavingSection, setIsSavingSection] = useState(false);
   const [isDeletingSection, setIsDeletingSection] = useState(false);
   const [isReorderingSections, setIsReorderingSections] = useState(false);
+  const [assignments, setAssignments] = useState<GroupAssignmentListItem[]>([]);
+  const [assignmentSectionPartIds, setAssignmentSectionPartIds] = useState<Map<string, string[]>>(
+    new Map(),
+  );
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<GroupAssignmentListItem | null>(null);
+  const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(emptyAssignmentForm);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+  const [isRemovingAssignment, setIsRemovingAssignment] = useState(false);
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
   const isArchived = group?.archivedAt !== null && group?.archivedAt !== undefined;
   useEffect(() => {
@@ -123,6 +176,16 @@ export function GroupDetailPage() {
         setOrgParts(result.value);
       }
     });
+    ensemble.listAssignmentsForGroup(org.id, groupId).then((result) => {
+      if (result.ok) {
+        setAssignments(result.value);
+      }
+    });
+    ensemble.listSectionPartIdsByGroup(org.id, groupId).then((result) => {
+      if (result.ok) {
+        setAssignmentSectionPartIds(result.value);
+      }
+    });
   }, [ensemble, identity, org, groupId]);
   async function refreshInvites() {
     const listResult = await identity.listGroupInvites(org!.id);
@@ -131,9 +194,22 @@ export function GroupDetailPage() {
     }
   }
   async function refreshSections() {
-    const result = await ensemble.listSections(org!.id, group!.id);
+    const [sectionsResult, partIdsResult] = await Promise.all([
+      ensemble.listSections(org!.id, group!.id),
+      ensemble.listSectionPartIdsByGroup(org!.id, group!.id),
+    ]);
+    if (sectionsResult.ok) {
+      setSections(sectionsResult.value);
+    }
+    if (partIdsResult.ok) {
+      setAssignmentSectionPartIds(partIdsResult.value);
+    }
+  }
+
+  async function refreshAssignments() {
+    const result = await ensemble.listAssignmentsForGroup(org!.id, group!.id);
     if (result.ok) {
-      setSections(result.value);
+      setAssignments(result.value);
     }
   }
   function resetSectionForm() {
@@ -244,6 +320,87 @@ export function GroupDetailPage() {
     }
   }
 
+  function openEditAssignmentModal(assignment: GroupAssignmentListItem) {
+    setEditingAssignment(assignment);
+    setAssignmentForm({
+      sectionId: assignment.sectionId ?? '',
+      partId: assignment.partId ?? '',
+      ensembleRole: assignment.ensembleRole,
+    });
+    setAssignmentError(null);
+    setIsRemovingAssignment(false);
+    setAssignmentModalOpen(true);
+  }
+
+  function closeAssignmentModal() {
+    if (isSavingAssignment || isRemovingAssignment) {
+      return;
+    }
+    setAssignmentModalOpen(false);
+    setEditingAssignment(null);
+    setAssignmentError(null);
+  }
+
+  async function handleSaveAssignment(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingAssignment) {
+      return;
+    }
+
+    setAssignmentError(null);
+    setIsSavingAssignment(true);
+
+    const input: AssignmentInput = {
+      groupId: group!.id,
+      sectionId: assignmentForm.sectionId || null,
+      partId: assignmentForm.partId || null,
+      ensembleRole: assignmentForm.ensembleRole,
+    };
+
+    const result = await ensemble.updateAssignment(org!.id, editingAssignment.id, input);
+
+    setIsSavingAssignment(false);
+
+    if (!result.ok) {
+      if (result.error === 'duplicate_assignment') {
+        setAssignmentError('Esta atribuição já existe.');
+      } else if (result.error === 'section_lead_requires_section') {
+        setAssignmentError('Chefe de naipe exige um naipe selecionado.');
+      } else if (result.error === 'section_part_mismatch') {
+        setAssignmentError('A parte selecionada não pertence ao naipe escolhido.');
+      } else {
+        setAssignmentError('Não foi possível salvar a atribuição.');
+      }
+      return;
+    }
+
+    setAssignmentModalOpen(false);
+    setEditingAssignment(null);
+    await Promise.all([refreshAssignments(), refreshSections()]);
+  }
+
+  async function handleRemoveAssignment() {
+    if (!editingAssignment) {
+      return;
+    }
+
+    setAssignmentError(null);
+    setIsRemovingAssignment(true);
+
+    const result = await ensemble.removeAssignment(org!.id, editingAssignment.id);
+
+    setIsRemovingAssignment(false);
+
+    if (!result.ok) {
+      setAssignmentError('Não foi possível remover a atribuição.');
+      return;
+    }
+
+    setAssignmentModalOpen(false);
+    setEditingAssignment(null);
+    await Promise.all([refreshAssignments(), refreshSections()]);
+  }
+
   if (!org || !groupId) {
     return null;
   }
@@ -276,7 +433,7 @@ export function GroupDetailPage() {
     });
     setIsSaving(false);
     if (!result.ok) {
-      setError('Não foi possível salvar as alterações.');
+      setError('Não foi possível salvar as alterações. Verifique os campos e tente novamente.');
       return;
     }
     setGroup(result.value);
@@ -445,6 +602,15 @@ export function GroupDetailPage() {
     if (isGroupInviteExhausted(invite.maxUses, invite.useCount)) return 'Esgotado';
     return 'Ativo';
   }
+
+  const assignmentPartIds = assignmentForm.sectionId
+    ? assignmentSectionPartIds.get(assignmentForm.sectionId) ?? []
+    : null;
+  const partsForAssignment =
+    assignmentPartIds !== null
+      ? orgParts.filter((part) => assignmentPartIds.includes(part.id))
+      : orgParts;
+
   return (
     <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
@@ -529,6 +695,61 @@ export function GroupDetailPage() {
                   </div>
                   {archiveError && !archiveOpen && (
                     <p className="mt-2 text-right text-sm text-red-600">{archiveError}</p>
+                  )}
+                </>
+              ),
+            },
+            {
+              id: 'integrantes',
+              label: 'Integrantes',
+              content: (
+                <>
+                  {assignments.length === 0 ? (
+                    <p className="text-sm text-muted">Nenhum integrante neste grupo.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {assignments.map((assignment) => {
+                        const whatsappUrl = musicianWhatsAppUrl(assignment.musicianPhone);
+
+                        return (
+                        <li
+                          key={assignment.id}
+                          className="flex items-center gap-2 rounded-lg border border-border bg-surface py-3 pr-4 pl-4 text-sm"
+                        >
+                          <Link
+                            to={`/${orgSlug}/musicos/${assignment.musicianId}`}
+                            className="min-w-0 flex-1 rounded-lg"
+                          >
+                            <p className="font-medium text-text hover:underline">
+                              {assignment.musicianName}
+                            </p>
+                            <p className="mt-0.5 text-muted">
+                              {assignmentDetailsLabel(assignment)}
+                            </p>
+                          </Link>
+                          {whatsappUrl && (
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Abrir WhatsApp de ${assignment.musicianName}`}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#25D366] text-white transition-opacity hover:opacity-90"
+                            >
+                              <IconWhatsApp className="h-4 w-4" />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openEditAssignmentModal(assignment)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:bg-bg hover:text-text"
+                            aria-label={`Editar atribuição de ${assignment.musicianName}`}
+                          >
+                            <IconPencil className="h-4 w-4" />
+                          </button>
+                        </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </>
               ),
@@ -822,6 +1043,101 @@ export function GroupDetailPage() {
                 {isDeletingSection ? 'Excluindo…' : 'Excluir'}
               </button>
             )}
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={assignmentModalOpen}
+        onClose={closeAssignmentModal}
+        title="Editar atribuição"
+      >
+        <form className="flex flex-col gap-4" onSubmit={handleSaveAssignment}>
+          {editingAssignment && (
+            <p className="text-sm text-muted">
+              <span className="font-medium text-text">{editingAssignment.musicianName}</span>
+              {' · '}
+              {group.name}
+            </p>
+          )}
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Naipe (opcional)</span>
+            <select
+              value={assignmentForm.sectionId}
+              onChange={(e) => {
+                const sectionId = e.target.value;
+                const partIds = sectionId
+                  ? assignmentSectionPartIds.get(sectionId) ?? []
+                  : null;
+                const partId =
+                  partIds && assignmentForm.partId && partIds.includes(assignmentForm.partId)
+                    ? assignmentForm.partId
+                    : '';
+
+                setAssignmentForm((prev) => ({ ...prev, sectionId, partId }));
+              }}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            >
+              <option value="">Nenhum</option>
+              {sections.map((section) => (
+                <option key={section.id} value={section.id}>{section.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Parte (opcional)</span>
+            <select
+              value={assignmentForm.partId}
+              onChange={(e) =>
+                setAssignmentForm((prev) => ({ ...prev, partId: e.target.value }))
+              }
+              disabled={assignmentForm.sectionId !== '' && partsForAssignment.length === 0}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text disabled:opacity-50"
+            >
+              <option value="">Nenhuma</option>
+              {partsForAssignment.map((part) => (
+                <option key={part.id} value={part.id}>{part.name}</option>
+              ))}
+            </select>
+            {assignmentForm.sectionId && partsForAssignment.length === 0 && (
+              <p className="text-xs text-muted">
+                Este naipe não tem partes configuradas. Edite o naipe no grupo para adicionar partes.
+              </p>
+            )}
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Papel</span>
+            <select
+              value={assignmentForm.ensembleRole}
+              onChange={(e) =>
+                setAssignmentForm((prev) => ({
+                  ...prev,
+                  ensembleRole: e.target.value as EnsembleRole,
+                }))
+              }
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            >
+              {ENSEMBLE_ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          {assignmentError && <p className="text-sm text-red-600">{assignmentError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={isSavingAssignment || isRemovingAssignment}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {isSavingAssignment ? 'Salvando…' : 'Salvar'}
+            </button>
+            <button
+              type="button"
+              disabled={isSavingAssignment || isRemovingAssignment}
+              onClick={handleRemoveAssignment}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-red-600 hover:bg-bg disabled:opacity-50"
+            >
+              {isRemovingAssignment ? 'Removendo…' : 'Remover'}
+            </button>
           </div>
         </form>
       </Modal>

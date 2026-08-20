@@ -1,12 +1,12 @@
 export function organizationImageErrorMessage(code: string): string {
   switch (code) {
     case 'unsupported_type':
-      return 'Use PNG, JPEG ou WebP.';
+      return 'Formato não suportado. Envie uma imagem PNG, JPEG ou WebP.';
     case 'too_small':
-      return 'A imagem deve ter pelo menos 200×200 px.';
+      return 'A imagem é pequena demais. Use pelo menos 200×200 pixels.';
     case 'unreadable':
-      return 'Não foi possível ler a imagem.';
+      return 'Não foi possível ler a imagem. Tente outro arquivo.';
     default:
-      return 'Não foi possível enviar a imagem.';
+      return 'Não foi possível enviar a imagem. Verifique o arquivo e tente novamente.';
   }
 }

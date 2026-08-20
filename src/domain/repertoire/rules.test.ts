@@ -3,6 +3,7 @@ import {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,
   mimeToPieceFileKind,
+  partitionPieceFilesForViewer,
   normalizePieceAliases,
   pieceFileMatchesUserParts,
   resolveDefaultScoreFile,
@@ -341,6 +342,89 @@ describe('filterScoreCandidatesForUser', () => {
       [saxPartId],
     );
     expect(result.map((f) => f.id)).toEqual(['file-sax', 'file-general']);
+  });
+});
+
+describe('partitionPieceFilesForViewer', () => {
+  const saxPartId = 'part-sax';
+  const violinPartId = 'part-violin';
+
+  const saxFile = {
+    id: 'file-sax',
+    organizationId: 'org',
+    pieceId: 'piece-1',
+    kind: 'score' as const,
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Sax',
+    originalName: 'sax.pdf',
+    byteSize: null,
+    contentHash: null,
+    partLinks: [{ partId: saxPartId, partDivisionId: null }],
+  };
+
+  const violinFile = {
+    ...saxFile,
+    id: 'file-violin',
+    title: 'Violin',
+    partLinks: [{ partId: violinPartId, partDivisionId: null }],
+  };
+
+  const generalFile = {
+    ...saxFile,
+    id: 'file-general',
+    title: 'Geral',
+    partLinks: [],
+  };
+
+  const audioFile = {
+    ...saxFile,
+    id: 'file-audio',
+    kind: 'audio' as const,
+    title: 'Audio',
+    partLinks: [],
+  };
+
+  it('keeps general scores in user files for non-conductors with parts', () => {
+    const result = partitionPieceFilesForViewer(
+      [saxFile, violinFile, generalFile, audioFile],
+      [saxPartId],
+      false,
+    );
+    expect(result.userFiles.map((file) => file.id)).toEqual(['file-sax', 'file-general']);
+    expect(result.generalFiles).toEqual([]);
+    expect(result.audioFiles.map((file) => file.id)).toEqual(['file-audio']);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-violin']);
+  });
+
+  it('puts unlinked scores in Geral for conductors, before other files', () => {
+    const result = partitionPieceFilesForViewer(
+      [saxFile, violinFile, generalFile, audioFile],
+      [saxPartId],
+      true,
+    );
+    expect(result.userFiles.map((file) => file.id)).toEqual(['file-sax']);
+    expect(result.generalFiles.map((file) => file.id)).toEqual(['file-general']);
+    expect(result.audioFiles.map((file) => file.id)).toEqual(['file-audio']);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-violin']);
+  });
+
+  it('shows Geral for a conductor without assigned parts', () => {
+    const result = partitionPieceFilesForViewer(
+      [saxFile, generalFile, audioFile],
+      [],
+      true,
+    );
+    expect(result.userFiles).toEqual([]);
+    expect(result.generalFiles.map((file) => file.id)).toEqual(['file-general']);
+    expect(result.audioFiles.map((file) => file.id)).toEqual(['file-audio']);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-sax']);
+  });
+
+  it('puts audio in its own section regardless of role', () => {
+    const result = partitionPieceFilesForViewer([saxFile, audioFile], [], false);
+    expect(result.audioFiles.map((file) => file.id)).toEqual(['file-audio']);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-sax']);
   });
 });
 

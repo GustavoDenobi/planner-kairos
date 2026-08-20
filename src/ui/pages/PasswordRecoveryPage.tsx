@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useIdentity } from '@/ui/app/AppServicesContext';
+import { PASSWORD_RECOVERY_ERROR_MESSAGES } from '@/ui/utils/auth-error-labels';
 
 type Step = 'request' | 'confirm' | 'done';
 
@@ -32,7 +33,7 @@ export function PasswordRecoveryPage() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      setError('Código inválido ou expirado.');
+      setError(PASSWORD_RECOVERY_ERROR_MESSAGES.invalidCode);
       return;
     }
 

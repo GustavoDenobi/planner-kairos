@@ -71,6 +71,13 @@ export function categoryCardStyle(
   };
 }
 
+export function neutralCategoryCardStyle(): { borderColor: string; backgroundColor: string } {
+  return {
+    borderColor: 'hsl(0 0% 65%)',
+    backgroundColor: 'hsl(0 0% 50% / 0.12)',
+  };
+}
+
 export function parseCategoryHue(color: string | null | undefined, slug: string): number {
   if (color) {
     const numeric = Number(color);

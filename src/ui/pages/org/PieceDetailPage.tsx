@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { defaultPieceFileTitle, isPieceFileScore, resolvePieceFileMime } from '@/domain/repertoire';
 import type {
   PieceCategory,
@@ -28,6 +28,7 @@ import {
 } from '@/ui/features/repertoire/PieceFileUploadEntries';
 import { repertoirePath } from '@/ui/features/repertoire/repertoire-routes';
 import { piecePdfViewerPath } from '@/ui/features/repertoire/piece-file-routes';
+import { locationPath } from '@/ui/navigation/return-to';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
@@ -41,6 +42,7 @@ import {
 export function PieceDetailPage() {
   const { orgSlug, pieceId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const repertoire = useRepertoire();
   const ensemble = useEnsemble();
   const { userId } = useAuth();
@@ -52,6 +54,7 @@ export function PieceDetailPage() {
   const [categories, setCategories] = useState<PieceCategory[]>([]);
   const [themes, setThemes] = useState<PieceTheme[]>([]);
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
+  const [isConductor, setIsConductor] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('piece-detail', isLoading);
@@ -121,14 +124,16 @@ export function PieceDetailPage() {
   }, [editingFile]);
 
   async function loadMemberParts() {
-    if (!org || !userId || isAdmin) {
+    if (!org || !userId) {
       setUserPartIds([]);
+      setIsConductor(false);
       return;
     }
 
     const musicianResult = await ensemble.getMyMusician(org.id, userId);
     if (!musicianResult.ok) {
       setUserPartIds([]);
+      setIsConductor(false);
       return;
     }
 
@@ -137,17 +142,23 @@ export function PieceDetailPage() {
       musicianResult.value.id,
     );
 
+    const assignments = assignmentsResult.ok ? assignmentsResult.value : [];
+    setIsConductor(assignments.some((assignment) => assignment.ensembleRole === 'conductor'));
+
+    if (isAdmin) {
+      setUserPartIds([]);
+      return;
+    }
+
     const partIds: string[] = [];
     const seen = new Set<string>();
 
-    if (assignmentsResult.ok) {
-      for (const assignment of assignmentsResult.value) {
-        if (!assignment.partId || seen.has(assignment.partId)) {
-          continue;
-        }
-        seen.add(assignment.partId);
-        partIds.push(assignment.partId);
+    for (const assignment of assignments) {
+      if (!assignment.partId || seen.has(assignment.partId)) {
+        continue;
       }
+      seen.add(assignment.partId);
+      partIds.push(assignment.partId);
     }
 
     setUserPartIds(partIds);
@@ -449,7 +460,9 @@ export function PieceDetailPage() {
     }
 
     if (file.kind === 'score') {
-      navigate(piecePdfViewerPath(orgSlug, piece.id, file.id));
+      navigate(piecePdfViewerPath(orgSlug, piece.id, file.id), {
+        state: { returnTo: locationPath(location) },
+      });
       return;
     }
 
@@ -645,8 +658,8 @@ export function PieceDetailPage() {
         parts={parts}
         isAdmin={isAdmin}
         userPartIds={userPartIds}
+        isConductor={isConductor}
         onOpen={handleOpen}
-        onDownload={handleDownload}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}
         isAddingFiles={isPreparingUpload}

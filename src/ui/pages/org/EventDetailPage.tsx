@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import type { AssociableAudience } from '@/application/agenda';
 import type { EventDetail, EventType } from '@/domain/agenda';
-import { eventDisplayTitle } from '@/domain/agenda';
+import {
+  canWriteEvent,
+  eventDisplayTitle,
+  eventHasNoAudience,
+  extraAudienceMusicianIds,
+} from '@/domain/agenda';
 import { useAgenda } from '@/ui/app/AppServicesContext';
+import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackButton } from '@/ui/components/BackButton';
+import { ConfirmModal } from '@/ui/components/ConfirmModal';
 import { Tabs } from '@/ui/components/Tabs';
 import {
   fromDatetimeLocalValue,
@@ -15,6 +23,8 @@ import {
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
 import { agendaPath } from '@/ui/features/agenda/agenda-routes';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
+import { EventAudienceChips } from '@/ui/features/agenda/EventAudienceChips';
+import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
 import {
@@ -22,9 +32,23 @@ import {
   orgPageContentClass,
 } from '@/ui/layouts/OrgListPageLayout';
 
+function mergeOptions<T extends { id: string }>(primary: T[], extra: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of extra) {
+    byId.set(item.id, item);
+  }
+  for (const item of primary) {
+    const current = byId.get(item.id);
+    byId.set(item.id, current ? { ...current, ...item } : item);
+  }
+  return [...byId.values()];
+}
+
 export function EventDetailPage() {
   const { orgSlug, eventId } = useParams();
+  const navigate = useNavigate();
   const agenda = useAgenda();
+  const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
 
@@ -32,6 +56,7 @@ export function EventDetailPage() {
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [audience, setAudience] = useState<AssociableAudience | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('event-detail', isLoading);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +66,14 @@ export function EventDetailPage() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [notes, setNotes] = useState('');
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [musicianIds, setMusicianIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmEmptyAudience, setConfirmEmptyAudience] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadEvent = useCallback(async () => {
     if (!org || !eventId) {
@@ -51,13 +82,18 @@ export function EventDetailPage() {
     setIsLoading(true);
     setError(null);
 
-    const [eventResult, typesResult] = await Promise.all([
+    const [eventResult, typesResult, audienceResult] = await Promise.all([
       agenda.getEvent(org.id, eventId),
       agenda.listEventTypes(org.id),
+      userId ? agenda.listAssociableAudience(org.id, userId) : Promise.resolve(null),
     ]);
 
     if (typesResult.ok) {
       setEventTypes(typesResult.value);
+    }
+
+    if (audienceResult && audienceResult.ok) {
+      setAudience(audienceResult.value);
     }
 
     if (!eventResult.ok) {
@@ -74,27 +110,52 @@ export function EventDetailPage() {
     setStartsAt(toDatetimeLocalValue(detail.startsAt));
     setEndsAt(detail.endsAt ? toDatetimeLocalValue(detail.endsAt) : '');
     setNotes(detail.notes ?? '');
+    setGroupIds(detail.groups.map((group) => group.id));
+    setMusicianIds(detail.musicians.map((musician) => musician.id));
     setIsLoading(false);
-  }, [agenda, org, eventId]);
+  }, [agenda, org, eventId, userId]);
 
   useEffect(() => {
     void loadEvent();
   }, [loadEvent]);
 
+  const canWrite = Boolean(
+    event &&
+      userId &&
+      canWriteEvent({
+        isPrivileged: isAdmin,
+        isGroupWriter: Boolean(audience?.isGroupWriter),
+        userId,
+        createdBy: event.createdBy,
+        eventGroupIds: event.groups.map((group) => group.id),
+        writableGroupIds: audience?.writableGroupIds ?? [],
+      }),
+  );
+
+  function hasEmptyAudience() {
+    return eventHasNoAudience(
+      groupIds,
+      extraAudienceMusicianIds(musicianIds, audience?.myMusicianId ?? null),
+    );
+  }
+
   async function handleSave() {
-    if (!org || !eventId) {
+    if (!org || !eventId || !userId) {
       return;
     }
+    setConfirmEmptyAudience(false);
     setSaveError(null);
     setIsSaving(true);
 
-    const result = await agenda.updateEvent(org.id, eventId, {
+    const result = await agenda.updateEvent(org.id, userId, eventId, {
       typeId,
       title: title.trim() || null,
       startsAt: fromDatetimeLocalValue(startsAt),
       endsAt: endsAt ? fromDatetimeLocalValue(endsAt) : null,
       location: event?.location ?? null,
       notes: notes.trim() || null,
+      groupIds,
+      musicianIds,
     });
 
     setIsSaving(false);
@@ -105,6 +166,36 @@ export function EventDetailPage() {
     }
 
     setEvent(result.value);
+    setGroupIds(result.value.groups.map((group) => group.id));
+    setMusicianIds(result.value.musicians.map((musician) => musician.id));
+  }
+
+  function requestSave() {
+    if (hasEmptyAudience()) {
+      setConfirmEmptyAudience(true);
+      return;
+    }
+    void handleSave();
+  }
+
+  async function handleDelete() {
+    if (!org || !eventId || !userId) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    const result = await agenda.deleteEvent(org.id, userId, eventId);
+
+    setIsDeleting(false);
+
+    if (!result.ok) {
+      setDeleteError(agendaErrorMessage(result.error));
+      return;
+    }
+
+    navigate(agendaPath(orgSlug ?? ''));
   }
 
   if (isLoading) {
@@ -129,62 +220,115 @@ export function EventDetailPage() {
   const displayTitle = eventDisplayTitle(event, event.type);
   const badgeStyle = eventTypeBadgeStyle(event.type);
 
+  const detailsForm = (
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
+      <EventFormFields
+        types={eventTypes}
+        typeId={typeId}
+        onTypeIdChange={setTypeId}
+        title={title}
+        onTitleChange={setTitle}
+        startsAt={startsAt}
+        onStartsAtChange={setStartsAt}
+        endsAt={endsAt}
+        onEndsAtChange={setEndsAt}
+        notes={notes}
+        onNotesChange={setNotes}
+      />
+      <EventAudienceFields
+        groups={mergeOptions(
+          audience?.groups ?? [],
+          event.groups.map((group) => ({
+            id: group.id,
+            name: group.name,
+            kind: group.kind,
+          })),
+        )}
+        musicians={mergeOptions(
+          audience?.musicians ?? [],
+          event.musicians.map((musician) => ({
+            id: musician.id,
+            name: musician.fullName,
+            partNames: [],
+          })),
+        )}
+        selectedGroupIds={groupIds}
+        selectedMusicianIds={musicianIds}
+        onGroupIdsChange={setGroupIds}
+        onMusicianIdsChange={setMusicianIds}
+        lockedGroupIds={
+          audience && !audience.isPrivileged
+            ? event.groups
+                .filter((group) => !audience.writableGroupIds.includes(group.id))
+                .map((group) => group.id)
+            : []
+        }
+        lockedMusicianIds={[
+          ...(audience?.myMusicianId ? [audience.myMusicianId] : []),
+          ...(audience && !audience.isPrivileged
+            ? event.musicians
+                .filter((musician) => {
+                  if (musician.id === audience.myMusicianId) {
+                    return false;
+                  }
+                  return !audience.musicians.some((item) => item.id === musician.id);
+                })
+                .map((musician) => musician.id)
+            : []),
+        ]}
+      />
+      {saveError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
+      )}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={requestSave}
+          disabled={isSaving}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {isSaving ? 'Salvando…' : 'Salvar detalhes'}
+        </button>
+      </div>
+    </section>
+  );
+
   return (
     <div className={`${orgPageContentClass}  ${orgListPageHeightClass} overflow-y-auto`}>
       <section className="mb-6 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-start gap-2">
           <BackButton fallbackTo={agendaPath(orgSlug ?? '')} />
           <div className="min-w-0 flex-1 ml-1">
-            <h1 className="text-xl font-semibold text-text sm:text-2xl">{displayTitle}</h1>
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="min-w-0 truncate text-xl font-semibold text-text sm:text-2xl">
+                {displayTitle}
+              </h1>
+              <span
+                className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                style={badgeStyle}
+              >
+                {event.type.name}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-muted">
               {formatEventTime(event.startsAt, event.endsAt)}
             </p>
+            <EventAudienceChips
+              groups={event.groups}
+              musicians={event.musicians}
+              className="mt-1 text-sm"
+            />
           </div>
-          <span
-            className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-            style={badgeStyle}
-          >
-            {event.type.name}
-          </span>
         </div>
       </section>
 
-      {isAdmin ? (
+      {canWrite ? (
         <Tabs
           tabs={[
             {
               id: 'detalhes',
               label: 'Detalhes',
-              content: (
-                <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
-                  <EventFormFields
-                    types={eventTypes}
-                    typeId={typeId}
-                    onTypeIdChange={setTypeId}
-                    title={title}
-                    onTitleChange={setTitle}
-                    startsAt={startsAt}
-                    onStartsAtChange={setStartsAt}
-                    endsAt={endsAt}
-                    onEndsAtChange={setEndsAt}
-                    notes={notes}
-                    onNotesChange={setNotes}
-                  />
-                  {saveError && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
-                  )}
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => void handleSave()}
-                      disabled={isSaving}
-                      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                    >
-                      {isSaving ? 'Salvando…' : 'Salvar detalhes'}
-                    </button>
-                  </div>
-                </section>
-              ),
+              content: detailsForm,
             },
             {
               id: 'programacao',
@@ -230,6 +374,50 @@ export function EventDetailPage() {
           )}
         </div>
       )}
+
+      {canWrite && (
+        <section className="mt-8 border-t border-border pt-6">
+          {deleteError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            disabled={isDeleting || isSaving}
+            className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full md:w-auto"
+          >
+            Excluir evento
+          </button>
+        </section>
+      )}
+
+      <ConfirmModal
+        open={confirmEmptyAudience}
+        title="Evento sem associação"
+        message="Nenhum grupo ou músico associado. Só owners e admins poderão ver este evento. Continuar?"
+        confirmLabel="Salvar mesmo assim"
+        onConfirm={() => void handleSave()}
+        onClose={() => setConfirmEmptyAudience(false)}
+        isConfirming={isSaving}
+      />
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Excluir evento?"
+        message={
+          <>
+            O evento <strong className="text-text">{displayTitle}</strong> será removido
+            permanentemente, incluindo a programação associada.
+          </>
+        }
+        confirmLabel="Excluir evento"
+        onConfirm={() => void handleDelete()}
+        onClose={() => {
+          setConfirmDelete(false);
+          setDeleteError(null);
+        }}
+        isConfirming={isDeleting}
+      />
     </div>
   );
 }

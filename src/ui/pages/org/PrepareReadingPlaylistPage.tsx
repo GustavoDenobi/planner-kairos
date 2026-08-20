@@ -8,7 +8,7 @@ import {
   filterScoreCandidatesForUser,
   resolveDefaultScoreFile,
 } from '@/domain/repertoire';
-import { useAgenda, useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -51,6 +51,7 @@ export function PrepareReadingPlaylistPage() {
   const agenda = useAgenda();
   const repertoire = useRepertoire();
   const ensemble = useEnsemble();
+  const offline = useOffline();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
@@ -228,6 +229,7 @@ export function PrepareReadingPlaylistPage() {
       return;
     }
 
+    void offline.cacheReadingPlaylistForOffline(org.id, result.value.id, userId);
     navigate(readingPlaylistEditPath(orgSlug!, result.value.id));
   }
 

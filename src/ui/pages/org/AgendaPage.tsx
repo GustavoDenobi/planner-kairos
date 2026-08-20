@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { EventKind, EventListItem, EventType } from '@/domain/agenda';
+import { eventHasNoAudience, extraAudienceMusicianIds } from '@/domain/agenda';
+import type { AssociableAudience } from '@/application/agenda';
 import { useAgenda } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
+import { ConfirmModal } from '@/ui/components/ConfirmModal';
 import { Modal } from '@/ui/components/Modal';
 import { IconChevronLeft, IconPlus, IconSettings } from '@/ui/components/icons';
 import { AgendaEventTypesSection } from '@/ui/features/agenda/AgendaEventTypesSection';
 import { AgendaEventsSection } from '@/ui/features/agenda/AgendaEventsSection';
+import { AgendaFiltersBar, type AgendaFilterScope } from '@/ui/features/agenda/AgendaFiltersBar';
 import { AgendaRangeControls } from '@/ui/features/agenda/AgendaRangeControls';
 import {
   fromDatetimeLocalValue,
@@ -18,6 +22,7 @@ import {
   toDatetimeLocalValue,
   toIsoRange,
 } from '@/ui/features/agenda/agenda-date';
+import { loadAgendaFilters, saveAgendaFilters } from '@/ui/features/agenda/agenda-filters-storage';
 import { loadAgendaRange, saveAgendaRange } from '@/ui/features/agenda/agenda-range-storage';
 import { agendaErrorMessage, eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import {
@@ -25,6 +30,7 @@ import {
   eventPath,
   parseAgendaSection,
 } from '@/ui/features/agenda/agenda-routes';
+import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
 import {
   DEFAULT_CATEGORY_HUE,
@@ -68,18 +74,29 @@ export function AgendaPage() {
 
   const [anchor, setAnchor] = useState(() => new Date());
   const [rangeReady, setRangeReady] = useState(false);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [scope, setScope] = useState<AgendaFilterScope>('mine');
+  const [filterKind, setFilterKind] = useState<EventKind | ''>('');
+  const [filterTypeId, setFilterTypeId] = useState('');
+  const [filterGroupId, setFilterGroupId] = useState('');
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
+  const [audience, setAudience] = useState<AssociableAudience | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('agenda', isLoading);
 
+  const canCreateEvents = isAdmin || Boolean(audience?.canCreateEvents);
+
   const [createOpen, setCreateOpen] = useState(false);
+  const [confirmEmptyAudience, setConfirmEmptyAudience] = useState(false);
   const [typeId, setTypeId] = useState('');
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState(defaultStartsAtLocal);
   const [endsAt, setEndsAt] = useState('');
   const [notes, setNotes] = useState('');
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [musicianIds, setMusicianIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -108,13 +125,22 @@ export function AgendaPage() {
   useEffect(() => {
     if (!userId) {
       setRangeReady(true);
+      setFiltersReady(true);
       return;
     }
-    const stored = loadAgendaRange(userId);
-    if (stored) {
-      setAnchor(new Date(stored.anchorIso));
+    const storedRange = loadAgendaRange(userId);
+    if (storedRange) {
+      setAnchor(new Date(storedRange.anchorIso));
+    }
+    const storedFilters = loadAgendaFilters(userId);
+    if (storedFilters) {
+      setScope(storedFilters.scope);
+      setFilterKind(storedFilters.kind);
+      setFilterTypeId(storedFilters.typeId);
+      setFilterGroupId(storedFilters.groupId);
     }
     setRangeReady(true);
+    setFiltersReady(true);
   }, [userId]);
 
   useEffect(() => {
@@ -124,8 +150,20 @@ export function AgendaPage() {
     saveAgendaRange(userId, 'week', anchor);
   }, [userId, anchor, rangeReady]);
 
+  useEffect(() => {
+    if (!userId || !filtersReady) {
+      return;
+    }
+    saveAgendaFilters(userId, {
+      scope,
+      kind: filterKind,
+      typeId: filterTypeId,
+      groupId: filterGroupId,
+    });
+  }, [userId, filtersReady, scope, filterKind, filterTypeId, filterGroupId]);
+
   const loadData = useCallback(async () => {
-    if (!org) {
+    if (!org || !userId) {
       return;
     }
 
@@ -140,9 +178,16 @@ export function AgendaPage() {
     const { from, to } = getWeekRange(anchor);
     const range = toIsoRange(from, to);
 
-    const [typesResult, eventsResult] = await Promise.all([
+    const [typesResult, eventsResult, audienceResult] = await Promise.all([
       agenda.listEventTypes(org.id),
-      agenda.listEventsInRange(org.id, range),
+      agenda.listEventsInRange(org.id, userId, {
+        ...range,
+        mineOnly: isAdmin && scope === 'mine',
+        typeId: filterTypeId || null,
+        kind: filterKind || null,
+        groupId: filterGroupId || null,
+      }),
+      agenda.listAssociableAudience(org.id, userId),
     ]);
 
     if (typesResult.ok) {
@@ -155,8 +200,24 @@ export function AgendaPage() {
       setEvents([]);
     }
 
+    if (audienceResult.ok) {
+      setAudience(audienceResult.value);
+    }
+
     setIsLoading(false);
-  }, [agenda, org, anchor, showEventTypesView, loadEventTypes]);
+  }, [
+    agenda,
+    org,
+    userId,
+    anchor,
+    showEventTypesView,
+    loadEventTypes,
+    isAdmin,
+    scope,
+    filterTypeId,
+    filterKind,
+    filterGroupId,
+  ]);
 
   useEffect(() => {
     if (eventTypes.length > 0 && !typeId) {
@@ -168,11 +229,11 @@ export function AgendaPage() {
   }, [eventTypes, typeId]);
 
   useEffect(() => {
-    if (!org || !rangeReady) {
+    if (!org || !rangeReady || !filtersReady) {
       return;
     }
     void loadData();
-  }, [org, rangeReady, loadData]);
+  }, [org, rangeReady, filtersReady, loadData]);
 
   function openCreateTypeModal() {
     setTypeModal({
@@ -254,19 +315,39 @@ export function AgendaPage() {
     }
   }
 
+  function resetCreateForm() {
+    setTitle('');
+    setStartsAt(defaultStartsAtLocal());
+    setEndsAt('');
+    setNotes('');
+    setGroupIds([]);
+    setMusicianIds(audience?.myMusicianId ? [audience.myMusicianId] : []);
+    setFormError(null);
+  }
+
+  function hasEmptyAudience() {
+    return eventHasNoAudience(
+      groupIds,
+      extraAudienceMusicianIds(musicianIds, audience?.myMusicianId ?? null),
+    );
+  }
+
   async function handleCreateEvent() {
-    if (!org) {
+    if (!org || !userId) {
       return;
     }
+    setConfirmEmptyAudience(false);
     setFormError(null);
     setIsSubmitting(true);
 
-    const result = await agenda.scheduleEvent(org.id, {
+    const result = await agenda.scheduleEvent(org.id, userId, {
       typeId,
       title: title.trim() || null,
       startsAt: fromDatetimeLocalValue(startsAt),
       endsAt: endsAt ? fromDatetimeLocalValue(endsAt) : null,
       notes: notes.trim() || null,
+      groupIds,
+      musicianIds,
     });
 
     setIsSubmitting(false);
@@ -280,9 +361,17 @@ export function AgendaPage() {
     navigate(eventPath(org.slug, result.value.id));
   }
 
+  function requestCreateEvent() {
+    if (hasEmptyAudience()) {
+      setConfirmEmptyAudience(true);
+      return;
+    }
+    void handleCreateEvent();
+  }
+
   return (
     <>
-      <div className={`flex flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}>
+      <div className={`flex min-w-0 flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}>
         <div className="shrink-0 space-y-4 pb-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
@@ -298,31 +387,31 @@ export function AgendaPage() {
               )}
               <h1 className="text-2xl font-semibold text-text">{pageTitle}</h1>
             </div>
-            {isAdmin && !showEventTypesView && (
+            {(isAdmin || canCreateEvents) && !showEventTypesView && (
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openEventTypesSection}
-                  className="inline-flex items-center justify-center rounded-lg border border-border bg-surface p-2 text-muted transition-colors hover:bg-bg hover:text-text"
-                  aria-label="Configurar tipos de evento"
-                >
-                  <IconSettings className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTitle('');
-                    setStartsAt(defaultStartsAtLocal());
-                    setEndsAt('');
-                    setNotes('');
-                    setFormError(null);
-                    setCreateOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
-                >
-                  <IconPlus className="h-4 w-4" />
-                  Evento
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={openEventTypesSection}
+                    className="inline-flex items-center justify-center rounded-lg border border-border bg-surface p-2 text-muted transition-colors hover:bg-bg hover:text-text"
+                    aria-label="Configurar tipos de evento"
+                  >
+                    <IconSettings className="h-4 w-4" />
+                  </button>
+                )}
+                {canCreateEvents && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetCreateForm();
+                      setCreateOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
+                  >
+                    <IconPlus className="h-4 w-4" />
+                    Evento
+                  </button>
+                )}
               </div>
             )}
             {isAdmin && showEventTypesView && (
@@ -338,16 +427,33 @@ export function AgendaPage() {
           </div>
 
           {!showEventTypesView && (
-            <AgendaRangeControls
-              anchor={anchor}
-              onPrevious={() => setAnchor((current) => shiftAnchor('week', current, -1))}
-              onNext={() => setAnchor((current) => shiftAnchor('week', current, 1))}
-            />
+            <>
+              <AgendaFiltersBar
+                showScopeToggle={isAdmin}
+                scope={scope}
+                onScopeChange={setScope}
+                kind={filterKind}
+                onKindChange={setFilterKind}
+                typeId={filterTypeId}
+                onTypeIdChange={setFilterTypeId}
+                groupId={filterGroupId}
+                onGroupIdChange={setFilterGroupId}
+                types={eventTypes}
+                groups={audience?.filterGroups ?? []}
+                rangeControls={
+                  <AgendaRangeControls
+                    anchor={anchor}
+                    onPrevious={() => setAnchor((current) => shiftAnchor('week', current, -1))}
+                    onNext={() => setAnchor((current) => shiftAnchor('week', current, 1))}
+                  />
+                }
+              />
+            </>
           )}
           <hr className="border-border" />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
           {showEventTypesView ? (
             isLoading ? (
               <p className="text-sm text-muted">Carregando…</p>
@@ -364,8 +470,8 @@ export function AgendaPage() {
         </div>
       </div>
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Novo evento">
-        <div className="space-y-4">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Novo evento" size="lg">
+        <div className="max-h-[min(80vh,40rem)] space-y-4 overflow-y-auto pr-1">
           <EventFormFields
             types={eventTypes}
             typeId={typeId}
@@ -379,6 +485,15 @@ export function AgendaPage() {
             notes={notes}
             onNotesChange={setNotes}
           />
+          <EventAudienceFields
+            groups={audience?.groups ?? []}
+            musicians={audience?.musicians ?? []}
+            selectedGroupIds={groupIds}
+            selectedMusicianIds={musicianIds}
+            onGroupIdsChange={setGroupIds}
+            onMusicianIdsChange={setMusicianIds}
+            lockedMusicianIds={audience?.myMusicianId ? [audience.myMusicianId] : []}
+          />
           {formError && <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>}
           <div className="flex justify-end gap-2">
             <button
@@ -390,7 +505,7 @@ export function AgendaPage() {
             </button>
             <button
               type="button"
-              onClick={() => void handleCreateEvent()}
+              onClick={requestCreateEvent}
               disabled={isSubmitting}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
@@ -399,6 +514,16 @@ export function AgendaPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={confirmEmptyAudience}
+        title="Evento sem associação"
+        message="Nenhum grupo ou músico associado. Só owners e admins poderão ver este evento. Continuar?"
+        confirmLabel="Criar mesmo assim"
+        onConfirm={() => void handleCreateEvent()}
+        onClose={() => setConfirmEmptyAudience(false)}
+        isConfirming={isSubmitting}
+      />
 
       <Modal
         open={typeModal !== null}

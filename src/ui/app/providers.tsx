@@ -6,6 +6,7 @@ import { LoadingBarAuthBridge, LoadingBarOrgBridge } from '@/ui/app/loading-bar/
 import { LoadingBarProvider } from '@/ui/app/loading-bar/LoadingBarProvider';
 import { OrgProvider } from '@/ui/app/OrgProvider';
 import { ThemeProvider } from '@/ui/app/ThemeProvider';
+import { UiScaleProvider } from '@/ui/app/UiScaleProvider';
 import { PwaUpdateProvider } from '@/ui/features/pwa/PwaUpdateProvider';
 
 type ProvidersProps = {
@@ -22,7 +23,9 @@ export function Providers({ children, services }: ProvidersProps) {
             <LoadingBarAuthBridge />
             <LoadingBarOrgBridge />
             <ThemeProvider>
-              <PwaUpdateProvider>{children}</PwaUpdateProvider>
+              <UiScaleProvider>
+                <PwaUpdateProvider>{children}</PwaUpdateProvider>
+              </UiScaleProvider>
             </ThemeProvider>
           </OrgProvider>
         </AuthProvider>

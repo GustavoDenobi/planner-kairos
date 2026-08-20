@@ -29,7 +29,7 @@ O maestro hoje opera com um bloco de notas de cultos. O MVP existe para substitu
 | Imagem de identificação por organização (seletor de orgs) | Sim | Branding ampliado (cabeçalho, PWA por org) |
 | Tema claro / escuro (escolha do usuário) | Sim | Tema por organização, alto contraste, seguir o SO |
 | Cadastro de músicos (nome, nascimento, escolaridade, CPF) | Sim | Aniversariantes, dados extras, LGPD avançada |
-| Partes, naipes, grupos e papéis (integrante, professor, chefe de naipe) | Modelo + cadastro simples | Escalas por naipe, disponibilidade, turmas |
+| Partes, naipes, grupos e papéis (integrante, professor, chefe de naipe, regente) | Modelo + cadastro simples | Escalas por naipe, disponibilidade, turmas |
 | Catálogo de repertório (título, categoria, temas, arquivos PDF/áudio) | Sim | Versionamento, arranjos, metadados ricos |
 | Busca de obras para músicos | Sim (online) | Filtro por parte do músico, busca avançada |
 | Agenda de ensaios, aulas, cultos e eventos especiais | Sim | Recorrência sofisticada, conflitos, presença |
@@ -129,7 +129,7 @@ Catálogo detalhado de atributos, tabelas e invariantes: `project-models.md`. Ab
 | Divisão de parte | `PartDivision` | Cadeira na partitura de uma `Part` (trombone 1, 2, 3). Opcional. |
 | Grupo | `Group` | Formação: orquestra, big band, coral, turma de aula. |
 | Naipe | `Section` | Conjunto de pessoas dentro de um `Group` (cordas, madeiras, sopranos). |
-| Papel no grupo | `EnsembleRole` | `member`, `teacher`, `section_lead`. |
+| Papel no grupo | `EnsembleRole` | `member`, `teacher`, `section_lead`, `conductor`. |
 | Atribuição | `Assignment` | Músico + grupo + naipe? + parte? + papel no grupo. |
 | Obra | `Piece` | Item de repertório (não o arquivo). |
 | Categoria | `PieceCategory` | Instrumental, HCA, Coral, Solo — configurável por org, com esses como padrão. Uma por obra. |

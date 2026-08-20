@@ -1,6 +1,7 @@
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
 import type { PieceCategory, PieceCategoryInput } from '@/domain/repertoire';
 import { slugifyName } from '@/domain/repertoire';
+import { sortOrdersFromIds } from '@/domain/ensemble/sort-order';
 import { supabase } from './client';
 
 const CATEGORY_COLUMNS = 'id, organization_id, name, slug, sort_order, color';
@@ -108,6 +109,25 @@ export function createPieceCategoryRepository(): PieceCategoryRepository {
       }
 
       return count ?? 0;
+    },
+
+    async reorderCategories(organizationId, orderedCategoryIds) {
+      const sortOrders = sortOrdersFromIds(orderedCategoryIds);
+
+      const results = await Promise.all(
+        [...sortOrders.entries()].map(([id, sortOrder]) =>
+          supabase
+            .from('piece_categories')
+            .update({ sort_order: sortOrder })
+            .eq('organization_id', organizationId)
+            .eq('id', id),
+        ),
+      );
+
+      const failed = results.find((result) => result.error);
+      if (failed?.error) {
+        throw new Error(failed.error.message);
+      }
     },
   };
 }

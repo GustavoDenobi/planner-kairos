@@ -106,6 +106,98 @@ export type Database = {
           },
         ]
       }
+      event_groups: {
+        Row: {
+          created_at: string
+          event_id: string
+          group_id: string
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          group_id: string
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          group_id?: string
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_groups_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_musicians: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          musician_id: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          musician_id: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          musician_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_musicians_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_musicians_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_musicians_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_types: {
         Row: {
           color: string | null
@@ -150,6 +242,7 @@ export type Database = {
       events: {
         Row: {
           created_at: string
+          created_by: string | null
           ends_at: string | null
           id: string
           location: string | null
@@ -162,6 +255,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           ends_at?: string | null
           id?: string
           location?: string | null
@@ -174,6 +268,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           ends_at?: string | null
           id?: string
           location?: string | null
@@ -185,6 +280,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_organization_id_fkey"
             columns: ["organization_id"]
@@ -1230,6 +1332,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_see_event: { Args: { p_event_id: string }; Returns: boolean }
+      can_write_event: { Args: { p_event_id: string }; Returns: boolean }
       create_group_invite: {
         Args: { p_expires_at: string; p_group_id: string; p_max_uses?: number }
         Returns: {
@@ -1251,6 +1355,10 @@ export type Database = {
           organization_slug: string
         }[]
       }
+      grant_org_admin: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
+      }
       has_org_role: {
         Args: {
           p_org_id: string
@@ -1268,6 +1376,11 @@ export type Database = {
         Args: { p_org_id: string; p_section_id: string }
         Returns: boolean
       }
+      is_teacher_in_org: { Args: { p_org_id: string }; Returns: boolean }
+      is_teacher_of_group: {
+        Args: { p_group_id: string; p_org_id: string }
+        Returns: boolean
+      }
       list_group_invites: {
         Args: { p_organization_id: string }
         Returns: {
@@ -1283,6 +1396,10 @@ export type Database = {
           token: string
           use_count: number
         }[]
+      }
+      musician_in_teacher_groups: {
+        Args: { p_musician_id: string; p_org_id: string }
+        Returns: boolean
       }
       redeem_group_invite:
         | {
@@ -1304,6 +1421,10 @@ export type Database = {
             }[]
           }
       revoke_group_invite: { Args: { p_invite_id: string }; Returns: undefined }
+      revoke_org_admin: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
+      }
       seed_event_types: { Args: { p_org_id: string }; Returns: undefined }
       seed_piece_taxonomy: { Args: { p_org_id: string }; Returns: undefined }
       storage_org_id_from_path: { Args: { p_name: string }; Returns: string }
@@ -1320,7 +1441,7 @@ export type Database = {
       access_role: "owner" | "admin" | "member"
       annotation_layer: "personal" | "section"
       annotation_type: "stroke" | "highlight"
-      ensemble_role: "member" | "teacher" | "section_lead"
+      ensemble_role: "member" | "teacher" | "section_lead" | "conductor"
       event_kind: "rehearsal" | "service" | "class" | "special"
       group_kind: "ensemble" | "choir" | "class" | "other"
       part_kind: "instrument" | "voice"
@@ -1459,7 +1580,7 @@ export const Constants = {
       access_role: ["owner", "admin", "member"],
       annotation_layer: ["personal", "section"],
       annotation_type: ["stroke", "highlight"],
-      ensemble_role: ["member", "teacher", "section_lead"],
+      ensemble_role: ["member", "teacher", "section_lead", "conductor"],
       event_kind: ["rehearsal", "service", "class", "special"],
       group_kind: ["ensemble", "choir", "class", "other"],
       part_kind: ["instrument", "voice"],

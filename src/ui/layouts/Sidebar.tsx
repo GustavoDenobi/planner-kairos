@@ -3,7 +3,7 @@ import { useOrg } from '@/ui/app/OrgProvider';
 import { useSignOut } from '@/ui/app/auth/AuthProvider';
 import { IconLogOut, IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
-import { ThemeToggle } from '@/ui/components/ThemeToggle';
+import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
 import { UserAvatar } from '@/ui/components/UserAvatar';
 import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useUserProfile } from '@/ui/hooks/useUserProfile';
@@ -105,7 +105,7 @@ export function Sidebar({ orgSlug }: SidebarProps) {
             <IconLogOut className="h-5 w-5" />
           </button>
         </div>
-        <ThemeToggle />
+        <DisplayPreferencesControls />
       </div>
 
       {org && isAdmin && (

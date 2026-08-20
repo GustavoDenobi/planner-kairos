@@ -11,6 +11,7 @@ import { createGroupInviteRepository } from '@/infrastructure/supabase/group-inv
 import { createAssignmentRepository } from '@/infrastructure/supabase/assignment-repository';
 import { createGroupRepository } from '@/infrastructure/supabase/group-repository';
 import { createMusicianRepository } from '@/infrastructure/supabase/musician-repository';
+import { createMembershipRepository } from '@/infrastructure/supabase/membership-repository';
 import { createOrganizationRepository } from '@/infrastructure/supabase/organization-repository';
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
@@ -28,6 +29,7 @@ export function createAppServices() {
   const auth = createAuthGateway();
   const profileRepo = createProfileRepository();
   const orgRepo = createOrganizationRepository();
+  const membershipRepo = createMembershipRepository();
   const inviteRepo = createGroupInviteRepository();
   const recoveryGateway = createPasswordRecoveryGateway();
   const fileStorage = createFileStorage();
@@ -49,6 +51,7 @@ export function createAppServices() {
     auth,
     profileRepo,
     orgRepo,
+    membershipRepo,
     inviteRepo,
     recoveryGateway,
     fileStorage,
@@ -77,6 +80,10 @@ export function createAppServices() {
     eventTypeRepo,
     eventRepo,
     pieceRepo,
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    groupRepo,
   });
 
   const offlineStorage = createOfflineStorage();

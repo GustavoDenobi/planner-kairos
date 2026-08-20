@@ -100,3 +100,70 @@ export function normalizeOptionalText(value: string | null | undefined): string 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
+
+export function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids.filter((id) => id.trim().length > 0))];
+}
+
+export function eventHasNoAudience(groupIds: string[], musicianIds: string[]): boolean {
+  return groupIds.length === 0 && musicianIds.length === 0;
+}
+
+export function extraAudienceMusicianIds(
+  musicianIds: string[],
+  creatorMusicianId: string | null,
+): string[] {
+  if (!creatorMusicianId) {
+    return musicianIds;
+  }
+  return musicianIds.filter((id) => id !== creatorMusicianId);
+}
+
+export function validateEventAudienceForGroupWriter(input: {
+  groupIds: string[];
+  musicianIds: string[];
+  writableGroupIds: string[];
+  musicianGroupIdsByMusicianId: Record<string, string[]>;
+  creatorMusicianId: string | null;
+}): string | null {
+  const writableGroups = new Set(input.writableGroupIds);
+
+  for (const groupId of input.groupIds) {
+    if (!writableGroups.has(groupId)) {
+      return 'audience_group_not_allowed';
+    }
+  }
+
+  for (const musicianId of input.musicianIds) {
+    if (musicianId === input.creatorMusicianId) {
+      continue;
+    }
+    const groups = input.musicianGroupIdsByMusicianId[musicianId] ?? [];
+    if (!groups.some((groupId) => writableGroups.has(groupId))) {
+      return 'audience_musician_not_allowed';
+    }
+  }
+
+  return null;
+}
+
+export function canWriteEvent(input: {
+  isPrivileged: boolean;
+  isGroupWriter: boolean;
+  userId: string;
+  createdBy: string | null;
+  eventGroupIds: string[];
+  writableGroupIds: string[];
+}): boolean {
+  if (input.isPrivileged) {
+    return true;
+  }
+  if (!input.isGroupWriter) {
+    return false;
+  }
+  if (input.createdBy === input.userId) {
+    return true;
+  }
+  const writableGroups = new Set(input.writableGroupIds);
+  return input.eventGroupIds.some((groupId) => writableGroups.has(groupId));
+}

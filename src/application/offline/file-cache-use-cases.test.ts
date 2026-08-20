@@ -3,7 +3,9 @@ import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { FileStorage } from '@/application/ports/file-storage';
+import type { PieceFileWithLinks } from '@/domain/repertoire';
 import {
+  cachePieceFileForOffline,
   isBrowserOnline,
   resolvePieceFileForReading,
 } from '@/application/offline/file-cache-use-cases';
@@ -38,6 +40,32 @@ function createFileCache(): OfflineFileCache {
     },
     clearAll: async () => store.clear(),
   };
+}
+
+const sampleFile: PieceFileWithLinks = {
+  id: 'file-1',
+  organizationId: 'org-1',
+  pieceId: 'piece-1',
+  kind: 'score',
+  storageKey: 'org-1/piece-1/file-1',
+  mimeType: 'application/pdf',
+  title: 'Score',
+  originalName: 'score.pdf',
+  byteSize: 3,
+  contentHash: 'hash-1',
+  partLinks: [],
+};
+
+function createPieceRepo(): PieceRepository {
+  return {
+    getById: vi.fn(async () => ({ id: 'piece-1' })),
+  } as unknown as PieceRepository;
+}
+
+function createFileRepo(file: PieceFileWithLinks = sampleFile): PieceFileRepository {
+  return {
+    getById: vi.fn(async () => file),
+  } as unknown as PieceFileRepository;
 }
 
 describe('resolvePieceFileForReading', () => {
@@ -108,6 +136,87 @@ describe('resolvePieceFileForReading', () => {
     if (!result.ok) {
       expect(result.error).toBe('offline_not_cached');
     }
+  });
+});
+
+describe('cachePieceFileForOffline', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('navigator', { onLine: true });
+  });
+
+  it('skips download when the cached file is still fresh', async () => {
+    const fileCache = createFileCache();
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    await fileCache.put({
+      pieceFileId: 'file-1',
+      organizationId: 'org-1',
+      pieceId: 'piece-1',
+      contentHash: 'hash-1',
+      byteSize: blob.size,
+      title: 'Score',
+      cachedAt: new Date().toISOString(),
+      blob,
+    });
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const fileStorage = {
+      getSignedUrl: vi.fn(),
+    } as unknown as FileStorage;
+
+    const result = await cachePieceFileForOffline(
+      createPieceRepo(),
+      createFileRepo(),
+      fileStorage,
+      fileCache,
+      'org-1',
+      'piece-1',
+      'file-1',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(fileStorage.getSignedUrl).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('downloads again when the cached file is stale', async () => {
+    const fileCache = createFileCache();
+    const blob = new Blob(['old'], { type: 'application/pdf' });
+    await fileCache.put({
+      pieceFileId: 'file-1',
+      organizationId: 'org-1',
+      pieceId: 'piece-1',
+      contentHash: 'old-hash',
+      byteSize: blob.size,
+      title: 'Score',
+      cachedAt: new Date().toISOString(),
+      blob,
+    });
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob(['pdf'], { type: 'application/pdf' }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const fileStorage = {
+      getSignedUrl: vi.fn(async () => 'https://files.test/score.pdf'),
+    } as unknown as FileStorage;
+
+    const result = await cachePieceFileForOffline(
+      createPieceRepo(),
+      createFileRepo({ ...sampleFile, contentHash: null }),
+      fileStorage,
+      fileCache,
+      'org-1',
+      'piece-1',
+      'file-1',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(fileStorage.getSignedUrl).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalled();
+    expect(await fileCache.getBlob('file-1')).not.toBeNull();
   });
 });
 

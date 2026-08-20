@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { GroupInvite } from './group-invite';
 import type { PasswordRecoveryCode } from './password-recovery-code';
 import {
+  canGrantAdminRole,
+  canManageAdminRole,
   canRedeemGroupInvite,
+  canRevokeAdminRole,
   getInviteSignupFieldErrors,
   hasInviteSignupFieldErrors,
   isGroupInviteExhausted,
@@ -79,6 +82,44 @@ describe('canRedeemGroupInvite', () => {
 describe('membershipRoleForInvite', () => {
   it('always returns member', () => {
     expect(membershipRoleForInvite()).toBe('member');
+  });
+});
+
+describe('canManageAdminRole', () => {
+  it('allows owners and admins to manage other non-owner users', () => {
+    expect(canManageAdminRole('owner', 'user-1', 'user-2', 'member')).toBeNull();
+    expect(canManageAdminRole('admin', 'user-1', 'user-2', 'member')).toBeNull();
+  });
+
+  it('blocks members and owner targets', () => {
+    expect(canManageAdminRole('member', 'user-1', 'user-2', 'member')).toBe('forbidden');
+    expect(canManageAdminRole('owner', 'user-1', 'user-2', 'owner')).toBe('target_is_owner');
+  });
+
+  it('blocks self-management and musicians without linked account', () => {
+    expect(canManageAdminRole('owner', 'user-1', 'user-1', 'member')).toBe('cannot_manage_self');
+    expect(canManageAdminRole('owner', 'user-1', null, null)).toBe('no_linked_user');
+  });
+});
+
+describe('canGrantAdminRole', () => {
+  it('allows promoting members', () => {
+    expect(canGrantAdminRole('member')).toBeNull();
+  });
+
+  it('blocks promoting existing admins', () => {
+    expect(canGrantAdminRole('admin')).toBe('already_admin');
+  });
+});
+
+describe('canRevokeAdminRole', () => {
+  it('allows revoking admins', () => {
+    expect(canRevokeAdminRole('admin')).toBeNull();
+  });
+
+  it('blocks revoking non-admins', () => {
+    expect(canRevokeAdminRole('member')).toBe('not_admin');
+    expect(canRevokeAdminRole('owner')).toBe('not_admin');
   });
 });
 

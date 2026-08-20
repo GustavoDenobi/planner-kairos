@@ -9,6 +9,8 @@ export function isBrowserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine;
 }
 
+const inflightFileCaches = new Map<string, Promise<Result<void, string>>>();
+
 export async function cachePieceFileForOffline(
   pieceRepo: PieceRepository,
   fileRepo: PieceFileRepository,
@@ -18,6 +20,44 @@ export async function cachePieceFileForOffline(
   pieceId: string,
   fileId: string,
 ): Promise<Result<void, string>> {
+  const inflight = inflightFileCaches.get(fileId);
+  if (inflight) {
+    return inflight;
+  }
+
+  const task = cachePieceFileForOfflineOnce(
+    pieceRepo,
+    fileRepo,
+    fileStorage,
+    fileCache,
+    organizationId,
+    pieceId,
+    fileId,
+  );
+  inflightFileCaches.set(fileId, task);
+  try {
+    return await task;
+  } finally {
+    if (inflightFileCaches.get(fileId) === task) {
+      inflightFileCaches.delete(fileId);
+    }
+  }
+}
+
+async function cachePieceFileForOfflineOnce(
+  pieceRepo: PieceRepository,
+  fileRepo: PieceFileRepository,
+  fileStorage: FileStorage,
+  fileCache: OfflineFileCache,
+  organizationId: string,
+  pieceId: string,
+  fileId: string,
+): Promise<Result<void, string>> {
+  const cached = await fileCache.get(fileId);
+  if (cached && !isBrowserOnline()) {
+    return Result.ok(undefined);
+  }
+
   const piece = await pieceRepo.getById(organizationId, pieceId);
   if (!piece) {
     return Result.fail('not_found');
@@ -26,6 +66,10 @@ export async function cachePieceFileForOffline(
   const file = await fileRepo.getById(organizationId, pieceId, fileId);
   if (!file) {
     return Result.fail('not_found');
+  }
+
+  if (cached && !(await fileCache.isStale(fileId, file.contentHash))) {
+    return Result.ok(undefined);
   }
 
   if (!isBrowserOnline()) {

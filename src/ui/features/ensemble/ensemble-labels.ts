@@ -13,6 +13,7 @@ export const ENSEMBLE_ROLE_OPTIONS: { value: EnsembleRole; label: string }[] = [
   { value: 'member', label: 'Integrante' },
   { value: 'teacher', label: 'Professor' },
   { value: 'section_lead', label: 'Chefe de naipe' },
+  { value: 'conductor', label: 'Regente' },
 ];
 
 export function ensembleRoleLabel(role: EnsembleRole): string {

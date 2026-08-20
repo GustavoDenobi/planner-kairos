@@ -44,6 +44,8 @@ import {
 
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
 
+import { readReturnTo } from '@/ui/navigation/return-to';
+
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
 
 import {
@@ -65,6 +67,8 @@ type ReaderNavigationState = {
   direction?: 'next' | 'prev';
 
   sequential?: boolean;
+
+  returnTo?: string;
 
 };
 
@@ -234,7 +238,7 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-      setError('Playlist não disponível offline. Baixe com conexão antes de usar sem internet.');
+      setError('Playlist não disponível offline. Com conexão, as partituras são salvas automaticamente neste dispositivo.');
 
       setPlaylist(null);
 
@@ -277,6 +281,8 @@ export function ReadingPlaylistReaderPage() {
     setPlaylist(result.value);
 
     setIsLoadingPlaylist(false);
+
+    void offline.cacheReadingPlaylistForOffline(org.id, playlistId, userId);
 
     return result.value;
 
@@ -500,7 +506,7 @@ export function ReadingPlaylistReaderPage() {
 
     if (itemIndex < 0 || itemIndex >= playlist.items.length) {
 
-      setError('Item não encontrado na playlist.');
+      setError('Item não encontrado na playlist. Volte e selecione outra partitura.');
 
       setIsLoadingItem(false);
 
@@ -632,6 +638,8 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
+      const returnTo = readReturnTo(location.state);
+
       navigate(readingPlaylistReaderPath(orgSlug, playlistId, index), {
 
         state: {
@@ -642,15 +650,17 @@ export function ReadingPlaylistReaderPage() {
 
           sequential: options?.sequential,
 
+          ...(returnTo ? { returnTo } : {}),
+
         },
 
-        replace: Boolean(options?.sequential),
+        replace: true,
 
       });
 
     },
 
-    [navigate, orgSlug, playlistId],
+    [navigate, orgSlug, playlistId, location.state],
 
   );
 
@@ -1103,6 +1113,8 @@ export function ReadingPlaylistReaderPage() {
             pieceId={currentItem.pieceId}
 
             fileId={currentItem.pieceFileId}
+
+            allowRemove={false}
 
           />
 

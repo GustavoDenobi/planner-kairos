@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
-import { pieceFileMatchesUserParts } from '@/domain/repertoire';
+import { useId, useMemo, useRef, useState } from 'react';
+import { partitionPieceFilesForViewer } from '@/domain/repertoire';
 import type { PieceFileKind, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconArrowDown, IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconFilter, IconPencil, IconPlus } from '@/ui/components/icons';
+import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
 type PartFilterOption = {
@@ -21,8 +22,8 @@ type PieceFilesSectionProps = {
   parts: PartWithDivisions[];
   isAdmin: boolean;
   userPartIds: string[];
+  isConductor?: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
-  onDownload: (fileId: string) => void;
   onEdit: (file: PieceFileWithLinks) => void;
   onAddFiles: (files: File[]) => void;
   isAddingFiles?: boolean;
@@ -31,7 +32,7 @@ type PieceFilesSectionProps = {
 const FILE_ACCEPT = 'application/pdf,audio/mpeg,audio/wav';
 
 const filterInputClass =
-  'w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text lg:flex-1';
+  'min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
 
 const filterSelectClass =
   'w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
@@ -80,14 +81,12 @@ function FileList({
   parts,
   isAdmin,
   onOpen,
-  onDownload,
   onEdit,
 }: {
   files: PieceFileWithLinks[];
   parts: PartWithDivisions[];
   isAdmin: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
-  onDownload: (fileId: string) => void;
   onEdit: (file: PieceFileWithLinks) => void;
 }) {
   if (files.length === 0) {
@@ -112,14 +111,12 @@ function FileList({
               </p>
             </button>
             <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => onDownload(file.id)}
-                aria-label={`Baixar ${file.title}`}
-                className="rounded-lg border border-border p-2 text-muted hover:text-text"
-              >
-                <IconArrowDown className="h-4 w-4" />
-              </button>
+              <OfflineDownloadButton
+                organizationId={file.organizationId}
+                pieceId={file.pieceId}
+                fileId={file.id}
+                compact
+              />
               {isAdmin && (
                 <button
                   type="button"
@@ -143,17 +140,19 @@ export function PieceFilesSection({
   parts,
   isAdmin,
   userPartIds,
+  isConductor = false,
   onOpen,
-  onDownload,
   onEdit,
   onAddFiles,
   isAddingFiles = false,
 }: PieceFilesSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filtersPanelId = useId();
   const [titleFilter, setTitleFilter] = useState('');
   const [partFilter, setPartFilter] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const partById = useMemo(() => new Map(parts.map((part) => [part.id, part])), [parts]);
 
@@ -243,15 +242,16 @@ export function PieceFilesSection({
     [files, titleFilter, kindFilter, partFilter, divisionFilter],
   );
 
-  const showUserSection = userPartIds.length > 0;
-  const userFiles = showUserSection
-    ? filteredFiles.filter((file) => pieceFileMatchesUserParts(file, userPartIds))
-    : [];
-  const otherFiles = showUserSection
-    ? filteredFiles.filter((file) => !pieceFileMatchesUserParts(file, userPartIds))
-    : filteredFiles;
+  const { userFiles, generalFiles, audioFiles, otherFiles } = partitionPieceFilesForViewer(
+    filteredFiles,
+    userPartIds,
+    isConductor,
+  );
+  const showOtherHeading =
+    userFiles.length > 0 || generalFiles.length > 0 || audioFiles.length > 0;
 
   const hasFilters = partOptions.length > 0 || divisionOptions.length > 0 || kindOptions.length > 1;
+  const extraFiltersActive = Boolean(partFilter || divisionFilter || kindFilter);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -288,20 +288,41 @@ export function PieceFilesSection({
         </div>
 
         {files.length > 0 && (
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch">
-            <input
-              type="search"
-              value={titleFilter}
-              onChange={(event) => setTitleFilter(event.target.value)}
-              placeholder="Título do arquivo"
-              aria-label="Buscar por título do arquivo"
-              className={filterInputClass}
-            />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-stretch gap-2">
+              <input
+                type="search"
+                value={titleFilter}
+                onChange={(event) => setTitleFilter(event.target.value)}
+                placeholder="Título do arquivo"
+                aria-label="Buscar por título do arquivo"
+                className={filterInputClass}
+              />
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((current) => !current)}
+                  className={`relative inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors ${
+                    filtersOpen
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-surface text-muted hover:bg-bg hover:text-text'
+                  }`}
+                  aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+                  aria-expanded={filtersOpen}
+                  aria-controls={filtersPanelId}
+                >
+                  <IconFilter className="h-4 w-4" />
+                  {extraFiltersActive && !filtersOpen && (
+                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </button>
+              )}
+            </div>
 
-            {hasFilters && (
-              <div className="grid grid-cols-2 gap-2 lg:flex lg:min-w-0 lg:flex-[2] lg:gap-2">
+            {hasFilters && filtersOpen && (
+              <div id={filtersPanelId} className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                 {partOptions.length > 0 && (
-                  <label className="min-w-0 lg:flex-1">
+                  <label className="min-w-0">
                     <span className="sr-only">Parte</span>
                     <select
                       aria-label="Parte"
@@ -323,7 +344,7 @@ export function PieceFilesSection({
                 )}
 
                 {visibleDivisionOptions.length > 0 && (
-                  <label className="min-w-0 lg:flex-1">
+                  <label className="min-w-0">
                     <span className="sr-only">Divisão</span>
                     <select
                       aria-label="Divisão"
@@ -342,7 +363,7 @@ export function PieceFilesSection({
                 )}
 
                 {kindOptions.length > 1 && (
-                  <label className="min-w-0 lg:flex-1">
+                  <label className="min-w-0">
                     <span className="sr-only">Tipo de arquivo</span>
                     <select
                       aria-label="Tipo de arquivo"
@@ -370,7 +391,7 @@ export function PieceFilesSection({
           <p className="text-sm text-muted">Nenhum arquivo.</p>
         ) : (
           <div className="space-y-4">
-            {showUserSection && userFiles.length > 0 && (
+            {userFiles.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-text">Suas partes</h3>
                 <FileList
@@ -378,7 +399,32 @@ export function PieceFilesSection({
                   parts={parts}
                   isAdmin={isAdmin}
                   onOpen={onOpen}
-                  onDownload={onDownload}
+                  onEdit={onEdit}
+                />
+              </div>
+            )}
+
+            {generalFiles.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-text">Geral</h3>
+                <FileList
+                  files={generalFiles}
+                  parts={parts}
+                  isAdmin={isAdmin}
+                  onOpen={onOpen}
+                  onEdit={onEdit}
+                />
+              </div>
+            )}
+
+            {audioFiles.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-text">Áudios</h3>
+                <FileList
+                  files={audioFiles}
+                  parts={parts}
+                  isAdmin={isAdmin}
+                  onOpen={onOpen}
                   onEdit={onEdit}
                 />
               </div>
@@ -386,7 +432,7 @@ export function PieceFilesSection({
 
             {otherFiles.length > 0 && (
               <div className="space-y-2">
-                {showUserSection && userFiles.length > 0 && (
+                {showOtherHeading && (
                   <h3 className="text-sm font-medium text-text">Outros arquivos</h3>
                 )}
                 <FileList
@@ -394,7 +440,6 @@ export function PieceFilesSection({
                   parts={parts}
                   isAdmin={isAdmin}
                   onOpen={onOpen}
-                  onDownload={onDownload}
                   onEdit={onEdit}
                 />
               </div>

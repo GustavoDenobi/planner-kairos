@@ -139,7 +139,7 @@ export function PartsPage() {
 
     if (!result.ok) {
       setParts(previous);
-      setError('Não foi possível reordenar as partes.');
+      setError('Não foi possível reordenar as partes. Tente novamente em instantes.');
     }
   }
 
@@ -161,11 +161,11 @@ export function PartsPage() {
 
     if (!result.ok) {
       if (result.error === 'invalid_name') {
-        setError('Informe o nome da parte.');
+        setError('Informe o nome da parte antes de salvar.');
       } else if (result.error === 'duplicate_name') {
-        setError('Já existe uma parte com este nome na organização.');
+        setError('Já existe uma parte com este nome. Escolha outro nome.');
       } else {
-        setError('Não foi possível salvar a parte.');
+        setError('Não foi possível salvar a parte. Verifique sua conexão e tente novamente.');
         console.error('save part failed:', result.error);
       }
       return;

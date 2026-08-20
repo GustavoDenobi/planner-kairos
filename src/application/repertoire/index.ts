@@ -13,6 +13,7 @@ import {
   createPieceCategory,
   deletePieceCategory,
   listPieceCategories,
+  reorderPieceCategories,
   updatePieceCategory,
 } from './category-use-cases';
 import {
@@ -66,6 +67,8 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       updatePieceCategory(deps.categoryRepo, organizationId, categoryId, input),
     deletePieceCategory: (organizationId: string, categoryId: string) =>
       deletePieceCategory(deps.categoryRepo, organizationId, categoryId),
+    reorderPieceCategories: (organizationId: string, orderedCategoryIds: string[]) =>
+      reorderPieceCategories(deps.categoryRepo, organizationId, orderedCategoryIds),
 
     listPieceThemes: (organizationId: string) => listPieceThemes(deps.themeRepo, organizationId),
     createPieceTheme: (organizationId: string, input: PieceThemeInput) =>

@@ -14,6 +14,9 @@ export {
   isGroupInviteValid,
   canRedeemGroupInvite,
   membershipRoleForInvite,
+  canManageAdminRole,
+  canGrantAdminRole,
+  canRevokeAdminRole,
   isPasswordRecoveryCodeValid,
   getInviteSignupFieldErrors,
   hasInviteSignupFieldErrors,
@@ -32,4 +35,5 @@ export type {
   InviteSignupFieldErrors,
   InviteSignupInput,
   OrganizationImageErrorCode,
+  AdminRoleManagementError,
 } from './rules';

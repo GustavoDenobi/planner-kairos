@@ -93,6 +93,8 @@ export function RepertoirePage() {
   const [taxonomyModal, setTaxonomyModal] = useState<TaxonomyModalState | null>(null);
   const [taxonomyError, setTaxonomyError] = useState<string | null>(null);
   const [isSavingTaxonomy, setIsSavingTaxonomy] = useState(false);
+  const [isReorderingCategories, setIsReorderingCategories] = useState(false);
+  const [categoryReorderError, setCategoryReorderError] = useState<string | null>(null);
 
   const showPiecesView = isAdmin ? adminSection === 'pieces' : true;
 
@@ -152,7 +154,7 @@ export function RepertoirePage() {
         : '';
 
     setMemberCategoryId(resolvedCategoryId);
-    setShowCategoryPicker(resolvedCategoryId === '');
+    setShowCategoryPicker(true);
     setMemberFiltersReady(true);
   }, [org, userId, isAdmin, repertoire]);
 
@@ -365,6 +367,29 @@ export function RepertoirePage() {
     await loadPieces();
   }
 
+  async function handleReorderCategories(reordered: PieceCategory[]) {
+    if (!org) {
+      return;
+    }
+
+    const previous = categories;
+    setCategories(reordered);
+    setCategoryReorderError(null);
+    setIsReorderingCategories(true);
+
+    const result = await repertoire.reorderPieceCategories(
+      org.id,
+      reordered.map((category) => category.id),
+    );
+
+    setIsReorderingCategories(false);
+
+    if (!result.ok) {
+      setCategories(previous);
+      setCategoryReorderError(repertoireErrorMessage(result.error));
+    }
+  }
+
   const useFixedListLayout =
     showPiecesView ||
     (isAdmin && (adminSection === 'categories' || adminSection === 'themes'));
@@ -439,7 +464,7 @@ export function RepertoirePage() {
             themeFilter={themeFilter}
             onThemeFilterChange={setThemeFilter}
             memberCategoryId={memberCategoryId}
-            onMemberCategoryChange={setMemberCategoryId}
+            onOpenCategoryPicker={() => setShowCategoryPicker(true)}
           />
         </div>
       )}
@@ -450,6 +475,9 @@ export function RepertoirePage() {
             categories={categories}
             onCreate={openCreateCategoryModal}
             onEdit={openEditCategoryModal}
+            onReorder={handleReorderCategories}
+            isReordering={isReorderingCategories}
+            reorderError={categoryReorderError}
           />
         </div>
       )}

@@ -5,6 +5,10 @@ import type { GroupInviteRepository } from '@/application/ports';
 import type { PasswordRecoveryGateway } from '@/application/ports';
 import type { FileStorage } from '@/application/ports';
 
+import type { AccessRole } from '@/domain/identity';
+import { grantOrgAdmin } from './grant-org-admin';
+import { revokeOrgAdmin } from './revoke-org-admin';
+import { getMembershipAccessRole } from './get-membership-access-role';
 import { acceptGroupInvite } from './accept-group-invite';
 import { confirmPasswordRecovery } from './confirm-password-recovery';
 import { createGroupInvite } from './create-group-invite';
@@ -23,10 +27,13 @@ import { signOut } from './sign-out';
 import { updateGroupInviteExpires } from './update-group-invite-expires';
 import { updateGroupInviteMaxUses } from './update-group-invite-max-uses';
 
+import type { MembershipRepository } from '@/application/ports';
+
 export type IdentityDeps = {
   auth: AuthGateway;
   profileRepo: ProfileRepository;
   orgRepo: OrganizationRepository;
+  membershipRepo: MembershipRepository;
   inviteRepo: GroupInviteRepository;
   recoveryGateway: PasswordRecoveryGateway;
   fileStorage: FileStorage;
@@ -68,6 +75,34 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       confirmPasswordRecovery(deps.recoveryGateway, email, code, newPassword),
     getProfile: (userId: string) => deps.profileRepo.getById(userId),
     getOrganizationBySlug: (slug: string) => deps.orgRepo.getBySlug(slug),
+    getMembershipAccessRole: (organizationId: string, userId: string) =>
+      getMembershipAccessRole(deps.membershipRepo, organizationId, userId),
+    grantOrgAdmin: (
+      actorUserId: string,
+      actorAccessRole: AccessRole,
+      organizationId: string,
+      targetUserId: string,
+    ) =>
+      grantOrgAdmin(
+        deps.membershipRepo,
+        actorUserId,
+        actorAccessRole,
+        organizationId,
+        targetUserId,
+      ),
+    revokeOrgAdmin: (
+      actorUserId: string,
+      actorAccessRole: AccessRole,
+      organizationId: string,
+      targetUserId: string,
+    ) =>
+      revokeOrgAdmin(
+        deps.membershipRepo,
+        actorUserId,
+        actorAccessRole,
+        organizationId,
+        targetUserId,
+      ),
     getSignedUrl: (path: string) => deps.fileStorage.getSignedUrl(path),
     getSession: () => deps.auth.getSession(),
     onAuthStateChange: (cb: Parameters<AuthGateway['onAuthStateChange']>[0]) =>

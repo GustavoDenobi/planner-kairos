@@ -15,6 +15,34 @@ function isPlaylistItemAvailable(item: ReadingPlaylistItemDetail): boolean {
   return Boolean(item.pieceId) && !item.pieceDeleted;
 }
 
+async function referencedPieceFileIds(
+  playlistCache: OfflinePlaylistCache,
+  organizationId: string,
+): Promise<Set<string>> {
+  const playlists = await playlistCache.listForOrganization(organizationId);
+  const ids = new Set<string>();
+  for (const playlist of playlists) {
+    for (const pieceFileId of playlist.pieceFileIds) {
+      ids.add(pieceFileId);
+    }
+  }
+  return ids;
+}
+
+async function removeUnreferencedFiles(
+  playlistCache: OfflinePlaylistCache,
+  fileCache: OfflineFileCache,
+  organizationId: string,
+  candidateFileIds: string[],
+): Promise<void> {
+  const referenced = await referencedPieceFileIds(playlistCache, organizationId);
+  for (const pieceFileId of candidateFileIds) {
+    if (!referenced.has(pieceFileId)) {
+      await fileCache.remove(pieceFileId);
+    }
+  }
+}
+
 export async function cacheReadingPlaylistForOffline(
   pieceRepo: PieceRepository,
   fileRepo: PieceFileRepository,
@@ -38,6 +66,7 @@ export async function cacheReadingPlaylistForOffline(
     return Result.fail('not_found');
   }
 
+  const previous = await playlistCache.get(playlistId);
   const availableItems = playlist.items.filter(isPlaylistItemAvailable);
   const progress: CachePlaylistProgress = { done: 0, total: availableItems.length, errors: [] };
 
@@ -86,15 +115,134 @@ export async function cacheReadingPlaylistForOffline(
     onProgress?.({ ...progress });
   }
 
+  const pieceFileIds = availableItems.map((item) => item.pieceFileId);
+
   await playlistCache.put({
     playlistId: playlist.id,
     organizationId: playlist.organizationId,
     ownerUserId: playlist.ownerUserId,
     name: playlist.name,
-    pieceFileIds: availableItems.map((item) => item.pieceFileId),
+    pieceFileIds,
     snapshotJson: JSON.stringify(playlist),
     cachedAt: new Date().toISOString(),
   });
+
+  if (previous) {
+    await removeUnreferencedFiles(
+      playlistCache,
+      fileCache,
+      playlist.organizationId,
+      previous.pieceFileIds,
+    );
+  }
+
+  return Result.ok(progress);
+}
+
+const inflightUserPlaylistCaches = new Map<
+  string,
+  Promise<Result<CachePlaylistProgress, string>>
+>();
+
+export async function cacheUserReadingPlaylistsForOffline(
+  pieceRepo: PieceRepository,
+  fileRepo: PieceFileRepository,
+  fileStorage: FileStorage,
+  fileCache: OfflineFileCache,
+  playlistRepo: ReadingPlaylistRepository,
+  playlistCache: OfflinePlaylistCache,
+  annotationRepo: PieceFileAnnotationRepository,
+  annotationStore: OfflineAnnotationStore,
+  organizationId: string,
+  userId: string,
+  onProgress?: (progress: CachePlaylistProgress) => void,
+): Promise<Result<CachePlaylistProgress, string>> {
+  const cacheKey = `${organizationId}:${userId}`;
+  const inflight = inflightUserPlaylistCaches.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const task = cacheUserReadingPlaylistsForOfflineOnce(
+    pieceRepo,
+    fileRepo,
+    fileStorage,
+    fileCache,
+    playlistRepo,
+    playlistCache,
+    annotationRepo,
+    annotationStore,
+    organizationId,
+    userId,
+    onProgress,
+  );
+  inflightUserPlaylistCaches.set(cacheKey, task);
+  try {
+    return await task;
+  } finally {
+    if (inflightUserPlaylistCaches.get(cacheKey) === task) {
+      inflightUserPlaylistCaches.delete(cacheKey);
+    }
+  }
+}
+
+async function cacheUserReadingPlaylistsForOfflineOnce(
+  pieceRepo: PieceRepository,
+  fileRepo: PieceFileRepository,
+  fileStorage: FileStorage,
+  fileCache: OfflineFileCache,
+  playlistRepo: ReadingPlaylistRepository,
+  playlistCache: OfflinePlaylistCache,
+  annotationRepo: PieceFileAnnotationRepository,
+  annotationStore: OfflineAnnotationStore,
+  organizationId: string,
+  userId: string,
+  onProgress?: (progress: CachePlaylistProgress) => void,
+): Promise<Result<CachePlaylistProgress, string>> {
+  if (!isBrowserOnline()) {
+    return Result.fail('offline');
+  }
+
+  const playlists = await playlistRepo.listForUser(organizationId, userId);
+  const cached = await playlistCache.listForOrganization(organizationId);
+  const activeIds = new Set(playlists.map((playlist) => playlist.id));
+
+  for (const snapshot of cached) {
+    if (snapshot.ownerUserId === userId && !activeIds.has(snapshot.playlistId)) {
+      await removeCachedPlaylist(playlistCache, fileCache, snapshot.playlistId);
+    }
+  }
+
+  const progress: CachePlaylistProgress = {
+    done: 0,
+    total: playlists.length,
+    errors: [],
+  };
+
+  for (const playlist of playlists) {
+    const result = await cacheReadingPlaylistForOffline(
+      pieceRepo,
+      fileRepo,
+      fileStorage,
+      fileCache,
+      playlistRepo,
+      playlistCache,
+      annotationRepo,
+      annotationStore,
+      organizationId,
+      playlist.id,
+      userId,
+    );
+
+    if (!result.ok) {
+      progress.errors.push(`${playlist.name}: ${result.error}`);
+    } else {
+      progress.errors.push(...result.value.errors);
+    }
+
+    progress.done += 1;
+    onProgress?.({ ...progress });
+  }
 
   return Result.ok(progress);
 }
@@ -116,12 +264,15 @@ export async function removeCachedPlaylist(
   playlistId: string,
 ): Promise<void> {
   const cached = await playlistCache.get(playlistId);
-  if (cached) {
-    for (const pieceFileId of cached.pieceFileIds) {
-      await fileCache.remove(pieceFileId);
-    }
-  }
   await playlistCache.remove(playlistId);
+  if (cached) {
+    await removeUnreferencedFiles(
+      playlistCache,
+      fileCache,
+      cached.organizationId,
+      cached.pieceFileIds,
+    );
+  }
 }
 
 export async function syncPendingOfflineChanges(

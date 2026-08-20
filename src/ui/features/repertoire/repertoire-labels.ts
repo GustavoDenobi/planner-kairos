@@ -34,22 +34,24 @@ export function formatPartLinks(
 }
 
 export const REPERTOIRE_ERROR_MESSAGES: Record<string, string> = {
-  invalid_title: 'Informe o título da obra.',
-  invalid_file_title: 'Informe o título do arquivo.',
-  invalid_category: 'Selecione uma categoria.',
-  invalid_name: 'Informe um nome válido.',
-  invalid_slug: 'Slug inválido.',
-  duplicate_slug: 'Já existe um item com esse identificador.',
-  duplicate_title: 'Já existe uma obra com esse título.',
-  category_in_use: 'Categoria em uso por obras do catálogo.',
-  upload_failed: 'Não foi possível enviar o arquivo.',
-  duplicate_file: 'Este arquivo já está nesta obra.',
-  invalid_mime_type: 'Formato não suportado. Use PDF ou áudio (MP3/WAV).',
-  invalid_part_link: 'Seleção de partes inválida.',
-  delete_failed: 'Não foi possível remover.',
-  create_failed: 'Não foi possível salvar.',
-  update_failed: 'Não foi possível atualizar.',
-  not_found: 'Obra não encontrada.',
+  invalid_title: 'Informe o título da obra antes de salvar.',
+  invalid_file_title: 'Informe o título do arquivo antes de salvar.',
+  invalid_category: 'Selecione uma categoria para continuar.',
+  invalid_name: 'Informe um nome válido antes de salvar.',
+  invalid_slug: 'Identificador inválido. Use apenas letras, números e hífens.',
+  duplicate_slug: 'Já existe um item com esse identificador. Escolha outro nome.',
+  duplicate_title: 'Já existe uma obra com esse título. Escolha um título diferente.',
+  category_in_use: 'Esta categoria está em uso. Remova-a das obras antes de excluir.',
+  upload_failed: 'Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.',
+  duplicate_file: 'Este arquivo já está nesta obra. Escolha outro arquivo ou renomeie o existente.',
+  invalid_mime_type: 'Formato não suportado. Envie PDF ou áudio (MP3/WAV).',
+  invalid_part_link: 'Seleção de partes inválida. Revise as partes vinculadas ao arquivo.',
+  delete_failed: 'Não foi possível remover. Verifique sua conexão e tente novamente.',
+  create_failed: 'Não foi possível salvar. Verifique os campos e tente novamente.',
+  update_failed: 'Não foi possível atualizar. Verifique os campos e tente novamente.',
+  not_found: 'Obra não encontrada. Ela pode ter sido removida — atualize a página.',
+  reorder_failed: 'Não foi possível reordenar. Tente novamente em instantes.',
+  load_failed: 'Não foi possível carregar o arquivo. Verifique a conexão e tente novamente.',
 };
 
 function mapStorageErrorDetail(detail: string): string | null {
@@ -83,5 +85,5 @@ export function repertoireErrorMessage(code: string): string {
     return mapStorageErrorDetail(detail) ?? `${REPERTOIRE_ERROR_MESSAGES.upload_failed} (${detail})`;
   }
 
-  return REPERTOIRE_ERROR_MESSAGES[code] ?? 'Ocorreu um erro. Tente novamente.';
+  return REPERTOIRE_ERROR_MESSAGES[code] ?? 'Algo deu errado. Verifique sua conexão e tente novamente.';
 }

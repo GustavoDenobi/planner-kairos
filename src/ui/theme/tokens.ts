@@ -2,6 +2,27 @@ export type ThemeMode = 'light' | 'dark';
 
 export const THEME_STORAGE_KEY = 'theme';
 
+export const UI_SCALE_STORAGE_KEY = 'ui-scale';
+
+export const UI_SCALE_LEVELS = [100, 112.5, 125, 150] as const;
+
+export type UiScaleLevel = (typeof UI_SCALE_LEVELS)[number];
+
+export const UI_SCALE_LABELS: Record<UiScaleLevel, string> = {
+  100: 'Normal',
+  112.5: 'Maior',
+  125: 'Grande',
+  150: 'Máximo',
+};
+
+export function parseUiScaleLevel(value: string | null | undefined): UiScaleLevel {
+  const numeric = value != null ? Number(value) : NaN;
+  if ((UI_SCALE_LEVELS as readonly number[]).includes(numeric)) {
+    return numeric as UiScaleLevel;
+  }
+  return 100;
+}
+
 /** Cor da barra de status do navegador/PWA — alinhada ao fundo da página. */
 export const themeColor = {
   light: '#f0f1f4',

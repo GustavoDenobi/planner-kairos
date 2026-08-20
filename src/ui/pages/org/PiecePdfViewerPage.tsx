@@ -10,7 +10,7 @@ import { BackLink } from '@/ui/components/BackButton';
 import { PdfViewer, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
 import { pieceDetailPath } from '@/ui/features/repertoire/piece-file-routes';
 import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
-import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
 import {
   OfflineDownloadButton,
@@ -49,7 +49,7 @@ export function PiecePdfViewerPage() {
 
     if (!org) {
       setIsLoading(false);
-      setError('Organização não encontrada.');
+      setError('Organização não encontrada. Volte e selecione outra organização.');
       return;
     }
 
@@ -83,18 +83,18 @@ export function PiecePdfViewerPage() {
         if (!cancelled && pieceResult.ok) {
           const found = pieceResult.value.files.find((item) => item.id === currentFileId);
           if (!found) {
-            setError('Arquivo não encontrado.');
+            setError('Arquivo não encontrado nesta obra. Volte à obra e escolha outra partitura.');
             setIsLoading(false);
             return;
           }
           if (found.kind !== 'score') {
-            setError('Este arquivo não é uma partitura PDF.');
+            setError('Este arquivo não é uma partitura PDF. Abra um arquivo do tipo partitura.');
             setIsLoading(false);
             return;
           }
           pieceFile = found;
         } else if (!cancelled) {
-          setError('Obra não encontrada.');
+          setError('Obra não encontrada. Ela pode ter sido removida — volte ao repertório.');
           setIsLoading(false);
           return;
         }
@@ -112,7 +112,7 @@ export function PiecePdfViewerPage() {
       }
 
       if (pdfLoad.error === 'offline_not_cached') {
-        setError('Partitura não disponível offline. Baixe para o dispositivo com conexão.');
+        setError('Partitura não disponível offline. Toque em "Manter no dispositivo" com conexão ativa.');
         setIsLoading(false);
         return;
       }
@@ -120,7 +120,7 @@ export function PiecePdfViewerPage() {
       if (pdfLoad.error || !pdfLoad.pdfDocument) {
         setError(
           pdfLoad.error === 'not_found'
-            ? 'Arquivo não encontrado.'
+            ? 'Arquivo não encontrado nesta obra. Volte à obra e escolha outra partitura.'
             : repertoireErrorMessage(pdfLoad.error ?? 'load_failed'),
         );
         setIsLoading(false);
@@ -196,6 +196,12 @@ export function PiecePdfViewerPage() {
       cancelled = true;
     };
   }, [org, pieceId, fileId, repertoire, offline, ensemble, userId, online]);
+
+  useEffect(() => {
+    return () => {
+      revokePdfObjectUrl(downloadUrl);
+    };
+  }, [downloadUrl]);
 
   const handleAnnotationCreate = useCallback(
     async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {

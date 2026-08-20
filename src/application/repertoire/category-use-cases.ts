@@ -1,6 +1,7 @@
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
 import type { PieceCategoryInput } from '@/domain/repertoire';
 import { validatePieceCategoryInput } from '@/domain/repertoire';
+import { nextSortOrder } from '@/domain/ensemble/sort-order';
 import { Result } from '@/domain/shared';
 
 export async function listPieceCategories(
@@ -22,7 +23,11 @@ export async function createPieceCategory(
   }
 
   try {
-    const category = await categoryRepo.create(organizationId, input);
+    const categories = await categoryRepo.listForOrg(organizationId);
+    const category = await categoryRepo.create(organizationId, {
+      ...input,
+      sortOrder: input.sortOrder ?? nextSortOrder(categories),
+    });
     return Result.ok(category);
   } catch (error) {
     if (error instanceof Error && /duplicate|unique/i.test(error.message)) {
@@ -69,5 +74,22 @@ export async function deletePieceCategory(
     return Result.ok(undefined);
   } catch {
     return Result.fail('delete_failed');
+  }
+}
+
+export async function reorderPieceCategories(
+  categoryRepo: PieceCategoryRepository,
+  organizationId: string,
+  orderedCategoryIds: string[],
+) {
+  if (orderedCategoryIds.length === 0) {
+    return Result.ok(undefined);
+  }
+
+  try {
+    await categoryRepo.reorderCategories(organizationId, orderedCategoryIds);
+    return Result.ok(undefined);
+  } catch {
+    return Result.fail('reorder_failed');
   }
 }

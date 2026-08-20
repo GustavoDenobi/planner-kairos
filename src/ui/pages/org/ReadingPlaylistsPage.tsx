@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { ReadingPlaylist, ReadingPlaylistDetail } from '@/domain/repertoire';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import { useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
@@ -14,6 +14,7 @@ import {
   readingPlaylistNewPath,
   readingPlaylistReaderPath,
 } from '@/ui/features/repertoire/reading-playlist-routes';
+import { locationPath } from '@/ui/navigation/return-to';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
@@ -27,6 +28,7 @@ function isPlaylistItemAvailable(item: ReadingPlaylistDetail['items'][number]): 
 export function ReadingPlaylistsPage() {
   const { orgSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const repertoire = useRepertoire();
   const offline = useOffline();
   const { userId } = useAuth();
@@ -135,6 +137,11 @@ export function ReadingPlaylistsPage() {
     setCachedPlaylistIds(new Set(cached.map((item) => item.playlistId)));
     setItemCounts(counts);
     setIsLoading(false);
+
+    void offline.cacheUserReadingPlaylistsForOffline(org.id, userId).then(async () => {
+      const refreshed = await offline.listCachedPlaylistsForOrganization(org.id);
+      setCachedPlaylistIds(new Set(refreshed.map((item) => item.playlistId)));
+    });
   }, [org, userId, repertoire, offline]);
 
   useEffect(() => {
@@ -165,7 +172,7 @@ export function ReadingPlaylistsPage() {
 
       {showOfflineUi && (
         <p className="mt-2 text-sm text-muted">
-          Mostrando playlists baixadas para uso offline.
+          Mostrando playlists salvas neste dispositivo.
         </p>
       )}
 
@@ -177,7 +184,7 @@ export function ReadingPlaylistsPage() {
         ) : playlists.length === 0 ? (
           <p className="text-center text-sm text-muted">
             {showOfflineUi
-              ? 'Nenhuma playlist baixada. Com conexão, baixe uma playlist para o dispositivo.'
+              ? 'Nenhuma playlist salva neste dispositivo. Com conexão, as partituras das playlists são salvas automaticamente.'
               : 'Nenhuma playlist até agora.'}
           </p>
         ) : (
@@ -212,7 +219,9 @@ export function ReadingPlaylistsPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        navigate(readingPlaylistReaderPath(orgSlug, playlist.id, 0))
+                        navigate(readingPlaylistReaderPath(orgSlug, playlist.id, 0), {
+                          state: { returnTo: locationPath(location) },
+                        })
                       }
                       aria-label="Abrir leitor"
                       className="rounded-lg border border-border p-2 text-primary hover:bg-bg"

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { OrganizationWithRole } from '@/application/ports';
 import { IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
-import { ThemeToggle } from '@/ui/components/ThemeToggle';
+import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
 import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -42,7 +42,7 @@ export function OrgSelectorPage() {
     return (
       <div className="mx-auto max-w-md p-6">
         <div className="mb-4 flex justify-end">
-          <ThemeToggle variant="compact" />
+          <DisplayPreferencesControls variant="compact" />
         </div>
         <div className="rounded-xl border border-border bg-surface p-6 text-center">
           {isOfflineData || !online ? (
@@ -71,14 +71,14 @@ export function OrgSelectorPage() {
   return (
     <div className="mx-auto max-w-lg p-6">
       <div className="mb-6 flex items-center justify-end">
-        <ThemeToggle variant="compact" />
+        <DisplayPreferencesControls variant="compact" />
       </div>
       <div className="mb-6 flex items-center justify-center">
         <h1 className="text-2xl font-bold text-text">Selecione</h1>
       </div>
       {(isOfflineData || !online) && (
         <p className="mb-4 text-center text-sm text-muted">
-          Modo offline — apenas playlists baixadas estão disponíveis.
+          Modo offline — apenas playlists salvas neste dispositivo estão disponíveis.
         </p>
       )}
       <ul className="flex flex-col gap-3">

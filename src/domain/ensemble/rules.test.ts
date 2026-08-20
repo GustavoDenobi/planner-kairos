@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssignmentInput } from './assignment';
+import { isGroupWriterRole } from './assignment';
 import type { Section } from './section';
 import {
   isValidEmailFormat,
@@ -150,6 +151,19 @@ describe('validateAssignmentInput', () => {
     expect(
       validateAssignmentInput({ ...baseInput, ensembleRole: 'section_lead' }, null),
     ).toBe('section_lead_requires_section');
+  });
+
+  it('allows conductor without section', () => {
+    expect(
+      validateAssignmentInput({ ...baseInput, ensembleRole: 'conductor' }, null),
+    ).toBeNull();
+  });
+
+  it('treats teacher and conductor as group writers', () => {
+    expect(isGroupWriterRole('teacher')).toBe(true);
+    expect(isGroupWriterRole('conductor')).toBe(true);
+    expect(isGroupWriterRole('member')).toBe(false);
+    expect(isGroupWriterRole('section_lead')).toBe(false);
   });
 
   it('rejects section from different group', () => {

@@ -352,7 +352,7 @@ Regras:
 - `section` e `part` da mesma organização.
 - Zero ou mais partes por naipe; o admin configura na ficha do grupo.
 - Se `Assignment` tem `sectionId` e `partId`, a parte deve estar vinculada ao naipe em `section_parts`.
-- Atribuição só com naipe (sem parte) ou só com parte (sem naipe) continua válida quando o papel exige (chefe de naipe, professor).
+- Atribuição só com naipe (sem parte) ou só com parte (sem naipe) continua válida quando o papel exige (chefe de naipe, professor, regente).
 
 ### 2.6 Assignment
 
@@ -366,7 +366,7 @@ Atribuição: músico + formação + papel, com naipe e parte opcionais.
 | `groupId` | UUID | sim | Formação |
 | `sectionId` | UUID | não | Naipe; se preenchido, `section.groupId` = este `groupId` |
 | `partId` | UUID | não | Parte tocada/cantada |
-| `ensembleRole` | `EnsembleRole` | sim | `member` \| `teacher` \| `section_lead` |
+| `ensembleRole` | `EnsembleRole` | sim | `member` \| `teacher` \| `section_lead` \| `conductor` |
 
 **Tabela:** `assignments`
 
@@ -378,6 +378,7 @@ Exemplos:
 | Maria | Coral | Sopranos | Soprano (ou omitida) | `member` |
 | Chefe de naipe | Orquestra | Cordas | — | `section_lead` |
 | Professor | Turma de violino | — | Violino | `teacher` |
+| Regente | Orquestra | — | — | `conductor` |
 
 Regras:
 
@@ -395,7 +396,7 @@ Regras:
 |---|---|---|
 | `GroupKind` | `ensemble`, `choir`, `class`, `other` | Natureza da formação. Naipe não é um kind de grupo. |
 | `PartKind` | `instrument`, `voice` | Ajuda a UI; o restante do modelo trata `Part` igual. |
-| `EnsembleRole` | `member`, `teacher`, `section_lead` | Papel musical. Distinto de `AccessRole`. `section_lead` = chefe de naipe. |
+| `EnsembleRole` | `member`, `teacher`, `section_lead`, `conductor` | Papel musical. Distinto de `AccessRole`. `section_lead` = chefe de naipe. `conductor` = regente. `teacher` e `conductor` escrevem agenda nos grupos da atribuição. |
 
 ---
 
@@ -639,6 +640,7 @@ Ocorrência na agenda.
 | `endsAt` | datetime | não | |
 | `location` | string | não | |
 | `notes` | string | não | |
+| `createdBy` | UUID | não | Usuário que criou; preenchido com `auth.uid()` |
 
 **Tabela:** `events`  
 **Índice:** `(organizationId, startsAt)`
@@ -647,6 +649,39 @@ Regras:
 
 - `endsAt`, se existir, é ≥ `startsAt`.
 - Tipo pertence à mesma organização.
+- Evento pode ser associado a **grupos** (`event_groups`) e/ou **músicos** (`event_musicians`). Visibilidade é a união: membro de grupo associado **ou** músico associado **ou** criador **ou** `owner`/`admin`.
+- Sem associação (e sem ficha de músico do criador), só `owner`/`admin` veem o evento.
+- O criador é associado automaticamente ao seu `Musician` da org, se existir.
+- `owner`/`admin` criam e editam qualquer evento e podem associar qualquer grupo/músico.
+- Professor (`EnsembleRole = teacher`) e regente (`conductor`) podem criar eventos e associar apenas grupos em que ensinam ou regem (e os músicos desses grupos). Editam eventos que criaram ou associados a um desses grupos.
+
+### 4.2.1 EventGroup
+
+Vínculo evento ↔ formação. Todos os músicos com `Assignment` naquele grupo veem o evento.
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | UUID | sim | |
+| `organizationId` | UUID | sim | |
+| `eventId` | UUID | sim | |
+| `groupId` | UUID | sim | |
+
+**Tabela:** `event_groups`  
+**Unique:** `(eventId, groupId)`
+
+### 4.2.2 EventMusician
+
+Participante individual (aulas 1:1, criador, convidados pontuais).
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `id` | UUID | sim | |
+| `organizationId` | UUID | sim | |
+| `eventId` | UUID | sim | |
+| `musicianId` | UUID | sim | |
+
+**Tabela:** `event_musicians`  
+**Unique:** `(eventId, musicianId)`
 
 ### 4.3 ProgramItem
 
@@ -736,12 +771,13 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 21. `PasswordRecoveryCode` não tem `organizationId`; pertence ao `UserProfile`.
 22. Recuperação de senha não usa OTP do Supabase Auth — só `PasswordRecoveryCode` + e-mail próprio.
 23. `Musician` só é criado via `redeem_group_invite`; admin atualiza e exclui, mas não insere diretamente.
-24. `member` só lê o próprio `Musician`; listagem completa da org é `admin`/`owner`.
-25. `Group` arquivado (`archivedAt` preenchido) não aceita convites novos nem aceite de link.
-26. `Piece.aliases` é lista de apelidos para busca; máx. 20; normalização remove vazios e duplicatas case-insensitive. Não altera título nem programação.
-27. `PieceFile.title` é obrigatório e distinto de `originalName` — nome de exibição editável; default sem extensão do arquivo enviado.
-28. `PieceFile.contentHash` é SHA-256 hex do conteúdo; indexado por obra para detectar duplicata na UI, sem constraint de unicidade.
-29. `piece_file_part_links` só se aplicam a arquivos `score`; áudio não tem links de parte.
+24. `member` só lê o próprio `Musician` por padrão; listagem completa da org é `admin`/`owner`. Professor e regente lêem músicos dos grupos em que ensinam ou regem; qualquer membro lê músicos associados a eventos que pode ver.
+25. Evento é visível a `owner`/`admin`, ao criador, a músicos em `event_musicians` e a integrantes de grupos em `event_groups`. Evento sem associação fica restrito a `owner`/`admin`.
+26. `Group` arquivado (`archivedAt` preenchido) não aceita convites novos nem aceite de link.
+27. `Piece.aliases` é lista de apelidos para busca; máx. 20; normalização remove vazios e duplicatas case-insensitive. Não altera título nem programação.
+28. `PieceFile.title` é obrigatório e distinto de `originalName` — nome de exibição editável; default sem extensão do arquivo enviado.
+29. `PieceFile.contentHash` é SHA-256 hex do conteúdo; indexado por obra para detectar duplicata na UI, sem constraint de unicidade.
+30. `piece_file_part_links` só se aplicam a arquivos `score`; áudio não tem links de parte.
 
 ---
 
@@ -768,5 +804,7 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 | `piece_files` | PieceFile | `title`; `content_hash` nullable; índice `(piece_id, content_hash)` |
 | `piece_file_part_links` | PieceFile ↔ Part / PartDivision | `(piece_file_id, part_id, part_division_id)` com cuidado a NULL; índices em `part_id` |
 | `event_types` | EventType | |
-| `events` | Event | `(organization_id, starts_at)` |
+| `events` | Event | `(organization_id, starts_at)`; `created_by` nullable |
+| `event_groups` | EventGroup | `(event_id, group_id)` |
+| `event_musicians` | EventMusician | `(event_id, musician_id)` |
 | `program_items` | ProgramItem | `(event_id, piece_id)`; índice em `piece_id` |

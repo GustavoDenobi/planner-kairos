@@ -41,7 +41,7 @@ export function OrganizationEditModal({
     setIsBusy(false);
 
     if (!result.ok) {
-      setError('Nome inválido.');
+      setError('Informe um nome válido com pelo menos 2 caracteres.');
       return;
     }
 
@@ -75,7 +75,7 @@ export function OrganizationEditModal({
       await identity.removeOrganizationImage(organization.id, organization.imageStorageKey);
       onUpdated();
     } catch {
-      setError('Não foi possível remover a imagem.');
+      setError('Não foi possível remover a imagem. Tente novamente em instantes.');
     }
     setIsBusy(false);
   }

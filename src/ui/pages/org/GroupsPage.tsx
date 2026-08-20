@@ -72,7 +72,7 @@ export function GroupsPage() {
     });
     setIsSubmitting(false);
     if (!result.ok) {
-      setError('Não foi possível criar o grupo.');
+      setError('Não foi possível criar o grupo. Verifique o nome e tente novamente.');
       return;
     }
     setGroups((prev) =>

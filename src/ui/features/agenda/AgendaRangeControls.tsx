@@ -13,7 +13,7 @@ export function AgendaRangeControls({
   onNext,
 }: AgendaRangeControlsProps) {
   return (
-    <div className="flex items-center gap-2 justify-between lg:justify-center w-full">
+    <div className="flex w-full items-center justify-between gap-2 md:w-auto md:shrink-0 md:justify-start">
       <button
         type="button"
         onClick={onPrevious}

@@ -48,7 +48,7 @@ Distinções importantes já definidas no modelo:
 
 - **Organização (`Organization`)** — tenant. A Orquestra Kairós é uma instância, não o sistema. Um usuário pode pertencer a várias organizações. Cada org pode ter uma imagem de identificação visual (logo, brasão) exibida no seletor de organizações.
 - **Músico vs. usuário** — `Musician` é o cadastro da pessoa na organização (titular, aluno, professor); pode existir sem login. `UserProfile` é quem autentica; liga-se ao músico quando houver conta.
-- **Papel de acesso vs. papel musical** — `AccessRole` (`owner`, `admin`, `member`) controla o que se pode fazer no sistema; `EnsembleRole` (`member`, `teacher`, `section_lead`) descreve a função na orquestra. São enums distintos.
+- **Papel de acesso vs. papel musical** — `AccessRole` (`owner`, `admin`, `member`) controla o que se pode fazer no sistema; `EnsembleRole` (`member`, `teacher`, `section_lead`, `conductor`) descreve a função na orquestra. São enums distintos.
 - **Formação, naipe e parte** — `Group` é a formação (orquestra, big band, coral, turma). `Section` é o naipe dentro dela (cordas, sopranos). `Part` é o instrumento ou voz (violino, soprano); `PartDivision` é a cadeira na partitura (trombone 1, 2, 3), não outro instrumento nem naipe.
 - **Atribuição (`Assignment`)** — liga músico + formação + papel musical, com naipe e parte opcionais. Ex.: Gustavo, sax alto, big band, integrante; ou professor na turma de violino.
 - **Obra vs. arquivo** — `Piece` é o item de repertório; `PieceFile` é PDF ou áudio anexo. Arquivos ligam-se a uma ou mais partes via links, não a naipes.
@@ -61,7 +61,7 @@ Categorias de obra, temas e tipos de evento são configuráveis por organizaçã
 
 ### Cadastro de músicos, partes, formações e atribuições
 
-Além de informações básicas do músico (nome, data de nascimento, escolaridade, CPF), o sistema gerencia **atribuições**: qual músico participa de qual **formação** (`Group`), em qual **naipe** (`Section`, quando aplicável), tocando ou cantando qual **parte** (`Part`), com qual **papel musical** (`EnsembleRole`: integrante, professor ou chefe de naipe).
+Além de informações básicas do músico (nome, data de nascimento, escolaridade, CPF), o sistema gerencia **atribuições**: qual músico participa de qual **formação** (`Group`), em qual **naipe** (`Section`, quando aplicável), tocando ou cantando qual **parte** (`Part`), com qual **papel musical** (`EnsembleRole`: integrante, professor, chefe de naipe ou regente).
 
 Exemplo: Gustavo toca saxofone alto na big band (integrante) e dá aula na turma de violino (professor). Um músico pode ter várias atribuições; login é opcional — o cadastro existe mesmo sem conta.
 

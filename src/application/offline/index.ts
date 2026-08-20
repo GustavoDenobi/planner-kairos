@@ -26,6 +26,7 @@ import {
 } from './file-cache-use-cases';
 import {
   cacheReadingPlaylistForOffline,
+  cacheUserReadingPlaylistsForOffline,
   getCachedReadingPlaylist,
   removeCachedPlaylist,
   syncPendingOfflineChanges,
@@ -90,6 +91,25 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         annotationStore,
         organizationId,
         playlistId,
+        userId,
+        onProgress,
+      ),
+
+    cacheUserReadingPlaylistsForOffline: (
+      organizationId: string,
+      userId: string,
+      onProgress?: (progress: CachePlaylistProgress) => void,
+    ) =>
+      cacheUserReadingPlaylistsForOffline(
+        deps.pieceRepo,
+        deps.fileRepo,
+        deps.fileStorage,
+        fileCache,
+        deps.playlistRepo,
+        playlistCache,
+        deps.annotationRepo,
+        annotationStore,
+        organizationId,
         userId,
         onProgress,
       ),

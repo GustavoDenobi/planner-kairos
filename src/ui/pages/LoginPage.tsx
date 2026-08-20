@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+import { LOGIN_ERROR_MESSAGES } from '@/ui/utils/auth-error-labels';
 
 const ORG_STORAGE_KEY = 'planner-kairos:current-org-slug';
 
@@ -42,7 +43,7 @@ export function LoginPage() {
     setError(null);
 
     if (!online) {
-      setError('O login exige conexão com a internet.');
+      setError(LOGIN_ERROR_MESSAGES.offline);
       return;
     }
 
@@ -52,7 +53,7 @@ export function LoginPage() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      setError('E-mail ou senha inválidos.');
+      setError(LOGIN_ERROR_MESSAGES.invalidCredentials);
       return;
     }
 

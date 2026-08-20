@@ -13,6 +13,15 @@ export async function listAssignmentsForMusician(
   return Result.ok(assignments);
 }
 
+export async function listAssignmentsForGroup(
+  assignmentRepo: AssignmentRepository,
+  organizationId: string,
+  groupId: string,
+) {
+  const assignments = await assignmentRepo.listForGroup(organizationId, groupId);
+  return Result.ok(assignments);
+}
+
 export async function assignMusician(
   assignmentRepo: AssignmentRepository,
   sectionRepo: SectionRepository,

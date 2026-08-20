@@ -275,6 +275,39 @@ export function isGeneralScoreFile(
   return file.kind === 'score' && file.partLinks.length === 0;
 }
 
+export function partitionPieceFilesForViewer(
+  files: PieceFileWithLinks[],
+  userPartIds: string[],
+  isConductor: boolean,
+): {
+  userFiles: PieceFileWithLinks[];
+  generalFiles: PieceFileWithLinks[];
+  audioFiles: PieceFileWithLinks[];
+  otherFiles: PieceFileWithLinks[];
+} {
+  const generalFiles = isConductor ? files.filter((file) => isGeneralScoreFile(file)) : [];
+  const generalIds = new Set(generalFiles.map((file) => file.id));
+
+  const userFiles =
+    userPartIds.length > 0
+      ? files.filter(
+          (file) =>
+            !generalIds.has(file.id) && pieceFileMatchesUserParts(file, userPartIds),
+        )
+      : [];
+  const userIds = new Set(userFiles.map((file) => file.id));
+
+  const audioFiles = files.filter((file) => file.kind === 'audio');
+  const audioIds = new Set(audioFiles.map((file) => file.id));
+
+  const otherFiles = files.filter(
+    (file) =>
+      !generalIds.has(file.id) && !userIds.has(file.id) && !audioIds.has(file.id),
+  );
+
+  return { userFiles, generalFiles, audioFiles, otherFiles };
+}
+
 export function filterScoreCandidatesForUser(
   files: PieceFileWithLinks[],
   userPartIds: string[],

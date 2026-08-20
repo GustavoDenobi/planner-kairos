@@ -9,7 +9,9 @@ import type {
   Section,
 } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { useEnsemble } from '@/ui/app/AppServicesContext';
+import type { AccessRole } from '@/domain/identity';
+import { useEnsemble, useIdentity } from '@/ui/app/AppServicesContext';
+import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
@@ -33,10 +35,33 @@ const emptyAssignmentForm = (): AssignmentFormState => ({
   ensembleRole: 'member',
 });
 
+function adminRoleErrorLabel(error: string): string {
+  switch (error) {
+    case 'forbidden':
+      return 'Apenas administradores podem gerenciar este papel.';
+    case 'cannot_manage_self':
+      return 'Você não pode alterar o seu próprio papel de administrador aqui.';
+    case 'no_linked_user':
+      return 'Este músico não possui conta vinculada.';
+    case 'membership_not_found':
+      return 'Este usuário não pertence à organização.';
+    case 'target_is_owner':
+      return 'O proprietário da organização não pode ser alterado.';
+    case 'already_admin':
+      return 'Este usuário já é administrador da organização.';
+    case 'not_admin':
+      return 'Este usuário não é administrador da organização.';
+    default:
+      return 'Não foi possível alterar o papel de administrador.';
+  }
+}
+
 export function MusicianDetailPage() {
   const { orgSlug, musicianId } = useParams();
   const navigate = useNavigate();
   const ensemble = useEnsemble();
+  const identity = useIdentity();
+  const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
 
@@ -70,6 +95,13 @@ export function MusicianDetailPage() {
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [targetAccessRole, setTargetAccessRole] = useState<AccessRole | null>(null);
+  const [isLoadingTargetRole, setIsLoadingTargetRole] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminAction, setAdminAction] = useState<'grant' | 'revoke'>('grant');
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isUpdatingAdmin, setIsUpdatingAdmin] = useState(false);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
 
@@ -105,6 +137,30 @@ export function MusicianDetailPage() {
       setIsLoading(false);
     });
   }, [ensemble, org, musicianId]);
+
+  useEffect(() => {
+    if (!org || !musician?.userId || !isAdmin) {
+      setTargetAccessRole(null);
+      setIsLoadingTargetRole(false);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingTargetRole(true);
+
+    identity.getMembershipAccessRole(org.id, musician.userId).then((result) => {
+      if (!active) {
+        return;
+      }
+
+      setTargetAccessRole(result.ok ? result.value : null);
+      setIsLoadingTargetRole(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [identity, org, musician?.userId, isAdmin]);
 
   async function loadSectionsForGroup(groupId: string) {
     if (!org || sectionsByGroup.has(groupId)) {
@@ -170,11 +226,11 @@ export function MusicianDetailPage() {
 
     if (!result.ok) {
       if (result.error === 'invalid_phone') {
-        setError('Telefone inválido.');
+        setError('Telefone inválido. Use o formato (XX) XXXXX-XXXX ou similar.');
       } else if (result.error === 'invalid_email') {
-        setError('E-mail inválido.');
+        setError('E-mail inválido. Confira se digitou corretamente.');
       } else {
-        setError('Não foi possível salvar as alterações.');
+        setError('Não foi possível salvar as alterações. Verifique os campos e tente novamente.');
       }
       return;
     }
@@ -298,6 +354,41 @@ export function MusicianDetailPage() {
     setDeleteError(null);
   }
 
+  function openAdminModal(action: 'grant' | 'revoke') {
+    setAdminAction(action);
+    setAdminError(null);
+    setAdminModalOpen(true);
+  }
+
+  function closeAdminModal() {
+    setAdminModalOpen(false);
+    setAdminError(null);
+  }
+
+  async function handleAdminRoleChange() {
+    if (!org || !musician?.userId || !userId) {
+      return;
+    }
+
+    setAdminError(null);
+    setIsUpdatingAdmin(true);
+
+    const result =
+      adminAction === 'grant'
+        ? await identity.grantOrgAdmin(userId, org.accessRole, org.id, musician.userId)
+        : await identity.revokeOrgAdmin(userId, org.accessRole, org.id, musician.userId);
+
+    setIsUpdatingAdmin(false);
+
+    if (!result.ok) {
+      setAdminError(adminRoleErrorLabel(result.error));
+      return;
+    }
+
+    setTargetAccessRole(adminAction === 'grant' ? 'admin' : 'member');
+    closeAdminModal();
+  }
+
   async function handleDeleteMusician() {
     if (!isDeleteConfirmed) {
       return;
@@ -331,6 +422,16 @@ export function MusicianDetailPage() {
     sectionPartIdsForAssignment !== null
       ? parts.filter((part) => sectionPartIdsForAssignment.includes(part.id))
       : parts;
+
+  const canManageAdminRole =
+    isAdmin &&
+    Boolean(musician.userId) &&
+    Boolean(userId) &&
+    musician.userId !== userId &&
+    targetAccessRole !== 'owner';
+  const isTargetOwner = targetAccessRole === 'owner';
+  const isTargetAdmin = targetAccessRole === 'admin';
+  const showAccessRoleSection = isAdmin && Boolean(musician.userId);
 
   return (
     <div className={orgPageContentClass}>
@@ -402,6 +503,37 @@ export function MusicianDetailPage() {
                       </button>
                     )}
                   </div>
+                  {showAccessRoleSection && (
+                    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-text">
+                          {isTargetOwner ? 'Proprietário da organização' : 'Administrador da organização'}
+                        </h2>
+                        <p className="mt-1 text-sm text-muted">
+                          {isLoadingTargetRole
+                            ? 'Carregando permissões…'
+                            : isTargetOwner
+                              ? 'Este usuário é o proprietário da organização. Esse papel não pode ser alterado.'
+                              : isTargetAdmin
+                                ? 'Este usuário é administrador e pode gerenciar a organização.'
+                                : 'Administradores podem gerenciar músicos, repertório, agenda e demais configurações.'}
+                        </p>
+                      </div>
+                      {canManageAdminRole && !isLoadingTargetRole && (
+                        <button
+                          type="button"
+                          onClick={() => openAdminModal(isTargetAdmin ? 'revoke' : 'grant')}
+                          className={
+                            isTargetAdmin
+                              ? 'rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg'
+                              : 'rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90'
+                          }
+                        >
+                          {isTargetAdmin ? 'Remover como administrador' : 'Tornar administrador'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {isAdmin && (
                     <div className="mt-8 flex w-full md:justify-end">
                       <button
@@ -574,6 +706,53 @@ export function MusicianDetailPage() {
             )}
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={adminModalOpen}
+        onClose={closeAdminModal}
+        title={adminAction === 'grant' ? 'Tornar administrador' : 'Remover como administrador'}
+      >
+        <p className="text-sm text-muted">
+          {adminAction === 'grant' ? (
+            <>
+              <strong className="text-text">{musician.fullName}</strong> passará a ser administrador
+              da organização e poderá gerenciar músicos, repertório, agenda e demais configurações.
+            </>
+          ) : (
+            <>
+              <strong className="text-text">{musician.fullName}</strong> deixará de ser administrador
+              e voltará a ser membro comum da organização.
+            </>
+          )}
+        </p>
+        {adminError && <p className="mt-2 text-sm text-red-600">{adminError}</p>}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            disabled={isUpdatingAdmin}
+            onClick={closeAdminModal}
+            className="w-full rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50 sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isUpdatingAdmin}
+            onClick={handleAdminRoleChange}
+            className={
+              adminAction === 'grant'
+                ? 'w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 sm:w-auto'
+                : 'w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 sm:w-auto'
+            }
+          >
+            {isUpdatingAdmin
+              ? 'Salvando…'
+              : adminAction === 'grant'
+                ? 'Confirmar'
+                : 'Remover administrador'}
+          </button>
+        </div>
       </Modal>
 
       <Modal open={deleteModalOpen} onClose={closeDeleteModal} title="Excluir músico">

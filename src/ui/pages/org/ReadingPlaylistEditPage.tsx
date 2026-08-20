@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type {
   PieceFilePartLink,
@@ -9,7 +9,7 @@ import type {
   ReadingPlaylistPieceCategory,
 } from '@/domain/repertoire';
 import { filterScoreCandidatesForUser } from '@/domain/repertoire';
-import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -24,6 +24,7 @@ import {
   readingPlaylistReaderPath,
   readingPlaylistsPath,
 } from '@/ui/features/repertoire/reading-playlist-routes';
+import { locationPath } from '@/ui/navigation/return-to';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
@@ -74,6 +75,7 @@ export function ReadingPlaylistNewPage() {
   const { orgSlug } = useParams();
   const repertoire = useRepertoire();
   const ensemble = useEnsemble();
+  const offline = useOffline();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
@@ -143,6 +145,7 @@ export function ReadingPlaylistNewPage() {
       return false;
     }
 
+    void offline.cacheReadingPlaylistForOffline(org.id, result.value.id, userId);
     return true;
   }
 
@@ -200,8 +203,10 @@ export function ReadingPlaylistNewPage() {
 export function ReadingPlaylistEditPage() {
   const { orgSlug, playlistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const repertoire = useRepertoire();
   const ensemble = useEnsemble();
+  const offline = useOffline();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
@@ -364,9 +369,10 @@ export function ReadingPlaylistEditPage() {
 
       setBaseline(nextBaseline);
       setIsSaving(false);
+      void offline.cacheReadingPlaylistForOffline(org.id, playlistId, userId);
       return true;
     },
-    [org, userId, playlistId, baseline, name, items, repertoire],
+    [org, userId, playlistId, baseline, name, items, repertoire, offline],
   );
 
   useEffect(() => {
@@ -405,6 +411,7 @@ export function ReadingPlaylistEditPage() {
       return false;
     }
 
+    void offline.removeCachedPlaylist(playlistId);
     navigate(readingPlaylistsPath(orgSlug));
     return true;
   }
@@ -470,7 +477,10 @@ export function ReadingPlaylistEditPage() {
       onDelete={handleDelete}
       onOpenReader={
         items.length > 0
-          ? () => navigate(readingPlaylistReaderPath(orgSlug, playlistId, 0))
+          ? () =>
+              navigate(readingPlaylistReaderPath(orgSlug, playlistId, 0), {
+                state: { returnTo: locationPath(location) },
+              })
           : undefined
       }
       playlistId={playlistId}

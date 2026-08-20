@@ -3,6 +3,16 @@ import { OFFLINE_SIZE_WARNING_BYTES } from '@/application/offline/types';
 import type { ResolvedPieceFile } from '@/application/offline';
 import * as pdfjs from 'pdfjs-dist';
 
+export function revokePdfObjectUrl(url: string | null | undefined): void {
+  if (url?.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function createPdfObjectUrl(data: ArrayBuffer): string {
+  return URL.createObjectURL(new Blob([data.slice(0)], { type: 'application/pdf' }));
+}
+
 export async function resolvePdfDocument(
   offline: OfflineUseCases,
   organizationId: string,
@@ -25,13 +35,15 @@ export async function resolvePdfDocument(
   }
 
   const resolved = result.value;
+  let localDownloadUrl: string | null = null;
   try {
     if (resolved.source === 'local') {
+      localDownloadUrl = createPdfObjectUrl(resolved.data);
       const pdfDocument = await pdfjs.getDocument({ data: resolved.data }).promise;
       return {
         resolved,
         pdfDocument,
-        downloadUrl: null,
+        downloadUrl: localDownloadUrl,
         error: null,
       };
     }
@@ -44,6 +56,7 @@ export async function resolvePdfDocument(
       error: null,
     };
   } catch {
+    revokePdfObjectUrl(localDownloadUrl);
     return {
       resolved,
       pdfDocument: null,

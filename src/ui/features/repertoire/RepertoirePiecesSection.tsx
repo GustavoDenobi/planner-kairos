@@ -20,7 +20,7 @@ type RepertoirePiecesSectionProps = {
   themeFilter: string;
   onThemeFilterChange: (themeId: string) => void;
   memberCategoryId?: string;
-  onMemberCategoryChange?: (categoryId: string) => void;
+  onOpenCategoryPicker?: () => void;
 };
 
 export function RepertoirePiecesSection({
@@ -40,10 +40,14 @@ export function RepertoirePiecesSection({
   themeFilter,
   onThemeFilterChange,
   memberCategoryId,
-  onMemberCategoryChange,
+  onOpenCategoryPicker,
 }: RepertoirePiecesSectionProps) {
   const themeById = new Map(themes.map((theme) => [theme.id, theme]));
   const isMemberView = !isAdmin;
+
+  const memberCategoryLabel = memberCategoryId
+    ? (categories.find((category) => category.id === memberCategoryId)?.name ?? 'Categoria')
+    : 'Todas';
 
   const filterSelectClass =
     'w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
@@ -78,23 +82,30 @@ export function RepertoirePiecesSection({
           <div className="grid grid-cols-2 gap-2 md:flex md:min-w-0 md:flex-[2] md:gap-2">
             <label className="min-w-0 md:flex-1">
               <span className="sr-only">Categoria</span>
-              <select
-                aria-label="Categoria"
-                value={isMemberView ? (memberCategoryId ?? '') : categoryFilter}
-                onChange={(event) =>
-                  isMemberView
-                    ? onMemberCategoryChange?.(event.target.value)
-                    : onCategoryFilterChange(event.target.value)
-                }
-                className={filterSelectClass}
-              >
-                {!isMemberView && <option value="">Categorias (tudo)</option>}
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              {isMemberView ? (
+                <button
+                  type="button"
+                  aria-label="Categoria"
+                  onClick={() => onOpenCategoryPicker?.()}
+                  className={`${filterSelectClass} text-left`}
+                >
+                  {memberCategoryLabel}
+                </button>
+              ) : (
+                <select
+                  aria-label="Categoria"
+                  value={categoryFilter}
+                  onChange={(event) => onCategoryFilterChange(event.target.value)}
+                  className={filterSelectClass}
+                >
+                  <option value="">Categorias (tudo)</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
 
             {themes.length > 0 && (

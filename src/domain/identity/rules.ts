@@ -153,6 +153,56 @@ export function membershipRoleForInvite(): AccessRole {
   return 'member';
 }
 
+export type AdminRoleManagementError =
+  | 'forbidden'
+  | 'cannot_manage_self'
+  | 'no_linked_user'
+  | 'membership_not_found'
+  | 'target_is_owner'
+  | 'already_admin'
+  | 'not_admin';
+
+export function canManageAdminRole(
+  actorAccessRole: AccessRole,
+  actorUserId: string,
+  targetUserId: string | null,
+  targetAccessRole: AccessRole | null,
+): AdminRoleManagementError | null {
+  if (actorAccessRole !== 'owner' && actorAccessRole !== 'admin') {
+    return 'forbidden';
+  }
+
+  if (!targetUserId) {
+    return 'no_linked_user';
+  }
+
+  if (actorUserId === targetUserId) {
+    return 'cannot_manage_self';
+  }
+
+  if (targetAccessRole === 'owner') {
+    return 'target_is_owner';
+  }
+
+  return null;
+}
+
+export function canGrantAdminRole(targetAccessRole: AccessRole): 'already_admin' | null {
+  if (targetAccessRole === 'admin') {
+    return 'already_admin';
+  }
+
+  return null;
+}
+
+export function canRevokeAdminRole(targetAccessRole: AccessRole): 'not_admin' | null {
+  if (targetAccessRole !== 'admin') {
+    return 'not_admin';
+  }
+
+  return null;
+}
+
 export function isPasswordRecoveryCodeValid(code: PasswordRecoveryCode, now: Date): boolean {
   return code.usedAt === null && code.expiresAt > now;
 }

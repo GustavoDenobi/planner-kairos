@@ -82,7 +82,7 @@ export function PdfViewerPlaylistNav({
   onNext,
 }: PdfViewerPlaylistNavProps) {
   return (
-    <div className="flex items-center justify-center gap-x-3">
+    <div className="flex min-w-0 w-full items-center justify-center gap-x-3">
       <button
         type="button"
         onClick={onPrevious}
@@ -514,7 +514,7 @@ export function PdfViewer({
         if (cancelled) {
           return;
         }
-        setError('Não foi possível carregar o PDF.');
+        setError('Não foi possível carregar a partitura. Verifique a conexão ou baixe o arquivo para uso offline.');
         setLoading(false);
       });
 
@@ -1162,17 +1162,17 @@ export function PdfViewer({
     : {};
 
   const controlsRowClass =
-    'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-3 pb-2 sm:px-4';
+    'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-4 py-2';
   const toolbarIconButtonClass = (active = false) =>
     `inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
       active ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text'
     }`;
   const mobilePanelButtonClass = (active: boolean) =>
-    `${toolbarIconButtonClass(active)} sm:hidden`;
-  const mobilePanelRowClass = `${controlsRowClass} border-t border-border sm:hidden`;
+    `${toolbarIconButtonClass(active)} lg:hidden`;
+  const mobilePanelRowClass = `${controlsRowClass} border-t border-border lg:hidden`;
 
   const renderZoomControls = () => (
-    <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+    <div className="flex shrink-0 items-center gap-1.5 lg:gap-2">
       <button
         type="button"
         onClick={() => setScale((current) => Math.max(MIN_PDF_SCALE, current - 0.15))}
@@ -1181,7 +1181,7 @@ export function PdfViewer({
       >
         −
       </button>
-      <span className="min-w-10 text-center text-sm text-text sm:min-w-12">
+      <span className="min-w-10 text-center text-sm text-text lg:min-w-12">
         {Math.round(scale * 100)}%
       </span>
       <button
@@ -1199,8 +1199,8 @@ export function PdfViewer({
         aria-label="Ajustar largura"
         title="Ajustar largura"
       >
-        <span className="sm:hidden">Largura</span>
-        <span className="hidden sm:inline">Ajustar largura</span>
+        <span className="lg:hidden">Largura</span>
+        <span className="hidden lg:inline">Ajustar largura</span>
       </button>
       <button
         type="button"
@@ -1209,8 +1209,8 @@ export function PdfViewer({
         aria-label="Ajustar página"
         title="Ajustar página"
       >
-        <span className="sm:hidden">Página</span>
-        <span className="hidden sm:inline">Ajustar página</span>
+        <span className="lg:hidden">Página</span>
+        <span className="hidden lg:inline">Ajustar página</span>
       </button>
     </div>
   );
@@ -1231,8 +1231,8 @@ export function PdfViewer({
             : 'border-border text-text'
         }`}
       >
-        <span className="sm:hidden">Pessoais</span>
-        <span className="hidden sm:inline">Ver pessoais</span>
+        <span className="lg:hidden">Pessoais</span>
+        <span className="hidden lg:inline">Ver pessoais</span>
       </button>
       {canEditSectionLayer && (
         <button
@@ -1249,8 +1249,8 @@ export function PdfViewer({
               : 'border-border text-text'
           }`}
         >
-          <span className="sm:hidden">Naipe</span>
-          <span className="hidden sm:inline">Ver naipe</span>
+          <span className="lg:hidden">Naipe</span>
+          <span className="hidden lg:inline">Ver naipe</span>
         </button>
       )}
       {userId && (
@@ -1385,7 +1385,7 @@ export function PdfViewer({
             >
               <IconPencil className="h-4 w-4" />
             </button>
-            <div className="hidden flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:flex">
+            <div className="hidden flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:flex">
               {renderAnnotationToolControls()}
             </div>
             <button
@@ -1422,7 +1422,7 @@ export function PdfViewer({
       ) : (
         <>
           <div className={controlsRowClass}>
-            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+            <div className="flex items-center justify-center gap-1.5 lg:gap-2">
             <button
               type="button"
               onClick={() =>
@@ -1435,7 +1435,7 @@ export function PdfViewer({
             >
               <IconZoomIn className="h-4 w-4" />
             </button>
-            <div className="hidden sm:block">{renderZoomControls()}</div>
+            <div className="hidden lg:block">{renderZoomControls()}</div>
 
               <button
                 type="button"
@@ -1447,10 +1447,10 @@ export function PdfViewer({
                     : 'Usar navegação lateral'
                 }
                 title={navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
-                className={`${toolbarIconButtonClass(navigation === 'horizontal')} sm:h-auto sm:w-auto sm:gap-1 sm:px-2 sm:py-1`}
+                className={`${toolbarIconButtonClass(navigation === 'horizontal')} lg:h-auto lg:w-auto lg:gap-1 lg:px-2 lg:py-1`}
               >
                 <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
-                <span className="hidden sm:inline">
+                <span className="hidden lg:inline">
                   {navigation === 'horizontal' ? 'Lateral' : 'Vertical'}
                 </span>
               </button>
@@ -1488,7 +1488,7 @@ export function PdfViewer({
               <IconPencil className="h-4 w-4" />
             </button>
             </div>
-            <div className="hidden items-center gap-x-1.5 sm:flex sm:gap-x-2">
+            <div className="hidden items-center gap-x-1.5 lg:flex lg:gap-x-2">
               <span className="h-6 w-px bg-border" aria-hidden="true" />
               {renderViewAnnotationControls()}
             </div>

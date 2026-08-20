@@ -1,3 +1,4 @@
+import type { EventKind } from '@/domain/agenda';
 import type {
   EventDetail,
   EventInput,
@@ -8,6 +9,13 @@ import type {
 export type ListEventsInRangeOptions = {
   from: string;
   to: string;
+  mineOnly?: boolean;
+  typeId?: string | null;
+  kind?: EventKind | null;
+  groupId?: string | null;
+  viewerUserId?: string;
+  viewerMusicianId?: string | null;
+  viewerGroupIds?: string[];
 };
 
 export type EventRepository = {
@@ -20,4 +28,5 @@ export type EventRepository = {
     eventId: string,
     items: ProgramItemInput[],
   ): Promise<EventDetail>;
+  delete(organizationId: string, eventId: string): Promise<void>;
 };

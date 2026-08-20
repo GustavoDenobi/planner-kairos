@@ -43,6 +43,7 @@ export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,
   isGeneralScoreFile,
+  partitionPieceFilesForViewer,
   isPieceFileScore,
   mimeToPieceFileKind,
   resolvePieceFileMime,

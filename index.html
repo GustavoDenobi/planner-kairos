@@ -24,6 +24,13 @@
         document
           .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
           ?.setAttribute('content', dark ? 'black' : 'default');
+
+        var scaleKey = 'ui-scale';
+        var scaleStored = localStorage.getItem(scaleKey);
+        var scaleLevels = ['100', '112.5', '125', '150'];
+        if (scaleStored && scaleLevels.indexOf(scaleStored) !== -1) {
+          document.documentElement.style.fontSize = scaleStored + '%';
+        }
       })();
     </script>
     <link rel="apple-touch-icon" href="/logo.png" />
