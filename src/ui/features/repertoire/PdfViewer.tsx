@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -47,8 +47,6 @@ import {
   nextDoubleTapFitMode,
 } from '@/ui/features/repertoire/pdf-viewport-gestures';
 import { usePdfViewportGestures } from '@/ui/features/repertoire/usePdfViewportGestures';
-
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const SWIPE_THRESHOLD_PX = 48;
 
@@ -489,7 +487,7 @@ export function PdfViewer({
       return;
     }
 
-    const loadingTask = pdfjs.getDocument({ url });
+    const loadingTask = openPdfDocument({ url });
 
     setLoading(true);
     setError(null);

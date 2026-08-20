@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
+import { resolveHomeRedirectPath } from '@/application/offline/identity-snapshot-use-cases';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { ORG_STORAGE_KEY } from '@/ui/app/OrgProvider';
 import { useOffline } from '@/ui/app/AppServicesContext';
@@ -14,19 +16,30 @@ export function HomeRedirect() {
       return;
     }
 
-    if (session) {
-      const slug = localStorage.getItem(ORG_STORAGE_KEY);
-      setTarget(slug ? `/${slug}/leitura` : '/orgs');
+    const storedOrgSlug = localStorage.getItem(ORG_STORAGE_KEY);
+    const isOnline = isBrowserOnline();
+
+    if (session || isOnline) {
+      setTarget(
+        resolveHomeRedirectPath({
+          hasSession: Boolean(session),
+          isOnline,
+          storedOrgSlug,
+          snapshot: null,
+        }),
+      );
       return;
     }
 
     void offline.getIdentitySnapshot().then((snapshot) => {
-      if (snapshot) {
-        const slug = snapshot.currentOrgSlug ?? localStorage.getItem(ORG_STORAGE_KEY);
-        setTarget(slug ? `/${slug}/leitura` : '/orgs');
-      } else {
-        setTarget('/login');
-      }
+      setTarget(
+        resolveHomeRedirectPath({
+          hasSession: false,
+          isOnline: false,
+          storedOrgSlug,
+          snapshot,
+        }),
+      );
     });
   }, [isLoading, session, offline]);
 

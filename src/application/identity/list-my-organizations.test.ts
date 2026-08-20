@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { OrganizationRepository } from '@/application/ports/organization-repository';
-import { setCurrentOrganization } from '@/application/identity/set-current-organization';
+import { listMyOrganizations } from '@/application/identity/list-my-organizations';
 
-function createOrgRepo(orgs: import('@/application/ports/organization-repository').OrganizationWithRole[]): OrganizationRepository {
+function createOrgRepo(
+  orgs: import('@/application/ports/organization-repository').OrganizationWithRole[],
+): OrganizationRepository {
   return {
     listForUser: async () => orgs,
     getBySlug: async (slug) => orgs.find((org) => org.slug === slug) ?? null,
@@ -13,7 +15,7 @@ function createOrgRepo(orgs: import('@/application/ports/organization-repository
   };
 }
 
-describe('setCurrentOrganization', () => {
+describe('listMyOrganizations', () => {
   const orgs = [
     {
       id: 'org-1',
@@ -24,29 +26,29 @@ describe('setCurrentOrganization', () => {
     },
   ];
 
-  it('accepts slug when user belongs to organization', async () => {
-    const result = await setCurrentOrganization(createOrgRepo(orgs), 'user-1', 'kairos');
+  it('returns organizations for the user', async () => {
+    const result = await listMyOrganizations(createOrgRepo(orgs), 'user-1');
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.slug).toBe('kairos');
+      expect(result.value).toEqual(orgs);
     }
   });
 
-  it('rejects slug when user is not a member', async () => {
-    const result = await setCurrentOrganization(createOrgRepo(orgs), 'user-1', 'other');
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBe('not_a_member');
+  it('returns empty list when the user has no memberships', async () => {
+    const result = await listMyOrganizations(createOrgRepo([]), 'user-1');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
     }
   });
 
   it('fails when listing organizations throws', async () => {
     const repo = createOrgRepo(orgs);
     repo.listForUser = async () => {
-      throw new Error('jwt expired');
+      throw new Error('JWT expired');
     };
 
-    const result = await setCurrentOrganization(repo, 'user-1', 'kairos');
+    const result = await listMyOrganizations(repo, 'user-1');
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toBe('list_failed');

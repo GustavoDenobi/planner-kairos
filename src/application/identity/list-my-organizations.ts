@@ -5,6 +5,10 @@ export async function listMyOrganizations(
   orgRepo: OrganizationRepository,
   userId: string,
 ) {
-  const orgs = await orgRepo.listForUser(userId);
-  return Result.ok(orgs);
+  try {
+    const orgs = await orgRepo.listForUser(userId);
+    return Result.ok(orgs);
+  } catch {
+    return Result.fail('list_failed');
+  }
 }

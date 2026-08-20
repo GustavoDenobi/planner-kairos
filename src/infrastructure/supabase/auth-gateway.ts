@@ -24,6 +24,24 @@ function toAuthSession(session: Session): AuthSession {
   };
 }
 
+export function isAccessTokenExpired(accessToken: string, nowMs = Date.now()): boolean {
+  const payloadSegment = accessToken.split('.')[1];
+  if (!payloadSegment) {
+    return true;
+  }
+
+  try {
+    const padded = payloadSegment
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(payloadSegment.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= nowMs;
+  } catch {
+    return true;
+  }
+}
+
 function mapInviteSignUpError(data: unknown): InviteSignUpError {
   if (data && typeof data === 'object' && 'error' in data) {
     const error = String((data as { error: string }).error);
@@ -96,6 +114,17 @@ export function createAuthGateway(): AuthGateway {
     async getSession() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
+        if (isBrowserOnline() && isAccessTokenExpired(data.session.access_token)) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed.session) {
+            lastKnownSession = toAuthSession(refreshed.session);
+            return lastKnownSession;
+          }
+
+          lastKnownSession = null;
+          return null;
+        }
+
         lastKnownSession = toAuthSession(data.session);
         return lastKnownSession;
       }

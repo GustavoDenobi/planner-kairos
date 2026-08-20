@@ -3,6 +3,7 @@ import type { AuthSession } from '@/application/ports/auth-gateway';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 const mockGetSession = vi.fn();
+const mockRefreshSession = vi.fn();
 const mockSignOut = vi.fn();
 const mockOnAuthStateChange = vi.fn();
 const mockSignInWithPassword = vi.fn();
@@ -14,6 +15,7 @@ vi.mock('./client', () => ({
       signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
       getSession: (...args: unknown[]) => mockGetSession(...args),
+      refreshSession: (...args: unknown[]) => mockRefreshSession(...args),
       onAuthStateChange: (...args: unknown[]) => mockOnAuthStateChange(...args),
     },
     functions: {
@@ -22,11 +24,18 @@ vi.mock('./client', () => ({
   },
 }));
 
-import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
+import { createAuthGateway, isAccessTokenExpired } from '@/infrastructure/supabase/auth-gateway';
 
-function createSupabaseSession(): Session {
+function encodeJwt(payload: object): string {
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const body = btoa(JSON.stringify(payload));
+  return `${header}.${body}.sig`;
+}
+
+function createSupabaseSession(accessToken?: string): Session {
   return {
-    access_token: 'access-token',
+    access_token:
+      accessToken ?? encodeJwt({ exp: Math.floor(Date.now() / 1000) + 3600, sub: 'user-1' }),
     refresh_token: 'refresh-token',
     expires_in: 3600,
     token_type: 'bearer',
@@ -47,6 +56,7 @@ describe('auth-gateway offline session preservation', () => {
     mockOnAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
     });
+    mockRefreshSession.mockResolvedValue({ data: { session: null } });
   });
 
   afterEach(() => {
@@ -110,6 +120,67 @@ describe('auth-gateway offline session preservation', () => {
 
     expect(received[0]?.user.id).toBe('user-1');
     expect(received[1]).toBeNull();
+  });
+});
+
+describe('auth-gateway expired access token', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    });
+    mockRefreshSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('detects expired jwt payload', () => {
+    const expired = encodeJwt({ exp: Math.floor(Date.now() / 1000) - 60 });
+    const valid = encodeJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+
+    expect(isAccessTokenExpired(expired)).toBe(true);
+    expect(isAccessTokenExpired(valid)).toBe(false);
+    expect(isAccessTokenExpired('not-a-jwt')).toBe(true);
+  });
+
+  it('refreshes expired session while online', async () => {
+    const gateway = createAuthGateway();
+    const expired = createSupabaseSession(encodeJwt({ exp: Math.floor(Date.now() / 1000) - 60 }));
+    const refreshed = createSupabaseSession();
+
+    vi.stubGlobal('navigator', { onLine: true });
+    mockGetSession.mockResolvedValueOnce({ data: { session: expired } });
+    mockRefreshSession.mockResolvedValueOnce({ data: { session: refreshed } });
+
+    const session = await gateway.getSession();
+    expect(session?.accessToken).toBe(refreshed.access_token);
+    expect(mockRefreshSession).toHaveBeenCalledOnce();
+  });
+
+  it('returns null when expired refresh fails while online', async () => {
+    const gateway = createAuthGateway();
+    const expired = createSupabaseSession(encodeJwt({ exp: Math.floor(Date.now() / 1000) - 60 }));
+
+    vi.stubGlobal('navigator', { onLine: true });
+    mockGetSession.mockResolvedValueOnce({ data: { session: expired } });
+    mockRefreshSession.mockResolvedValueOnce({ data: { session: null } });
+
+    const session = await gateway.getSession();
+    expect(session).toBeNull();
+  });
+
+  it('keeps expired session while offline without refreshing', async () => {
+    const gateway = createAuthGateway();
+    const expired = createSupabaseSession(encodeJwt({ exp: Math.floor(Date.now() / 1000) - 60 }));
+
+    vi.stubGlobal('navigator', { onLine: false });
+    mockGetSession.mockResolvedValueOnce({ data: { session: expired } });
+
+    const session = await gateway.getSession();
+    expect(session?.user.id).toBe('user-1');
+    expect(mockRefreshSession).not.toHaveBeenCalled();
   });
 });
 

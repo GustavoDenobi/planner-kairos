@@ -464,7 +464,17 @@ export function ReadingPlaylistReaderPage() {
 
         setAnnotations([]);
 
-        setSkipUnavailable(true);
+        setSkipUnavailable(false);
+
+        setError(
+
+          online
+
+            ? 'Não foi possível abrir esta partitura. Verifique a conexão e tente novamente.'
+
+            : 'Não foi possível abrir a partitura salva neste dispositivo.',
+
+        );
 
         setIsLoadingItem(false);
 
@@ -488,7 +498,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, playlist, offline],
+    [org, playlist, offline, online],
 
   );
 
@@ -516,8 +526,6 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-    let cancelled = false;
-
     sequentialSkipRef.current = navState.sequential
 
       ? { direction: navState.direction ?? 'next' }
@@ -530,11 +538,9 @@ export function ReadingPlaylistReaderPage() {
 
       setError(null);
 
-      await loadSectionLeads();
+      if (online) {
 
-      if (cancelled) {
-
-        return;
+        void loadSectionLeads();
 
       }
 
@@ -550,14 +556,6 @@ export function ReadingPlaylistReaderPage() {
 
     void load();
 
-
-
-    return () => {
-
-      cancelled = true;
-
-    };
-
   }, [
 
     playlist,
@@ -569,6 +567,8 @@ export function ReadingPlaylistReaderPage() {
     loadItemAtIndex,
 
     loadSectionLeads,
+
+    online,
 
     navState.sequential,
 

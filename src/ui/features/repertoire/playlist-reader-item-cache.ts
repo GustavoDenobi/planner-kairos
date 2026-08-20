@@ -1,4 +1,4 @@
-import * as pdfjs from 'pdfjs-dist';
+import type * as pdfjs from 'pdfjs-dist';
 import type { PdfAnnotation, ReadingPlaylistItemDetail } from '@/domain/repertoire';
 import type { OfflineUseCases } from '@/application/offline';
 import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
@@ -24,14 +24,6 @@ export async function loadPlaylistItemData(
     return null;
   }
 
-  const statusResult = await offline.getOfflineStatus(
-    organizationId,
-    item.pieceId,
-    item.pieceFileId,
-  );
-  const isCachedLocally =
-    statusResult.ok && statusResult.value.fileStatus !== 'not_cached';
-
   const pdfLoad = await resolvePdfDocument(
     offline,
     organizationId,
@@ -43,17 +35,25 @@ export async function loadPlaylistItemData(
     return null;
   }
 
-  const annotationsResult = await offline.listAnnotationsForReading(
-    organizationId,
-    item.pieceFileId,
-  );
+  let annotations: PdfAnnotation[] = [];
+  try {
+    const annotationsResult = await offline.listAnnotationsForReading(
+      organizationId,
+      item.pieceFileId,
+    );
+    if (annotationsResult.ok) {
+      annotations = annotationsResult.value;
+    }
+  } catch {
+    /* Open the score even if annotations cannot be loaded. */
+  }
 
   return {
     downloadUrl: pdfLoad.downloadUrl,
-    annotations: annotationsResult.ok ? annotationsResult.value : [],
+    annotations,
     numPages: pdfLoad.pdfDocument.numPages,
     pdfDocument: pdfLoad.pdfDocument,
-    isCachedLocally,
+    isCachedLocally: pdfLoad.resolved?.source === 'local',
   };
 }
 
@@ -83,13 +83,18 @@ export class PlaylistItemCache {
       return pending;
     }
 
-    const promise = loader().then((result) => {
-      this.inflight.delete(index);
-      if (result) {
-        this.entries.set(index, result);
-      }
-      return result;
-    });
+    const promise = loader()
+      .then((result) => {
+        this.inflight.delete(index);
+        if (result) {
+          this.entries.set(index, result);
+        }
+        return result;
+      })
+      .catch(() => {
+        this.inflight.delete(index);
+        return null;
+      });
     this.inflight.set(index, promise);
     return promise;
   }

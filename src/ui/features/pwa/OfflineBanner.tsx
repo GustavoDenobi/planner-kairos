@@ -13,12 +13,16 @@ export function OfflineBanner({ isCached = false }: OfflineBannerProps) {
 
   return (
     <div
-      className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
+      className="shrink-0 border-b border-amber-200 bg-amber-50 py-2 text-center text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
+      style={{
+        paddingLeft: 'max(1rem, var(--safe-area-left))',
+        paddingRight: 'max(1rem, var(--safe-area-right))',
+      }}
       role="status"
     >
       {isCached
-        ? 'Sem conexão — lendo arquivos salvos no dispositivo.'
-        : 'Sem conexão — alguns conteúdos podem não estar disponíveis.'}
+        ? 'Sem conexão. Lendo arquivos salvos no dispositivo.'
+        : 'Sem conexão. Alguns conteúdos podem não estar disponíveis.'}
     </div>
   );
 }

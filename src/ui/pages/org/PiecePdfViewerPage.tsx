@@ -68,38 +68,6 @@ export function PiecePdfViewerPage() {
       setAnnotations([]);
       setSectionLeadOptions([]);
 
-      const statusResult = await offline.getOfflineStatus(
-        organizationId,
-        currentPieceId,
-        currentFileId,
-      );
-      if (!cancelled && statusResult.ok) {
-        setIsCachedLocally(statusResult.value.fileStatus !== 'not_cached');
-      }
-
-      let pieceFile: PieceFileWithLinks | null = null;
-      if (online) {
-        const pieceResult = await repertoire.getPiece(organizationId, currentPieceId);
-        if (!cancelled && pieceResult.ok) {
-          const found = pieceResult.value.files.find((item) => item.id === currentFileId);
-          if (!found) {
-            setError('Arquivo não encontrado nesta obra. Volte à obra e escolha outra partitura.');
-            setIsLoading(false);
-            return;
-          }
-          if (found.kind !== 'score') {
-            setError('Este arquivo não é uma partitura PDF. Abra um arquivo do tipo partitura.');
-            setIsLoading(false);
-            return;
-          }
-          pieceFile = found;
-        } else if (!cancelled) {
-          setError('Obra não encontrada. Ela pode ter sido removida — volte ao repertório.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
       const pdfLoad = await resolvePdfDocument(
         offline,
         organizationId,
@@ -127,39 +95,29 @@ export function PiecePdfViewerPage() {
         return;
       }
 
+      let pieceFile: PieceFileWithLinks | null = null;
+      if (online && pdfLoad.resolved?.source !== 'local') {
+        const pieceResult = await repertoire.getPiece(organizationId, currentPieceId);
+        if (!cancelled && pieceResult.ok) {
+          const found = pieceResult.value.files.find((item) => item.id === currentFileId);
+          if (!found) {
+            setError('Arquivo não encontrado nesta obra. Volte à obra e escolha outra partitura.');
+            setIsLoading(false);
+            return;
+          }
+          if (found.kind !== 'score') {
+            setError('Este arquivo não é uma partitura PDF. Abra um arquivo do tipo partitura.');
+            setIsLoading(false);
+            return;
+          }
+          pieceFile = found;
+        }
+      }
+
       const annotationsResult = await offline.listAnnotationsForReading(
         organizationId,
         currentFileId,
       );
-
-      if (userId && online) {
-        const musicianResult = await ensemble.getMyMusician(organizationId, userId);
-        if (!cancelled && musicianResult.ok) {
-          const assignmentsResult = await ensemble.listAssignmentsForMusician(
-            organizationId,
-            musicianResult.value.id,
-          );
-          if (!cancelled && assignmentsResult.ok) {
-            const leads: SectionLeadOption[] = [];
-            const seen = new Set<string>();
-            for (const assignment of assignmentsResult.value) {
-              if (
-                assignment.ensembleRole !== 'section_lead' ||
-                !assignment.sectionId ||
-                seen.has(assignment.sectionId)
-              ) {
-                continue;
-              }
-              seen.add(assignment.sectionId);
-              leads.push({
-                id: assignment.sectionId,
-                name: assignment.sectionName ?? 'Naipe',
-              });
-            }
-            setSectionLeadOptions(leads);
-          }
-        }
-      }
 
       if (cancelled) {
         return;
@@ -184,10 +142,42 @@ export function PiecePdfViewerPage() {
       setFile(pieceFile);
       setDownloadUrl(pdfLoad.downloadUrl);
       setPreloadedPdf(pdfLoad.pdfDocument);
+      setIsCachedLocally(pdfLoad.resolved?.source === 'local');
       if (annotationsResult.ok) {
         setAnnotations(annotationsResult.value);
       }
       setIsLoading(false);
+
+      if (!userId || !online) {
+        return;
+      }
+
+      const musicianResult = await ensemble.getMyMusician(organizationId, userId);
+      if (!cancelled && musicianResult.ok) {
+        const assignmentsResult = await ensemble.listAssignmentsForMusician(
+          organizationId,
+          musicianResult.value.id,
+        );
+        if (!cancelled && assignmentsResult.ok) {
+          const leads: SectionLeadOption[] = [];
+          const seen = new Set<string>();
+          for (const assignment of assignmentsResult.value) {
+            if (
+              assignment.ensembleRole !== 'section_lead' ||
+              !assignment.sectionId ||
+              seen.has(assignment.sectionId)
+            ) {
+              continue;
+            }
+            seen.add(assignment.sectionId);
+            leads.push({
+              id: assignment.sectionId,
+              name: assignment.sectionName ?? 'Naipe',
+            });
+          }
+          setSectionLeadOptions(leads);
+        }
+      }
     }
 
     void load();

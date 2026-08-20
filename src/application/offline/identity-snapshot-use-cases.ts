@@ -12,6 +12,38 @@ export function sessionFromIdentitySnapshot(snapshot: IdentitySnapshot): AuthSes
   };
 }
 
+export function sessionFromOfflineSnapshot(
+  isOnline: boolean,
+  snapshot: IdentitySnapshot | null,
+): AuthSession | null {
+  if (isOnline || !snapshot) {
+    return null;
+  }
+  return sessionFromIdentitySnapshot(snapshot);
+}
+
+export function resolveHomeRedirectPath(input: {
+  hasSession: boolean;
+  isOnline: boolean;
+  storedOrgSlug: string | null;
+  snapshot: IdentitySnapshot | null;
+}): string {
+  if (input.hasSession) {
+    return input.storedOrgSlug ? `/${input.storedOrgSlug}/leitura` : '/orgs';
+  }
+
+  if (!input.isOnline && input.snapshot) {
+    const slug = input.snapshot.currentOrgSlug ?? input.storedOrgSlug;
+    return slug ? `/${slug}/leitura` : '/orgs';
+  }
+
+  return '/login';
+}
+
+export function shouldPromptOfflineOrgSync(isOnline: boolean, isOfflineData: boolean): boolean {
+  return !isOnline || isOfflineData;
+}
+
 export async function getIdentitySnapshot(
   identityStore: OfflineIdentityStore,
 ): Promise<IdentitySnapshot | null> {

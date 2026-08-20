@@ -42,7 +42,6 @@ export function ReaderLayout({
 
   return (
     <div className="flex h-[var(--app-vh)] flex-col bg-bg">
-      {offlineBanner}
       <header
         className="flex shrink-0 items-center gap-2 border-b border-border bg-surface py-3"
         style={{
@@ -82,6 +81,7 @@ export function ReaderLayout({
           ) : null}
         </div>
       </header>
+      {offlineBanner}
       <main className="flex min-h-0 flex-1 flex-col">{children}</main>
     </div>
   );

@@ -119,6 +119,39 @@ describe('resolvePieceFileForReading', () => {
     expect(pieceRepo.getById).not.toHaveBeenCalled();
   });
 
+  it('falls through to remote when the cached blob is empty', async () => {
+    const fileCache = createFileCache();
+    await fileCache.put({
+      pieceFileId: 'file-1',
+      organizationId: 'org-1',
+      pieceId: 'piece-1',
+      contentHash: 'abc',
+      byteSize: 0,
+      title: 'Score',
+      cachedAt: new Date().toISOString(),
+      blob: new Blob([], { type: 'application/pdf' }),
+    });
+
+    const fileStorage = {
+      getSignedUrl: vi.fn(async () => 'https://files.test/score.pdf'),
+    } as unknown as FileStorage;
+
+    const result = await resolvePieceFileForReading(
+      createPieceRepo(),
+      createFileRepo(),
+      fileStorage,
+      fileCache,
+      'org-1',
+      'piece-1',
+      'file-1',
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({ source: 'remote', url: 'https://files.test/score.pdf' });
+    }
+  });
+
   it('fails when offline and not cached', async () => {
     vi.stubGlobal('navigator', { onLine: false });
 

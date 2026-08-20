@@ -118,9 +118,15 @@ export async function resolvePieceFileForReading(
   fileId: string,
 ): Promise<Result<ResolvedPieceFile, string>> {
   const cachedBlob = await fileCache.getBlob(fileId);
-  if (cachedBlob) {
-    const buffer = await new Response(cachedBlob).arrayBuffer();
-    return Result.ok({ source: 'local', data: buffer });
+  if (cachedBlob && cachedBlob.size > 0) {
+    try {
+      const buffer = await new Response(cachedBlob).arrayBuffer();
+      if (buffer.byteLength > 0) {
+        return Result.ok({ source: 'local', data: buffer });
+      }
+    } catch {
+      /* Fall through to a remote URL when the local blob cannot be read. */
+    }
   }
 
   if (!isBrowserOnline()) {

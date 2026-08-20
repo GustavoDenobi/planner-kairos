@@ -24,7 +24,8 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['logo.svg', 'logo.png'],
         manifest: pwaManifest,
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+          globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2,webmanifest,wasm}'],
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/^\/api\//],
         },

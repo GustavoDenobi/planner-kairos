@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { shouldPromptOfflineOrgSync } from '@/application/offline/identity-snapshot-use-cases';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function AuthGuard() {
   const { session, isLoading } = useAuth();
@@ -27,7 +29,9 @@ export function AuthGuard() {
 
 function OrgGuard({ children }: { children: React.ReactNode }) {
   const { orgSlug } = useParams();
-  const { organizations, isLoading, resolveOrgBySlug, refreshOrganizations } = useOrg();
+  const { organizations, isLoading, isOfflineData, resolveOrgBySlug, refreshOrganizations } =
+    useOrg();
+  const online = useOnlineStatus();
   const [retriedSlug, setRetriedSlug] = useState<string | null>(null);
 
   const isMember = orgSlug ? resolveOrgBySlug(orgSlug) !== null : true;
@@ -57,7 +61,7 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (organizations.length > 0) {
+  if (organizations.length > 0 || !shouldPromptOfflineOrgSync(online, isOfflineData)) {
     return <Navigate to="/orgs" replace />;
   }
 

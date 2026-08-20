@@ -24,16 +24,12 @@ export function AppLayout() {
       <Sidebar orgSlug={orgSlug} />
       <div className="flex min-h-dvh flex-1 flex-col">
         <MobileHeader orgSlug={orgSlug} />
-        {!online && (
-          <div className="px-4 pt-2 md:px-6">
-            <OfflineBanner />
-          </div>
-        )}
         <div
           className="shrink-0 md:hidden"
           style={{ height: spacing.headerOffset }}
           aria-hidden
         />
+        <OfflineBanner />
         <main
           className="flex-1 px-4 py-4 md:p-6"
           style={{ paddingBottom: `calc(${spacing.bottomNavOffset} + 1rem)` }}

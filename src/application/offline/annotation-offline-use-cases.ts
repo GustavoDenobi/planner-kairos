@@ -45,24 +45,28 @@ export async function listAnnotationsForReading(
   pieceFileId: string,
 ): Promise<Result<PdfAnnotation[], string>> {
   if (isBrowserOnline()) {
-    const serverAnnotations = await annotationRepo.listForFile(organizationId, pieceFileId);
-    for (const annotation of serverAnnotations) {
-      await annotationStore.upsert({
-        clientId: annotation.id,
-        id: annotation.id,
-        organizationId: annotation.organizationId,
-        pieceFileId: annotation.pieceFileId,
-        pageNumber: annotation.pageNumber,
-        layer: annotation.layer,
-        type: annotation.type,
-        geometry: annotation.geometry,
-        color: annotation.color,
-        authorUserId: annotation.authorUserId,
-        sectionId: annotation.sectionId,
-        createdAt: annotation.createdAt,
-        updatedAt: annotation.updatedAt,
-        syncStatus: 'synced',
-      });
+    try {
+      const serverAnnotations = await annotationRepo.listForFile(organizationId, pieceFileId);
+      for (const annotation of serverAnnotations) {
+        await annotationStore.upsert({
+          clientId: annotation.id,
+          id: annotation.id,
+          organizationId: annotation.organizationId,
+          pieceFileId: annotation.pieceFileId,
+          pageNumber: annotation.pageNumber,
+          layer: annotation.layer,
+          type: annotation.type,
+          geometry: annotation.geometry,
+          color: annotation.color,
+          authorUserId: annotation.authorUserId,
+          sectionId: annotation.sectionId,
+          createdAt: annotation.createdAt,
+          updatedAt: annotation.updatedAt,
+          syncStatus: 'synced',
+        });
+      }
+    } catch {
+      /* Keep locally cached annotations when the server cannot be reached. */
     }
   }
 

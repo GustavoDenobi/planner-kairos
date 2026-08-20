@@ -37,6 +37,7 @@ import {
   getIdentitySnapshot,
   saveIdentitySnapshot,
   sessionFromIdentitySnapshot,
+  sessionFromOfflineSnapshot,
 } from './identity-snapshot-use-cases';
 import type { CachePlaylistProgress } from './types';
 
@@ -214,6 +215,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     ) => saveIdentitySnapshot(identityStore, session, organizations, currentOrgSlug),
 
     sessionFromIdentitySnapshot: sessionFromIdentitySnapshot,
+
+    sessionFromOfflineSnapshot: sessionFromOfflineSnapshot,
 
     findOrganizationBySlug: findOrganizationBySlug,
 

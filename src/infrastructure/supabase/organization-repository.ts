@@ -24,7 +24,11 @@ export function createOrganizationRepository(): OrganizationRepository {
         .select('access_role, organization_id')
         .eq('user_id', userId);
 
-      if (membershipError || !membershipRows?.length) {
+      if (membershipError) {
+        throw new Error(membershipError.message);
+      }
+
+      if (!membershipRows?.length) {
         return [];
       }
 
@@ -34,7 +38,11 @@ export function createOrganizationRepository(): OrganizationRepository {
         .select('id, name, slug, image_storage_key')
         .in('id', orgIds);
 
-      if (orgError || !orgRows) {
+      if (orgError) {
+        throw new Error(orgError.message);
+      }
+
+      if (!orgRows) {
         return [];
       }
 

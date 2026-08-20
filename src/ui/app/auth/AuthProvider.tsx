@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type { AuthSession } from '@/application/ports';
 import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 
@@ -42,9 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      await restoreFromSnapshotIfOffline();
+    }
+
+    async function restoreFromSnapshotIfOffline() {
       const snapshot = await offline.getIdentitySnapshot();
-      if (snapshot) {
-        setSession(offline.sessionFromIdentitySnapshot(snapshot));
+      if (!active) {
+        return;
+      }
+
+      const restored = offline.sessionFromOfflineSnapshot(isBrowserOnline(), snapshot);
+      if (restored) {
+        setSession(restored);
         setIsOfflineSession(true);
       } else {
         setSession(null);
@@ -67,19 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      void offline.getIdentitySnapshot().then((snapshot) => {
-        if (!active) {
-          return;
-        }
-        if (snapshot) {
-          setSession(offline.sessionFromIdentitySnapshot(snapshot));
-          setIsOfflineSession(true);
-        } else {
-          setSession(null);
-          setIsOfflineSession(false);
-        }
-        setIsLoading(false);
-      });
+      void restoreFromSnapshotIfOffline();
     });
 
     return () => {

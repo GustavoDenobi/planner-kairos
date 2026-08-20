@@ -2,6 +2,15 @@ import type { OfflineUseCases } from '@/application/offline';
 import { OFFLINE_SIZE_WARNING_BYTES } from '@/application/offline/types';
 import type { ResolvedPieceFile } from '@/application/offline';
 import * as pdfjs from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+const PDFJS_LOAD_OPTIONS = {
+  // Avoid extra wasm/cmap fetches that fail when the app is offline.
+  useWasm: false,
+  useWorkerFetch: false,
+} as const;
 
 export function revokePdfObjectUrl(url: string | null | undefined): void {
   if (url?.startsWith('blob:')) {
@@ -11,6 +20,22 @@ export function revokePdfObjectUrl(url: string | null | undefined): void {
 
 function createPdfObjectUrl(data: ArrayBuffer): string {
   return URL.createObjectURL(new Blob([data.slice(0)], { type: 'application/pdf' }));
+}
+
+export function openPdfDocument(
+  source: { data: ArrayBuffer } | { url: string },
+): pdfjs.PDFDocumentLoadingTask {
+  if ('data' in source) {
+    return pdfjs.getDocument({
+      data: new Uint8Array(source.data.slice(0)),
+      ...PDFJS_LOAD_OPTIONS,
+    });
+  }
+
+  return pdfjs.getDocument({
+    url: source.url,
+    ...PDFJS_LOAD_OPTIONS,
+  });
 }
 
 export async function resolvePdfDocument(
@@ -39,7 +64,7 @@ export async function resolvePdfDocument(
   try {
     if (resolved.source === 'local') {
       localDownloadUrl = createPdfObjectUrl(resolved.data);
-      const pdfDocument = await pdfjs.getDocument({ data: resolved.data }).promise;
+      const pdfDocument = await openPdfDocument({ data: resolved.data }).promise;
       return {
         resolved,
         pdfDocument,
@@ -48,7 +73,7 @@ export async function resolvePdfDocument(
       };
     }
 
-    const pdfDocument = await pdfjs.getDocument({ url: resolved.url }).promise;
+    const pdfDocument = await openPdfDocument({ url: resolved.url }).promise;
     return {
       resolved,
       pdfDocument,
