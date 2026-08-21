@@ -9,6 +9,11 @@ type ModalProps = {
   size?: 'md' | 'lg';
 };
 
+const modalPanelMaxHeightStyle = {
+  maxHeight:
+    'calc(var(--app-vh) - max(1rem, var(--safe-area-top)) - max(1rem, var(--safe-area-bottom)))',
+} as const;
+
 export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
   useBodyScrollLock(open);
 
@@ -38,12 +43,13 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
         onClick={onClose}
       />
       <div
-        className={`relative w-full ${maxWidthClass} rounded-xl border border-border bg-surface p-6 shadow-lg`}
+        className={`relative flex w-full flex-col overflow-hidden ${maxWidthClass} rounded-xl border border-border bg-surface p-6 shadow-lg`}
+        style={modalPanelMaxHeightStyle}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <h2 id="modal-title" className="text-lg font-semibold text-text">{title}</h2>
           <button
             type="button"
@@ -53,7 +59,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
             Fechar
           </button>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto overscroll-y-contain">{children}</div>
       </div>
     </div>
   );

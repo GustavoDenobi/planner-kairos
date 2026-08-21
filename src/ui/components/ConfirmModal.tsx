@@ -12,6 +12,11 @@ type ConfirmModalProps = {
   isConfirming?: boolean;
 };
 
+const modalPanelMaxHeightStyle = {
+  maxHeight:
+    'calc(var(--app-vh) - max(1rem, var(--safe-area-top)) - max(1rem, var(--safe-area-bottom)))',
+} as const;
+
 export function ConfirmModal({
   open,
   title,
@@ -49,7 +54,8 @@ export function ConfirmModal({
         disabled={isConfirming}
       />
       <div
-        className="relative w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg"
+        className="relative w-full max-w-md overflow-y-auto overscroll-y-contain rounded-xl border border-border bg-surface p-6 shadow-lg"
+        style={modalPanelMaxHeightStyle}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
