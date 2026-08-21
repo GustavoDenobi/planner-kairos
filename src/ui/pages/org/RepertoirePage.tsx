@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import type { AssignmentWithDetails, GroupListItem } from '@/domain/ensemble';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
-import { useRepertoire } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -48,6 +49,7 @@ export function RepertoirePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const repertoire = useRepertoire();
+  const ensemble = useEnsemble();
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
@@ -72,6 +74,13 @@ export function RepertoirePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTaxonomyLoading, setIsTaxonomyLoading] = useState(true);
   const [memberFiltersReady, setMemberFiltersReady] = useState(isAdmin);
+  const [pickerContextReady, setPickerContextReady] = useState(false);
+
+  const [groups, setGroups] = useState<GroupListItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [categoryIdsByGroupId, setCategoryIdsByGroupId] = useState<Record<string, string[]>>({});
+  const [groupFilter, setGroupFilter] = useState('');
+  const [memberGroupId, setMemberGroupId] = useState('');
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,7 +110,8 @@ export function RepertoirePage() {
   const isPageLoading =
     isTaxonomyLoading ||
     (showPiecesView && isLoading) ||
-    (!isAdmin && !memberFiltersReady);
+    (!isAdmin && !memberFiltersReady) ||
+    !pickerContextReady;
   useLoadingBar('repertoire', isPageLoading);
 
   const adminSectionTitles: Record<RepertoireAdminSection, string> = {
@@ -138,6 +148,84 @@ export function RepertoirePage() {
     setIsTaxonomyLoading(false);
   }, [org, repertoire, categoryId]);
 
+  const pickerGroups = useMemo(() => {
+    if (isAdmin) {
+      return groups;
+    }
+
+    const assignedGroupIds = new Set(assignments.map((assignment) => assignment.groupId));
+    return groups.filter((group) => assignedGroupIds.has(group.id));
+  }, [groups, assignments, isAdmin]);
+
+  const userAssignmentGroupCount = useMemo(
+    () => new Set(assignments.map((assignment) => assignment.groupId)).size,
+    [assignments],
+  );
+
+  const showGroupPicker =
+    pickerGroups.length > 1 && (isAdmin || userAssignmentGroupCount > 1);
+
+  const resolvedGroupId = isAdmin ? groupFilter : memberGroupId;
+
+  const loadPickerContext = useCallback(async () => {
+    if (!org) {
+      setPickerContextReady(true);
+      return;
+    }
+
+    setPickerContextReady(false);
+
+    const [groupsResult, categoryIdsResult] = await Promise.all([
+      ensemble.listGroups(org.id),
+      repertoire.listPieceCategoryIdsByGroup(org.id),
+    ]);
+
+    const nextGroups = groupsResult.ok
+      ? groupsResult.value.filter((group) => !group.archivedAt)
+      : [];
+    setGroups(nextGroups);
+    setCategoryIdsByGroupId(categoryIdsResult.ok ? categoryIdsResult.value : {});
+
+    let nextAssignments: AssignmentWithDetails[] = [];
+    if (!isAdmin && userId) {
+      const musicianResult = await ensemble.getMyMusician(org.id, userId);
+      if (musicianResult.ok) {
+        const assignmentsResult = await ensemble.listAssignmentsForMusician(
+          org.id,
+          musicianResult.value.id,
+        );
+        nextAssignments = assignmentsResult.ok ? assignmentsResult.value : [];
+      }
+    }
+    setAssignments(nextAssignments);
+
+    const assignedGroupIds = [...new Set(nextAssignments.map((assignment) => assignment.groupId))];
+    const availableGroups = isAdmin
+      ? nextGroups
+      : nextGroups.filter((group) => assignedGroupIds.includes(group.id));
+    const assignmentGroupCount = assignedGroupIds.length;
+    const shouldShowGroupPicker =
+      availableGroups.length > 1 && (isAdmin || assignmentGroupCount > 1);
+
+    const saved = !isAdmin && userId ? loadRepertoireMemberFilters(org.id, userId) : null;
+    const savedGroupId =
+      saved?.groupId && availableGroups.some((group) => group.id === saved.groupId)
+        ? saved.groupId
+        : '';
+
+    const initialGroupId = shouldShowGroupPicker
+      ? savedGroupId
+      : (availableGroups[0]?.id ?? '');
+
+    if (isAdmin) {
+      setGroupFilter(initialGroupId);
+    } else {
+      setMemberGroupId(initialGroupId);
+    }
+
+    setPickerContextReady(true);
+  }, [org, userId, isAdmin, ensemble, repertoire]);
+
   const loadMemberFilters = useCallback(async () => {
     if (!org || !userId || isAdmin) {
       setMemberFiltersReady(true);
@@ -170,16 +258,20 @@ export function RepertoirePage() {
 
     setIsLoading(true);
 
+    const activeGroupId = isAdmin ? groupFilter : memberGroupId;
+
     const searchOptions = isAdmin
       ? {
           query: searchQuery || undefined,
           categoryId: categoryFilter || undefined,
           themeIds: themeFilter ? [themeFilter] : undefined,
+          groupId: activeGroupId || undefined,
         }
       : {
           query: searchQuery || undefined,
           categoryId: memberCategoryId || undefined,
           themeIds: themeFilter ? [themeFilter] : undefined,
+          groupId: memberGroupId || undefined,
         };
 
     const piecesResult = await repertoire.searchPieces(org.id, searchOptions);
@@ -197,6 +289,8 @@ export function RepertoirePage() {
     categoryFilter,
     themeFilter,
     memberCategoryId,
+    memberGroupId,
+    groupFilter,
     repertoire,
   ]);
 
@@ -220,31 +314,35 @@ export function RepertoirePage() {
 
   useEffect(() => {
     loadTaxonomy();
+    loadPickerContext();
     loadMemberFilters();
-  }, [loadTaxonomy, loadMemberFilters]);
+  }, [loadTaxonomy, loadPickerContext, loadMemberFilters]);
 
   useEffect(() => {
     loadPieces();
   }, [loadPieces]);
 
   useEffect(() => {
-    if (!org || !userId || isAdmin || !memberCategoryId) {
+    if (!org || !userId || isAdmin) {
       return;
     }
     saveRepertoireMemberFilters(org.id, userId, {
       categoryId: memberCategoryId,
+      groupId: memberGroupId,
     });
-  }, [org, userId, isAdmin, memberCategoryId]);
+  }, [org, userId, isAdmin, memberCategoryId, memberGroupId]);
 
   if (!org) {
     return null;
   }
 
-  function handleCategoryPickerSelect(categoryId: string) {
+  function handleCategoryPickerSelect(selection: { groupId: string; categoryId: string }) {
     if (isAdmin) {
-      setCategoryFilter(categoryId);
+      setCategoryFilter(selection.categoryId);
+      setGroupFilter(selection.groupId);
     } else {
-      setMemberCategoryId(categoryId);
+      setMemberCategoryId(selection.categoryId);
+      setMemberGroupId(selection.groupId);
     }
     setShowCategoryPicker(false);
   }
@@ -436,6 +534,26 @@ export function RepertoirePage() {
             Peça
           </button>
         )}
+        {isAdmin && adminSection === 'categories' && (
+          <button
+            type="button"
+            onClick={openCreateCategoryModal}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
+          >
+            <IconPlus className="h-4 w-4" />
+            Categoria
+          </button>
+        )}
+        {isAdmin && adminSection === 'themes' && (
+          <button
+            type="button"
+            onClick={openCreateThemeModal}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
+          >
+            <IconPlus className="h-4 w-4" />
+            Tema
+          </button>
+        )}
       </div>
 
       {isAdmin && adminSection === 'menu' && (
@@ -453,8 +571,12 @@ export function RepertoirePage() {
             categories={categories}
             themes={themes}
             isLoading={isLoading}
-            isCategoriesLoading={isTaxonomyLoading || !memberFiltersReady}
+            isCategoriesLoading={isTaxonomyLoading || !memberFiltersReady || !pickerContextReady}
             showCategoryPicker={showCategoryPicker}
+            pickerGroups={pickerGroups}
+            showGroupPicker={showGroupPicker}
+            resolvedGroupId={resolvedGroupId}
+            categoryIdsByGroupId={categoryIdsByGroupId}
             onCategoryPickerSelect={handleCategoryPickerSelect}
             isAdmin={isAdmin}
             searchInput={searchInput}
@@ -473,7 +595,6 @@ export function RepertoirePage() {
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <RepertoireCategoriesSection
             categories={categories}
-            onCreate={openCreateCategoryModal}
             onEdit={openEditCategoryModal}
             onReorder={handleReorderCategories}
             isReordering={isReorderingCategories}
@@ -484,11 +605,7 @@ export function RepertoirePage() {
 
       {isAdmin && adminSection === 'themes' && (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <RepertoireThemesSection
-            themes={themes}
-            onCreate={openCreateThemeModal}
-            onEdit={openEditThemeModal}
-          />
+          <RepertoireThemesSection themes={themes} onEdit={openEditThemeModal} />
         </div>
       )}
 

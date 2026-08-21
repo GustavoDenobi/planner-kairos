@@ -382,33 +382,45 @@ export type Database = {
       }
       groups: {
         Row: {
+          allow_file_download: boolean
+          allow_piece_access_override: boolean
           archived_at: string | null
           created_at: string
+          file_access_scope: Database["public"]["Enums"]["piece_file_access_scope"]
           id: string
           kind: Database["public"]["Enums"]["group_kind"]
           name: string
           notes: string | null
           organization_id: string
+          sort_order: number
           updated_at: string
         }
         Insert: {
+          allow_file_download?: boolean
+          allow_piece_access_override?: boolean
           archived_at?: string | null
           created_at?: string
+          file_access_scope?: Database["public"]["Enums"]["piece_file_access_scope"]
           id?: string
           kind: Database["public"]["Enums"]["group_kind"]
           name: string
           notes?: string | null
           organization_id: string
+          sort_order?: number
           updated_at?: string
         }
         Update: {
+          allow_file_download?: boolean
+          allow_piece_access_override?: boolean
           archived_at?: string | null
           created_at?: string
+          file_access_scope?: Database["public"]["Enums"]["piece_file_access_scope"]
           id?: string
           kind?: Database["public"]["Enums"]["group_kind"]
           name?: string
           notes?: string | null
           organization_id?: string
+          sort_order?: number
           updated_at?: string
         }
         Relationships: [
@@ -909,6 +921,98 @@ export type Database = {
           },
         ]
       }
+      piece_groups: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          organization_id: string
+          piece_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          organization_id: string
+          piece_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          organization_id?: string
+          piece_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_groups_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      piece_musicians: {
+        Row: {
+          created_at: string
+          id: string
+          musician_id: string
+          organization_id: string
+          piece_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          musician_id: string
+          organization_id: string
+          piece_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          musician_id?: string
+          organization_id?: string
+          piece_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_musicians_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_musicians_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_musicians_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piece_theme_links: {
         Row: {
           created_at: string
@@ -993,11 +1097,13 @@ export type Database = {
       pieces: {
         Row: {
           aliases: string[]
+          allow_file_download: boolean | null
           category_id: string
           composer: string | null
           created_at: string
           deleted_at: string | null
           description: string | null
+          file_access_scope: Database["public"]["Enums"]["piece_file_access_scope"] | null
           id: string
           notes: string | null
           organization_id: string
@@ -1006,11 +1112,13 @@ export type Database = {
         }
         Insert: {
           aliases?: string[]
+          allow_file_download?: boolean | null
           category_id: string
           composer?: string | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          file_access_scope?: Database["public"]["Enums"]["piece_file_access_scope"] | null
           id?: string
           notes?: string | null
           organization_id: string
@@ -1019,11 +1127,13 @@ export type Database = {
         }
         Update: {
           aliases?: string[]
+          allow_file_download?: boolean | null
           category_id?: string
           composer?: string | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          file_access_scope?: Database["public"]["Enums"]["piece_file_access_scope"] | null
           id?: string
           notes?: string | null
           organization_id?: string
@@ -1332,7 +1442,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      can_see_event: { Args: { p_event_id: string }; Returns: boolean }
+      can_access_piece_file: { Args: { p_piece_file_id: string }; Returns: boolean }
+      can_download_piece_file: { Args: { p_piece_file_id: string }; Returns: boolean }
+      can_see_piece: { Args: { p_piece_id: string }; Returns: boolean }
       can_write_event: { Args: { p_event_id: string }; Returns: boolean }
       create_group_invite: {
         Args: { p_expires_at: string; p_group_id: string; p_max_uses?: number }
@@ -1433,6 +1545,7 @@ export type Database = {
       group_kind: "ensemble" | "choir" | "class" | "other"
       part_kind: "instrument" | "voice"
       piece_file_kind: "score" | "audio"
+      piece_file_access_scope: "own_parts" | "all_files"
       theme_preference: "light" | "dark"
     }
     CompositeTypes: {

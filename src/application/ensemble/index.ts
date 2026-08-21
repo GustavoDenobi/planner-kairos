@@ -1,5 +1,5 @@
 import type { AssignmentRepository } from '@/application/ports/assignment-repository';
-import type { GroupRepository, GroupInput, ListGroupsOptions } from '@/application/ports/group-repository';
+import type { GroupRepository, GroupInput, GroupFileAccessInput, ListGroupsOptions } from '@/application/ports/group-repository';
 import type { ListMusiciansOptions, MusicianRepository } from '@/application/ports/musician-repository';
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { SectionRepository } from '@/application/ports/section-repository';
@@ -12,7 +12,7 @@ import {
   removeAssignment,
   updateAssignment,
 } from './assignment-use-cases';
-import { createGroup, deleteGroup, getGroup, updateGroup, archiveGroup, restoreGroup } from './group-use-cases';
+import { createGroup, deleteGroup, getGroup, updateGroup, archiveGroup, restoreGroup, updateGroupFileAccessSettings, reorderGroups } from './group-use-cases';
 import { listGroups } from './list-groups';
 import { deleteMusician, getMusician, getMyMusician, listMusicians, updateMusician } from './musician-use-cases';
 import {
@@ -58,6 +58,13 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
       archiveGroup(deps.groupRepo, organizationId, groupId),
     restoreGroup: (organizationId: string, groupId: string) =>
       restoreGroup(deps.groupRepo, organizationId, groupId),
+    reorderGroups: (organizationId: string, orderedGroupIds: string[]) =>
+      reorderGroups(deps.groupRepo, organizationId, orderedGroupIds),
+    updateGroupFileAccessSettings: (
+      organizationId: string,
+      groupId: string,
+      input: GroupFileAccessInput,
+    ) => updateGroupFileAccessSettings(deps.groupRepo, organizationId, groupId, input),
 
     listMusicians: (organizationId: string, options?: ListMusiciansOptions) =>
       listMusicians(deps.musicianRepo, organizationId, options),

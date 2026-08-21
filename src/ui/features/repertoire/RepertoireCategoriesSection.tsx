@@ -1,11 +1,10 @@
 import type { PieceCategory } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
-import { IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconPencil } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 
 type RepertoireCategoriesSectionProps = {
   categories: PieceCategory[];
-  onCreate: () => void;
   onEdit: (category: PieceCategory) => void;
   onReorder: (categories: PieceCategory[]) => void;
   isReordering?: boolean;
@@ -14,7 +13,6 @@ type RepertoireCategoriesSectionProps = {
 
 export function RepertoireCategoriesSection({
   categories,
-  onCreate,
   onEdit,
   onReorder,
   isReordering = false,
@@ -54,16 +52,6 @@ export function RepertoireCategoriesSection({
         />
       )}
       {reorderError && <p className="text-sm text-red-600">{reorderError}</p>}
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={onCreate}
-          className="inline-flex shrink-0 gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
-        >
-          <IconPlus className="h-4 w-4" />
-          Categoria
-        </button>
-      </div>
     </div>
   );
 }

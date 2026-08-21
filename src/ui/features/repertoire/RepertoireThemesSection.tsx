@@ -1,19 +1,21 @@
+import { compareByName } from '@/domain/ensemble/sort-order';
 import type { PieceTheme } from '@/domain/repertoire';
-import { IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconPencil } from '@/ui/components/icons';
 
 type RepertoireThemesSectionProps = {
   themes: PieceTheme[];
-  onCreate: () => void;
   onEdit: (theme: PieceTheme) => void;
 };
 
-export function RepertoireThemesSection({ themes, onCreate, onEdit }: RepertoireThemesSectionProps) {
+export function RepertoireThemesSection({ themes, onEdit }: RepertoireThemesSectionProps) {
+  const sortedThemes = [...themes].sort((a, b) => compareByName(a.name, b.name));
+
   return (
     <div className="space-y-4">
       
 
       <ul className="space-y-2">
-        {themes.map((theme) => (
+        {sortedThemes.map((theme) => (
           <li
             key={theme.id}
             className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2"
@@ -30,17 +32,6 @@ export function RepertoireThemesSection({ themes, onCreate, onEdit }: Repertoire
           </li>
         ))}
       </ul>
-
-      <div className="flex items-start justify-center gap-4">
-        <button
-          type="button"
-          onClick={onCreate}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
-        >
-          <IconPlus className="h-4 w-4" />
-          Novo tema
-        </button>
-      </div>
     </div>
   );
 }

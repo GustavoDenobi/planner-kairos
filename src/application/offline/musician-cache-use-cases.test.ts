@@ -77,7 +77,11 @@ function sampleGroup(overrides: Partial<GroupListItem> = {}): GroupListItem {
     kind: 'ensemble',
     notes: null,
     archivedAt: null,
+    fileAccessScope: 'own_parts',
+    allowFileDownload: true,
+    allowPieceAccessOverride: true,
     memberCount: 5,
+    sortOrder: 1,
     ...overrides,
   };
 }

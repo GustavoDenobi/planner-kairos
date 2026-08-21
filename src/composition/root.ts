@@ -17,6 +17,7 @@ import { createPartRepository } from '@/infrastructure/supabase/part-repository'
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
 import { createPieceFileAnnotationRepository } from '@/infrastructure/supabase/piece-file-annotation-repository';
 import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
+import { createPieceAccessRepository } from '@/infrastructure/supabase/piece-access-repository';
 import { createPieceRepository } from '@/infrastructure/supabase/piece-repository';
 import { createPieceThemeRepository } from '@/infrastructure/supabase/piece-theme-repository';
 import { createSectionRepository } from '@/infrastructure/supabase/section-repository';
@@ -41,6 +42,7 @@ export function createAppServices() {
   const categoryRepo = createPieceCategoryRepository();
   const themeRepo = createPieceThemeRepository();
   const pieceRepo = createPieceRepository();
+  const pieceAccessRepo = createPieceAccessRepository();
   const pieceFileRepo = createPieceFileRepository();
   const annotationRepo = createPieceFileAnnotationRepository();
   const playlistRepo = createReadingPlaylistRepository();
@@ -69,6 +71,7 @@ export function createAppServices() {
     categoryRepo,
     themeRepo,
     pieceRepo,
+    accessRepo: pieceAccessRepo,
     fileRepo: pieceFileRepo,
     annotationRepo,
     playlistRepo,

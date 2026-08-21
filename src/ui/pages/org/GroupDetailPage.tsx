@@ -27,6 +27,8 @@ import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconExternalLink, IconPencil, IconUsers, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
+import { GroupFileAccessSettingsForm } from '@/ui/features/repertoire/PieceAccessSettingsFields';
+import type { PieceFileAccessScope } from '@/domain/repertoire';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 function toDateInputValue(date: Date): string {
@@ -152,6 +154,11 @@ export function GroupDetailPage() {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isRemovingAssignment, setIsRemovingAssignment] = useState(false);
+  const [fileAccessScope, setFileAccessScope] = useState<PieceFileAccessScope>('own_parts');
+  const [allowFileDownload, setAllowFileDownload] = useState(true);
+  const [allowPieceAccessOverride, setAllowPieceAccessOverride] = useState(true);
+  const [isSavingFileAccess, setIsSavingFileAccess] = useState(false);
+  const [fileAccessError, setFileAccessError] = useState<string | null>(null);
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
   const isOfflineReadOnly = !online;
   const canEdit = isAdmin && !isOfflineReadOnly;
@@ -175,8 +182,11 @@ export function GroupDetailPage() {
         if (cachedGroup) {
           setGroup(cachedGroup);
           setName(cachedGroup.name);
-          setKind(cachedGroup.kind);
-          setNotes(cachedGroup.notes ?? '');
+        setKind(cachedGroup.kind);
+        setNotes(cachedGroup.notes ?? '');
+        setFileAccessScope(cachedGroup.fileAccessScope);
+        setAllowFileDownload(cachedGroup.allowFileDownload);
+        setAllowPieceAccessOverride(cachedGroup.allowPieceAccessOverride);
         } else {
           setGroup(null);
         }
@@ -196,6 +206,9 @@ export function GroupDetailPage() {
         setName(result.value.name);
         setKind(result.value.kind);
         setNotes(result.value.notes ?? '');
+        setFileAccessScope(result.value.fileAccessScope);
+        setAllowFileDownload(result.value.allowFileDownload);
+        setAllowPieceAccessOverride(result.value.allowPieceAccessOverride);
       }
       setIsLoading(false);
     });
@@ -476,6 +489,23 @@ export function GroupDetailPage() {
     }
     setGroup(result.value);
   }
+
+  async function handleSaveFileAccess() {
+    setFileAccessError(null);
+    setIsSavingFileAccess(true);
+    const result = await ensemble.updateGroupFileAccessSettings(org!.id, group!.id, {
+      fileAccessScope,
+      allowFileDownload,
+      allowPieceAccessOverride,
+    });
+    setIsSavingFileAccess(false);
+    if (!result.ok) {
+      setFileAccessError('Não foi possível salvar as configurações de acesso.');
+      return;
+    }
+    setGroup(result.value);
+  }
+
   function openArchiveModal() {
     setArchiveError(null);
     setArchiveOpen(true);
@@ -737,6 +767,31 @@ export function GroupDetailPage() {
                         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                       >
                         {isSaving ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-6 flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
+                    <h2 className="text-base font-semibold text-text">
+                      Acesso a arquivos de repertório
+                    </h2>
+                    <GroupFileAccessSettingsForm
+                      fileAccessScope={fileAccessScope}
+                      allowFileDownload={allowFileDownload}
+                      allowPieceAccessOverride={allowPieceAccessOverride}
+                      onFileAccessScopeChange={setFileAccessScope}
+                      onAllowFileDownloadChange={setAllowFileDownload}
+                      onAllowPieceAccessOverrideChange={setAllowPieceAccessOverride}
+                      disabled={!canEdit}
+                    />
+                    {fileAccessError && <p className="text-sm text-red-600">{fileAccessError}</p>}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        disabled={isSavingFileAccess}
+                        onClick={() => void handleSaveFileAccess()}
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {isSavingFileAccess ? 'Salvando…' : 'Salvar acesso'}
                       </button>
                     )}
                   </div>

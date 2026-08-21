@@ -4,6 +4,7 @@ export type SearchPiecesOptions = {
   query?: string;
   categoryId?: string;
   themeIds?: string[];
+  groupId?: string;
   accessibleForPartId?: string;
 };
 

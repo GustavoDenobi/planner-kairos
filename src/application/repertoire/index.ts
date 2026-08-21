@@ -3,11 +3,12 @@ import type { PartRepository } from '@/application/ports/part-repository';
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
+import type { PieceAccessRepository } from '@/application/ports/piece-access-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { CreatePdfAnnotationInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -33,6 +34,11 @@ import {
   updateReadingPlaylist,
 } from './reading-playlist-use-cases';
 import {
+  listPieceCategoryIdsByGroup,
+  shouldWarnEmptyPieceAudience,
+  updatePieceAccess,
+} from './piece-access-use-cases';
+import {
   catalogPiece,
   getPiece,
   searchPieces,
@@ -50,6 +56,7 @@ export type RepertoireDeps = {
   categoryRepo: PieceCategoryRepository;
   themeRepo: PieceThemeRepository;
   pieceRepo: PieceRepository;
+  accessRepo: PieceAccessRepository;
   fileRepo: PieceFileRepository;
   annotationRepo: PieceFileAnnotationRepository;
   playlistRepo: ReadingPlaylistRepository;
@@ -86,6 +93,15 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       catalogPiece(deps.pieceRepo, organizationId, input),
     updatePiece: (organizationId: string, pieceId: string, input: PieceInput) =>
       updatePiece(deps.pieceRepo, organizationId, pieceId, input),
+    updatePieceAccess: (organizationId: string, pieceId: string, input: PieceAccessInput) =>
+      updatePieceAccess(deps.pieceRepo, deps.accessRepo, organizationId, pieceId, input),
+    shouldWarnEmptyPieceAudience: (
+      isAdmin: boolean,
+      groupIds: string[],
+      musicianIds: string[],
+    ) => shouldWarnEmptyPieceAudience(isAdmin, groupIds, musicianIds),
+    listPieceCategoryIdsByGroup: (organizationId: string) =>
+      listPieceCategoryIdsByGroup(deps.accessRepo, organizationId),
     softDeletePiece: (organizationId: string, pieceId: string) =>
       softDeletePiece(deps.pieceRepo, organizationId, pieceId),
 

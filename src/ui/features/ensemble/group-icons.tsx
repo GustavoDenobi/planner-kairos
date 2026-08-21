@@ -1,6 +1,6 @@
 import type { GroupKind } from '@/domain/ensemble';
 import {
-  IconBookOpen,
+  IconGraduationCap,
   IconLayers,
   IconMic,
   IconMusic,
@@ -18,7 +18,7 @@ export function GroupKindIcon({ kind, className = 'h-5 w-5 shrink-0' }: GroupKin
     case 'choir':
       return <IconMic className={className} />;
     case 'class':
-      return <IconBookOpen className={className} />;
+      return <IconGraduationCap className={className} />;
     case 'other':
       return <IconLayers className={className} />;
   }

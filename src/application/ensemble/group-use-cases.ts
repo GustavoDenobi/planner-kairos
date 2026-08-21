@@ -1,6 +1,22 @@
-import type { GroupRepository } from '@/application/ports/group-repository';
-import type { GroupInput } from '@/application/ports/group-repository';
+import type { GroupRepository, GroupFileAccessInput, GroupInput } from '@/application/ports/group-repository';
 import { Result } from '@/domain/shared';
+
+export async function reorderGroups(
+  groupRepo: GroupRepository,
+  organizationId: string,
+  orderedGroupIds: string[],
+) {
+  if (orderedGroupIds.length === 0) {
+    return Result.ok(undefined);
+  }
+
+  try {
+    await groupRepo.reorderGroups(organizationId, orderedGroupIds);
+    return Result.ok(undefined);
+  } catch {
+    return Result.fail('reorder_failed');
+  }
+}
 
 export async function getGroup(
   groupRepo: GroupRepository,
@@ -93,5 +109,19 @@ export async function restoreGroup(
     return Result.ok(group);
   } catch {
     return Result.fail('restore_failed');
+  }
+}
+
+export async function updateGroupFileAccessSettings(
+  groupRepo: GroupRepository,
+  organizationId: string,
+  groupId: string,
+  input: GroupFileAccessInput,
+) {
+  try {
+    const group = await groupRepo.updateFileAccessSettings(organizationId, groupId, input);
+    return Result.ok(group);
+  } catch {
+    return Result.fail('update_failed');
   }
 }

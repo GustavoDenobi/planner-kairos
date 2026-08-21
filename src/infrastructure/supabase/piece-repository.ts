@@ -1,11 +1,12 @@
 import type { PieceRepository, SearchPiecesOptions } from '@/application/ports/piece-repository';
 import type { PieceCategory, PieceDetail, PieceInput, PieceListItem } from '@/domain/repertoire';
 import { normalizePieceAliases } from '@/domain/repertoire';
+import { createPieceAccessRepository } from './piece-access-repository';
 import { createPieceFileRepository } from './piece-file-repository';
 import { supabase } from './client';
 
 const PIECE_COLUMNS =
-  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at';
+  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_access_scope, allow_file_download';
 
 const CATEGORY_COLUMNS = 'id, organization_id, name, slug, sort_order, color';
 
@@ -141,12 +142,17 @@ async function buildPieceDetail(
     notes: string | null;
     aliases: string[] | null;
     deleted_at: string | null;
+    file_access_scope: PieceDetail['fileAccessScope'];
+    allow_file_download: boolean | null;
   },
   category: PieceCategory,
 ): Promise<PieceDetail> {
   const fileRepo = createPieceFileRepository();
+  const accessRepo = createPieceAccessRepository();
   const themes = await loadThemesForPiece(organizationId, pieceRow.id);
   const files = await fileRepo.listForPiece(organizationId, pieceRow.id);
+  const audience = await accessRepo.loadAudience(organizationId, [pieceRow.id]);
+  const pieceAudience = audience.get(pieceRow.id) ?? { groups: [], musicians: [] };
 
   return {
     id: pieceRow.id,
@@ -158,9 +164,13 @@ async function buildPieceDetail(
     notes: pieceRow.notes,
     aliases: pieceRow.aliases ?? [],
     deletedAt: pieceRow.deleted_at,
+    fileAccessScope: pieceRow.file_access_scope,
+    allowFileDownload: pieceRow.allow_file_download,
     category,
     themes,
     files,
+    groups: pieceAudience.groups,
+    musicians: pieceAudience.musicians,
   };
 }
 
@@ -190,6 +200,27 @@ export function createPieceRepository(): PieceRepository {
           .map(([pieceId]) => pieceId);
 
         if (pieceIdsFilter.length === 0) {
+          return [];
+        }
+      }
+
+      if (options?.groupId) {
+        const { data: groupRows, error: groupError } = await supabase
+          .from('piece_groups')
+          .select('piece_id')
+          .eq('organization_id', organizationId)
+          .eq('group_id', options.groupId);
+
+        if (groupError || !groupRows) {
+          return [];
+        }
+
+        const groupPieceIds = groupRows.map((row) => row.piece_id);
+        if (groupPieceIds.length === 0) {
+          return [];
+        }
+        pieceIdsFilter = intersectPieceIds(pieceIdsFilter, groupPieceIds);
+        if (pieceIdsFilter && pieceIdsFilter.length === 0) {
           return [];
         }
       }

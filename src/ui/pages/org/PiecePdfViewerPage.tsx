@@ -18,6 +18,10 @@ import {
 } from '@/ui/features/pwa/OfflineDownloadButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
+import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
+import type { PieceDetail } from '@/domain/repertoire';
+import type { AssignmentWithDetails } from '@/domain/ensemble';
+import type { GroupFileAccessSettings } from '@/domain/ensemble';
 
 export function PiecePdfViewerPage() {
   const { orgSlug, pieceId, fileId } = useParams();
@@ -38,9 +42,70 @@ export function PiecePdfViewerPage() {
   useLoadingBar('piece-pdf-viewer', isLoading);
   const [error, setError] = useState<string | null>(null);
   const [isCachedLocally, setIsCachedLocally] = useState(false);
+  const [allowFileDownload, setAllowFileDownload] = useState(true);
+
+  const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
 
   const detailPath =
     orgSlug && pieceId ? pieceDetailPath(orgSlug, pieceId) : `/${orgSlug ?? ''}/repertorio`;
+
+  async function resolveDownloadAccess(
+    pieceDetail: PieceDetail,
+    organizationId: string,
+    cancelled: boolean,
+  ) {
+    if (isAdmin) {
+      if (!cancelled) {
+        setAllowFileDownload(true);
+      }
+      return;
+    }
+
+    if (!userId) {
+      if (!cancelled) {
+        setAllowFileDownload(false);
+      }
+      return;
+    }
+
+    const musicianResult = await ensemble.getMyMusician(organizationId, userId);
+    if (cancelled) {
+      return;
+    }
+
+    const assignmentsResult = musicianResult.ok
+      ? await ensemble.listAssignmentsForMusician(organizationId, musicianResult.value.id)
+      : null;
+    const assignments: AssignmentWithDetails[] = assignmentsResult?.ok ? assignmentsResult.value : [];
+
+    const linkedGroupIds = pieceDetail.groups.map((group) => group.id);
+    const groupSettingsById = new Map<string, GroupFileAccessSettings>();
+    await Promise.all(
+      linkedGroupIds.map(async (groupId) => {
+        const result = await ensemble.getGroup(organizationId, groupId);
+        if (result.ok) {
+          groupSettingsById.set(groupId, {
+            fileAccessScope: result.value.fileAccessScope,
+            allowFileDownload: result.value.allowFileDownload,
+            allowPieceAccessOverride: result.value.allowPieceAccessOverride,
+          });
+        }
+      }),
+    );
+
+    if (cancelled) {
+      return;
+    }
+
+    const resolved = buildResolvedPieceFileAccess({
+      isAdmin: false,
+      piece: pieceDetail,
+      userMusicianId: musicianResult.ok ? musicianResult.value.id : null,
+      assignments,
+      groupSettingsById,
+    });
+    setAllowFileDownload(resolved?.allowDownload ?? false);
+  }
 
   useEffect(() => {
     if (!pieceId || !fileId) {
@@ -111,6 +176,7 @@ export function PiecePdfViewerPage() {
             return;
           }
           pieceFile = found;
+          await resolveDownloadAccess(pieceResult.value, organizationId, cancelled);
         }
       }
 
@@ -275,7 +341,7 @@ export function PiecePdfViewerPage() {
       downloadName={file.originalName}
       offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
       headerActions={
-        org ? (
+        org && allowFileDownload ? (
           <OfflineDownloadButton
             organizationId={org.id}
             pieceId={pieceId}

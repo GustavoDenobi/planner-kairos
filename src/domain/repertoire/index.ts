@@ -2,7 +2,12 @@ export type { PieceCategory, PieceCategoryInput } from './piece-category';
 export type { PieceTheme, PieceThemeInput } from './piece-theme';
 export type {
   Piece,
+  PieceAccessInput,
+  PieceAudienceGroup,
+  PieceAudienceMusician,
   PieceDetail,
+  PieceFileAccessScope,
+  PieceFileAccessSettingsInput,
   PieceInput,
   PieceListItem,
 } from './piece';
@@ -66,3 +71,18 @@ export {
   isEventSourcedPlaylistExpired,
   EVENT_SOURCED_PLAYLIST_TTL_MS,
 } from './rules';
+export {
+  buildAccessPathsForUser,
+  canSeePiece,
+  filterPieceFilesForAccess,
+  isUserConductorInLinkedGroups,
+  mergeResolvedAccess,
+  pieceHasNoAudience,
+  resolvePieceFileAccess,
+  resolveRulesForPath,
+} from './file-access';
+export type {
+  PieceAccessContext,
+  PieceAccessPath,
+  ResolvedPieceFileAccess,
+} from './file-access';

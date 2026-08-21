@@ -4,6 +4,7 @@ import { defaultPieceFileTitle, isPieceFileScore, resolvePieceFileMime } from '@
 import type {
   PieceCategory,
   PieceDetail,
+  PieceFileAccessScope,
   PieceFilePartLink,
   PieceFileWithLinks,
   PieceTheme,
@@ -19,6 +20,12 @@ import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
 import { IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
+import { AudienceChips } from '@/ui/features/audience';
+import { PiecePermissionsModal } from '@/ui/features/repertoire/PiecePermissionsModal';
+import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
+import type { AssignmentWithDetails } from '@/domain/ensemble';
+import type { GroupFileAccessSettings } from '@/domain/ensemble';
+import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/audience';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
@@ -56,6 +63,15 @@ export function PieceDetailPage() {
   const [themes, setThemes] = useState<PieceTheme[]>([]);
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
   const [isConductor, setIsConductor] = useState(false);
+  const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [userMusicianId, setUserMusicianId] = useState<string | null>(null);
+  const [allowFileDownload, setAllowFileDownload] = useState(true);
+
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+  const [audienceGroups, setAudienceGroups] = useState<AudienceGroupOption[]>([]);
+  const [audienceMusicians, setAudienceMusicians] = useState<AudienceMusicianOption[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('piece-detail', isLoading);
@@ -107,6 +123,8 @@ export function PieceDetailPage() {
         piece.description ||
         piece.notes ||
         piece.aliases.length > 0 ||
+        piece.groups.length > 0 ||
+        piece.musicians.length > 0 ||
         isAdmin,
     );
   }, [piece, isAdmin]);
@@ -128,6 +146,9 @@ export function PieceDetailPage() {
     if (!org || !userId) {
       setUserPartIds([]);
       setIsConductor(false);
+      setAssignments([]);
+      setUserMusicianId(null);
+      setAllowFileDownload(true);
       return;
     }
 
@@ -135,26 +156,33 @@ export function PieceDetailPage() {
     if (!musicianResult.ok) {
       setUserPartIds([]);
       setIsConductor(false);
+      setAssignments([]);
+      setUserMusicianId(null);
+      setAllowFileDownload(true);
       return;
     }
+
+    setUserMusicianId(musicianResult.value.id);
 
     const assignmentsResult = await ensemble.listAssignmentsForMusician(
       org.id,
       musicianResult.value.id,
     );
 
-    const assignments = assignmentsResult.ok ? assignmentsResult.value : [];
-    setIsConductor(assignments.some((assignment) => assignment.ensembleRole === 'conductor'));
+    const nextAssignments = assignmentsResult.ok ? assignmentsResult.value : [];
+    setAssignments(nextAssignments);
+    setIsConductor(nextAssignments.some((assignment) => assignment.ensembleRole === 'conductor'));
 
     if (isAdmin) {
       setUserPartIds([]);
+      setAllowFileDownload(true);
       return;
     }
 
     const partIds: string[] = [];
     const seen = new Set<string>();
 
-    for (const assignment of assignments) {
+    for (const assignment of nextAssignments) {
       if (!assignment.partId || seen.has(assignment.partId)) {
         continue;
       }
@@ -163,6 +191,80 @@ export function PieceDetailPage() {
     }
 
     setUserPartIds(partIds);
+  }
+
+  async function refreshResolvedAccess(currentPiece: PieceDetail) {
+    if (isAdmin || !org) {
+      setAllowFileDownload(true);
+      return;
+    }
+
+    const linkedGroupIds = currentPiece.groups.map((group) => group.id);
+    if (linkedGroupIds.length === 0) {
+      const resolved = buildResolvedPieceFileAccess({
+        isAdmin: false,
+        piece: currentPiece,
+        userMusicianId,
+        assignments,
+        groupSettingsById: new Map(),
+      });
+      setAllowFileDownload(resolved?.allowDownload ?? false);
+      return;
+    }
+
+    const groupSettingsById = new Map<string, GroupFileAccessSettings>();
+    await Promise.all(
+      linkedGroupIds.map(async (groupId) => {
+        const result = await ensemble.getGroup(org.id, groupId);
+        if (result.ok) {
+          groupSettingsById.set(groupId, {
+            fileAccessScope: result.value.fileAccessScope,
+            allowFileDownload: result.value.allowFileDownload,
+            allowPieceAccessOverride: result.value.allowPieceAccessOverride,
+          });
+        }
+      }),
+    );
+
+    const resolved = buildResolvedPieceFileAccess({
+      isAdmin: false,
+      piece: currentPiece,
+      userMusicianId,
+      assignments,
+      groupSettingsById,
+    });
+    setAllowFileDownload(resolved?.allowDownload ?? false);
+  }
+
+  async function loadAudienceOptions() {
+    if (!org || !isAdmin) {
+      return;
+    }
+
+    const [groupsResult, musiciansResult] = await Promise.all([
+      ensemble.listGroups(org.id),
+      ensemble.listMusicians(org.id),
+    ]);
+
+    if (groupsResult.ok) {
+      setAudienceGroups(
+        groupsResult.value.map((group) => ({
+          id: group.id,
+          name: group.name,
+          kind: group.kind,
+        })),
+      );
+    }
+
+    if (musiciansResult.ok) {
+      setAudienceMusicians(
+        musiciansResult.value.items.map((musician) => ({
+          id: musician.id,
+          name: musician.fullName,
+          partNames: [],
+        })),
+      );
+    }
   }
 
   async function loadPiece() {
@@ -187,6 +289,7 @@ export function PieceDetailPage() {
       setDescription(pieceResult.value.description ?? '');
       setNotes(pieceResult.value.notes ?? '');
       setSelectedThemeIds(pieceResult.value.themes.map((theme) => theme.id));
+      await refreshResolvedAccess(pieceResult.value);
     } else {
       setPiece(null);
     }
@@ -207,8 +310,16 @@ export function PieceDetailPage() {
   useEffect(() => {
     loadPiece();
     loadMemberParts();
+    loadAudienceOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org?.id, pieceId, userId, isAdmin]);
+
+  useEffect(() => {
+    if (piece && !isAdmin) {
+      void refreshResolvedAccess(piece);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piece, assignments, userMusicianId, isAdmin]);
 
   if (!org || !pieceId) {
     return null;
@@ -236,6 +347,33 @@ export function PieceDetailPage() {
     setNotes(piece!.notes ?? '');
     setSelectedThemeIds(piece!.themes.map((theme) => theme.id));
     setError(null);
+  }
+
+  function openPermissionsModal() {
+    setPermissionsError(null);
+    setPermissionsOpen(true);
+  }
+
+  async function handleSavePermissions(input: {
+    groupIds: string[];
+    musicianIds: string[];
+    fileAccessScope: PieceFileAccessScope | null;
+    allowFileDownload: boolean | null;
+  }) {
+    if (!org || !piece) {
+      return false;
+    }
+    setPermissionsError(null);
+    setIsSavingPermissions(true);
+    const result = await repertoire.updatePieceAccess(org.id, piece.id, input);
+    setIsSavingPermissions(false);
+    if (!result.ok) {
+      setPermissionsError(repertoireErrorMessage(result.error));
+      return false;
+    }
+    setPiece(result.value);
+    await refreshResolvedAccess(result.value);
+    return true;
   }
 
   function openEditModal() {
@@ -618,8 +756,19 @@ export function PieceDetailPage() {
                   </div>
                 )}
 
+                {(piece.groups.length > 0 || piece.musicians.length > 0) && (
+                  <div>
+                    <h2 className="text-sm font-medium text-text">Visível para</h2>
+                    <AudienceChips
+                      groups={piece.groups}
+                      musicians={piece.musicians}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+
                 {isAdmin && (
-                  <div className="flex justify-center">
+                  <div className="flex flex-wrap justify-center gap-2">
                     <button
                       type="button"
                       onClick={openEditModal}
@@ -627,6 +776,14 @@ export function PieceDetailPage() {
                     >
                       <IconPencil className="h-4 w-4" />
                       Editar peça
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openPermissionsModal}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm"
+                    >
+                      <IconPencil className="h-4 w-4" />
+                      Editar permissões
                     </button>
                   </div>
                 )}
@@ -664,6 +821,7 @@ export function PieceDetailPage() {
         isAdmin={isAdmin}
         userPartIds={userPartIds}
         isConductor={isConductor}
+        allowDownload={allowFileDownload}
         onOpen={handleOpen}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}
@@ -951,6 +1109,19 @@ export function PieceDetailPage() {
           </div>
         )}
       </Modal>
+
+      {isAdmin && (
+        <PiecePermissionsModal
+          open={permissionsOpen}
+          piece={piece}
+          groups={audienceGroups}
+          musicians={audienceMusicians}
+          onClose={() => !isSavingPermissions && setPermissionsOpen(false)}
+          onSave={handleSavePermissions}
+          isSaving={isSavingPermissions}
+          error={permissionsError}
+        />
+      )}
 
       <AudioPlayerModal
         open={playingAudioFile !== null}

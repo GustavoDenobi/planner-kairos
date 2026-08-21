@@ -1,4 +1,4 @@
-export type { Group, GroupKind, GroupListItem } from './group';
+export type { Group, GroupFileAccessSettings, GroupKind, GroupListItem } from './group';
 export type { Musician, MusicianInput, MusicianListItem } from './musician';
 export type { Part, PartInput, PartKind } from './part';
 export type { PartDivision, PartDivisionInput } from './part-division';

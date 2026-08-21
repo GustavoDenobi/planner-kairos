@@ -8,19 +8,20 @@ import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { IconUsers } from '@/ui/components/icons';
+import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
 import { GroupKindIcon } from '@/ui/features/ensemble/group-icons';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
-import { matchesSearchText } from '@/ui/utils/normalize-search-text';
+import { matchesSearchText, normalizeSearchText } from '@/ui/utils/normalize-search-text';
 
 function sortGroups(groups: GroupListItem[]) {
   const active = groups
-    .filter((g) => !g.archivedAt)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((group) => !group.archivedAt)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
   const archived = groups
-    .filter((g) => g.archivedAt)
-    .sort((a, b) => b.archivedAt!.getTime() - a.archivedAt!.getTime());
+    .filter((group) => group.archivedAt)
+    .sort((left, right) => right.archivedAt!.getTime() - left.archivedAt!.getTime());
   return { active, archived };
 }
 
@@ -45,8 +46,10 @@ export function GroupsPage() {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const isSearching = normalizeSearchText(searchQuery).length > 0;
   const { active: activeGroups, archived: archivedGroups } = sortGroups(groups);
   const filteredActiveGroups = useMemo(
     () => activeGroups.filter((group) => matchesSearchText(group.name, searchQuery)),
@@ -106,27 +109,57 @@ export function GroupsPage() {
       setError('Não foi possível criar o grupo. Verifique o nome e tente novamente.');
       return;
     }
-    setGroups((prev) =>
-      [...prev, { ...result.value, memberCount: 0 }].sort((a, b) => a.name.localeCompare(b.name)),
-    );
+    setGroups((previous) => {
+      const next = [...previous, { ...result.value, memberCount: 0 }];
+      const { active, archived } = sortGroups(next);
+      return [...active, ...archived];
+    });
     setCreateOpen(false);
     setName('');
     setKind('ensemble');
     setNotes('');
   }
 
-  function renderGroupItem(group: GroupListItem, archived: boolean) {
+  async function handleReorderGroups(reordered: GroupListItem[]) {
+    const previous = groups;
+    const reorderedWithSortOrder = reordered.map((group, index) => ({
+      ...group,
+      sortOrder: index + 1,
+    }));
+    setGroups([...reorderedWithSortOrder, ...archivedGroups]);
+    setError(null);
+    setIsReordering(true);
+
+    const result = await ensemble.reorderGroups(
+      org!.id,
+      reordered.map((group) => group.id),
+    );
+
+    setIsReordering(false);
+
+    if (!result.ok) {
+      setGroups(previous);
+      setError('Não foi possível reordenar os grupos. Tente novamente em instantes.');
+    }
+  }
+
+  function renderGroupItem(
+    group: GroupListItem,
+    archived: boolean,
+    handle?: SortableDragHandleProps,
+  ) {
     return (
-      <li key={group.id}>
-        <Link
-          to={`/${orgSlug}/grupos/${group.id}`}
-          className={`flex items-center justify-between rounded-xl border border-border px-4 py-3 transition-colors ${
-            archived
-              ? 'bg-bg text-muted hover:bg-surface'
-              : 'bg-surface hover:bg-bg'
-          }`}
-        >
-          <div>
+      <div
+        className={`flex items-center justify-between rounded-xl border border-border px-4 py-3 transition-colors ${
+          archived ? 'bg-bg text-muted' : 'bg-surface hover:bg-bg'
+        }`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {handle ? <SortableDragHandle {...handle} label={`Reordenar ${group.name}`} /> : null}
+          <Link
+            to={`/${orgSlug}/grupos/${group.id}`}
+            className="min-w-0 flex-1"
+          >
             <p className={`flex items-center gap-2 font-medium ${archived ? 'text-muted' : 'text-text'}`}>
               <GroupKindIcon kind={group.kind} className="h-5 w-5 shrink-0 text-muted" />
               {group.name}
@@ -136,13 +169,13 @@ export function GroupsPage() {
                 Arquivado em {group.archivedAt.toLocaleDateString('pt-BR')}
               </p>
             )}
-          </div>
-          <span className="flex shrink-0 items-center gap-1 text-sm text-muted">
-            <IconUsers className="h-4 w-4" />
-            {group.memberCount}
-          </span>
-        </Link>
-      </li>
+          </Link>
+        </div>
+        <span className="flex shrink-0 items-center gap-1 text-sm text-muted">
+          <IconUsers className="h-4 w-4" />
+          {group.memberCount}
+        </span>
+      </div>
     );
   }
 
@@ -151,6 +184,8 @@ export function GroupsPage() {
     : filteredActiveGroups;
   const isEmpty = activeGroups.length === 0 && archivedGroups.length === 0;
   const hasSearchResults = visibleGroups.length > 0;
+  const canReorder =
+    !isOfflineReadOnly && !isSearching && filteredActiveGroups.length > 0;
 
   return (
     <>
@@ -186,16 +221,21 @@ export function GroupsPage() {
         }
         toolbar={
           !isLoading && !isEmpty ? (
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="sr-only">Buscar grupos</span>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nome…"
-                className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-              />
-            </label>
+            <>
+              {error && !createOpen && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="sr-only">Buscar grupos</span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por nome…"
+                  className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                />
+              </label>
+            </>
           ) : undefined
         }
       >
@@ -205,11 +245,38 @@ export function GroupsPage() {
           <p className="text-sm text-muted">Nenhum grupo cadastrado.</p>
         ) : !hasSearchResults ? (
           <p className="text-sm text-muted">Nenhum grupo encontrado.</p>
-        ) : (
+        ) : isSearching ? (
           <ul className="flex flex-col gap-2">
-            {visibleGroups.map((group) => renderGroupItem(group, group.archivedAt !== null))}
+            {visibleGroups.map((group) => (
+              <li key={group.id}>
+                {renderGroupItem(group, group.archivedAt !== null)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {canReorder ? (
+              <SortableList
+                items={filteredActiveGroups}
+                onReorder={handleReorderGroups}
+                disabled={isReordering}
+                ariaLabel="Grupos"
+                className="flex flex-col gap-2"
+                renderItem={(group, handle) => renderGroupItem(group, false, handle)}
+              />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {filteredActiveGroups.map((group) => (
+                  <li key={group.id}>{renderGroupItem(group, false)}</li>
+                ))}
+              </ul>
+            )}
+            {showArchived &&
+              filteredArchivedGroups.map((group) => (
+                <div key={group.id}>{renderGroupItem(group, true)}</div>
+              ))}
             {!showArchived && archivedGroups.length > 0 && (
-              <li className="pt-2 text-center">
+              <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => setShowArchived(true)}
@@ -217,9 +284,9 @@ export function GroupsPage() {
                 >
                   Mostrar arquivados
                 </button>
-              </li>
+              </div>
             )}
-          </ul>
+          </div>
         )}
       </OrgListPageLayout>
 

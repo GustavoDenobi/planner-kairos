@@ -73,13 +73,21 @@ type ParsedSnapshot = {
 };
 
 function reviveGroupDates(group: GroupListItem): GroupListItem {
-  if (group.archivedAt === null || group.archivedAt === undefined) {
-    return { ...group, archivedAt: null };
+  const withDefaults: GroupListItem = {
+    ...group,
+    sortOrder: group.sortOrder ?? 0,
+    fileAccessScope: group.fileAccessScope ?? 'own_parts',
+    allowFileDownload: group.allowFileDownload ?? true,
+    allowPieceAccessOverride: group.allowPieceAccessOverride ?? true,
+  };
+
+  if (withDefaults.archivedAt === null || withDefaults.archivedAt === undefined) {
+    return { ...withDefaults, archivedAt: null };
   }
-  if (group.archivedAt instanceof Date) {
-    return group;
+  if (withDefaults.archivedAt instanceof Date) {
+    return withDefaults;
   }
-  return { ...group, archivedAt: new Date(group.archivedAt as unknown as string) };
+  return { ...withDefaults, archivedAt: new Date(withDefaults.archivedAt as unknown as string) };
 }
 
 function parseSnapshot(snapshot: {

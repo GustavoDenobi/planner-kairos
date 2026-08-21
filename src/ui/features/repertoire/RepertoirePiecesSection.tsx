@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
-import { RepertoireCategoryPicker } from '@/ui/features/repertoire/RepertoireCategoryPicker';
+import {
+  RepertoireCategoryPicker,
+  type RepertoireGroupPickerOption,
+} from '@/ui/features/repertoire/RepertoireCategoryPicker';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -11,7 +14,11 @@ type RepertoirePiecesSectionProps = {
   isLoading: boolean;
   isCategoriesLoading?: boolean;
   showCategoryPicker?: boolean;
-  onCategoryPickerSelect?: (categoryId: string) => void;
+  pickerGroups: RepertoireGroupPickerOption[];
+  showGroupPicker: boolean;
+  resolvedGroupId: string;
+  categoryIdsByGroupId: Record<string, string[]>;
+  onCategoryPickerSelect?: (selection: { groupId: string; categoryId: string }) => void;
   isAdmin: boolean;
   searchInput: string;
   onSearchInputChange: (value: string) => void;
@@ -31,6 +38,10 @@ export function RepertoirePiecesSection({
   isLoading,
   isCategoriesLoading = false,
   showCategoryPicker = false,
+  pickerGroups,
+  showGroupPicker,
+  resolvedGroupId,
+  categoryIdsByGroupId,
   onCategoryPickerSelect,
   isAdmin,
   searchInput,
@@ -59,8 +70,12 @@ export function RepertoirePiecesSection({
           <p className="text-sm text-muted">Carregando…</p>
         ) : (
           <RepertoireCategoryPicker
+            groups={pickerGroups}
+            showGroupPicker={showGroupPicker}
+            resolvedGroupId={resolvedGroupId}
             categories={categories}
-            onSelect={(categoryId) => onCategoryPickerSelect?.(categoryId)}
+            categoryIdsByGroupId={categoryIdsByGroupId}
+            onSelect={(selection) => onCategoryPickerSelect?.(selection)}
           />
         )}
       </div>

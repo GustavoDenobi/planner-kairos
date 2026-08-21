@@ -23,6 +23,7 @@ type PieceFilesSectionProps = {
   isAdmin: boolean;
   userPartIds: string[];
   isConductor?: boolean;
+  allowDownload?: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
   onEdit: (file: PieceFileWithLinks) => void;
   onAddFiles: (files: File[]) => void;
@@ -80,12 +81,14 @@ function FileList({
   files,
   parts,
   isAdmin,
+  allowDownload,
   onOpen,
   onEdit,
 }: {
   files: PieceFileWithLinks[];
   parts: PartWithDivisions[];
   isAdmin: boolean;
+  allowDownload: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
   onEdit: (file: PieceFileWithLinks) => void;
 }) {
@@ -111,12 +114,14 @@ function FileList({
               </p>
             </button>
             <div className="flex shrink-0 items-center gap-1">
-              <OfflineDownloadButton
-                organizationId={file.organizationId}
-                pieceId={file.pieceId}
-                fileId={file.id}
-                compact
-              />
+              {allowDownload && (
+                <OfflineDownloadButton
+                  organizationId={file.organizationId}
+                  pieceId={file.pieceId}
+                  fileId={file.id}
+                  compact
+                />
+              )}
               {isAdmin && (
                 <button
                   type="button"
@@ -141,6 +146,7 @@ export function PieceFilesSection({
   isAdmin,
   userPartIds,
   isConductor = false,
+  allowDownload = true,
   onOpen,
   onEdit,
   onAddFiles,
@@ -398,6 +404,7 @@ export function PieceFilesSection({
                   files={userFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  allowDownload={allowDownload}
                   onOpen={onOpen}
                   onEdit={onEdit}
                 />
@@ -411,6 +418,7 @@ export function PieceFilesSection({
                   files={generalFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  allowDownload={allowDownload}
                   onOpen={onOpen}
                   onEdit={onEdit}
                 />
@@ -424,6 +432,7 @@ export function PieceFilesSection({
                   files={audioFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  allowDownload={allowDownload}
                   onOpen={onOpen}
                   onEdit={onEdit}
                 />
@@ -439,6 +448,7 @@ export function PieceFilesSection({
                   files={otherFiles}
                   parts={parts}
                   isAdmin={isAdmin}
+                  allowDownload={allowDownload}
                   onOpen={onOpen}
                   onEdit={onEdit}
                 />

@@ -1,5 +1,6 @@
 export type RepertoireMemberFilters = {
   categoryId: string;
+  groupId: string;
 };
 
 const STORAGE_PREFIX = 'repertoire-filters';
@@ -19,7 +20,10 @@ export function loadRepertoireMemberFilters(
     }
     const parsed = JSON.parse(raw) as Partial<RepertoireMemberFilters>;
     if (typeof parsed.categoryId === 'string') {
-      return { categoryId: parsed.categoryId };
+      return {
+        categoryId: parsed.categoryId,
+        groupId: typeof parsed.groupId === 'string' ? parsed.groupId : '',
+      };
     }
     return null;
   } catch {

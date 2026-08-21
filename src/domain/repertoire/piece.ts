@@ -1,6 +1,21 @@
+import type { GroupKind } from '@/domain/ensemble';
 import type { PieceCategory } from './piece-category';
 import type { PieceFileWithLinks } from './piece-file';
 import type { PieceTheme } from './piece-theme';
+
+export type PieceFileAccessScope = 'own_parts' | 'all_files';
+
+export type PieceAudienceGroup = {
+  id: string;
+  name: string;
+  kind: GroupKind;
+};
+
+export type PieceAudienceMusician = {
+  id: string;
+  fullName: string;
+  userId: string | null;
+};
 
 export type Piece = {
   id: string;
@@ -33,8 +48,22 @@ export type PieceListItem = {
   themeIds: string[];
 };
 
+export type PieceFileAccessSettingsInput = {
+  fileAccessScope: PieceFileAccessScope | null;
+  allowFileDownload: boolean | null;
+};
+
+export type PieceAccessInput = PieceFileAccessSettingsInput & {
+  groupIds?: string[];
+  musicianIds?: string[];
+};
+
 export type PieceDetail = Piece & {
   category: PieceCategory;
   themes: PieceTheme[];
   files: PieceFileWithLinks[];
+  fileAccessScope: PieceFileAccessScope | null;
+  allowFileDownload: boolean | null;
+  groups: PieceAudienceGroup[];
+  musicians: PieceAudienceMusician[];
 };
