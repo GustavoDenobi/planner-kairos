@@ -22,6 +22,7 @@ import {
   loadRepertoireMemberFilters,
   saveRepertoireMemberFilters,
 } from '@/ui/features/repertoire/repertoire-filters-storage';
+import { resolveRepertoireSearchFilters } from '@/domain/repertoire/repertoire-filters';
 import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import {
@@ -163,9 +164,10 @@ export function RepertoirePage() {
   );
 
   const showGroupPicker =
-    pickerGroups.length > 1 && (isAdmin || userAssignmentGroupCount > 1);
+    isAdmin || (pickerGroups.length > 1 && userAssignmentGroupCount > 1);
 
-  const resolvedGroupId = isAdmin ? groupFilter : memberGroupId;
+  const implicitGroupId =
+    showGroupPicker ? '' : (isAdmin ? groupFilter : memberGroupId);
 
   const loadPickerContext = useCallback(async () => {
     if (!org) {
@@ -204,18 +206,11 @@ export function RepertoirePage() {
       ? nextGroups
       : nextGroups.filter((group) => assignedGroupIds.includes(group.id));
     const assignmentGroupCount = assignedGroupIds.length;
-    const shouldShowGroupPicker =
-      availableGroups.length > 1 && (isAdmin || assignmentGroupCount > 1);
 
-    const saved = !isAdmin && userId ? loadRepertoireMemberFilters(org.id, userId) : null;
-    const savedGroupId =
-      saved?.groupId && availableGroups.some((group) => group.id === saved.groupId)
-        ? saved.groupId
-        : '';
-
-    const initialGroupId = shouldShowGroupPicker
-      ? savedGroupId
-      : (availableGroups[0]?.id ?? '');
+    const initialGroupId =
+      isAdmin || (availableGroups.length > 1 && assignmentGroupCount > 1)
+        ? ''
+        : (availableGroups[0]?.id ?? '');
 
     if (isAdmin) {
       setGroupFilter(initialGroupId);
@@ -259,20 +254,16 @@ export function RepertoirePage() {
     setIsLoading(true);
 
     const activeGroupId = isAdmin ? groupFilter : memberGroupId;
+    const activeCategoryId = isAdmin ? categoryFilter : memberCategoryId;
+    const resolvedFilters = resolveRepertoireSearchFilters(activeGroupId, activeCategoryId);
 
-    const searchOptions = isAdmin
-      ? {
-          query: searchQuery || undefined,
-          categoryId: categoryFilter || undefined,
-          themeIds: themeFilter ? [themeFilter] : undefined,
-          groupId: activeGroupId || undefined,
-        }
-      : {
-          query: searchQuery || undefined,
-          categoryId: memberCategoryId || undefined,
-          themeIds: themeFilter ? [themeFilter] : undefined,
-          groupId: memberGroupId || undefined,
-        };
+    const searchOptions = {
+      query: searchQuery || undefined,
+      categoryId: resolvedFilters.categoryId,
+      themeIds: themeFilter ? [themeFilter] : undefined,
+      groupId: resolvedFilters.groupId,
+      unlinkedOnly: resolvedFilters.unlinkedOnly || undefined,
+    };
 
     const piecesResult = await repertoire.searchPieces(org.id, searchOptions);
 
@@ -575,7 +566,7 @@ export function RepertoirePage() {
             showCategoryPicker={showCategoryPicker}
             pickerGroups={pickerGroups}
             showGroupPicker={showGroupPicker}
-            resolvedGroupId={resolvedGroupId}
+            implicitGroupId={implicitGroupId}
             categoryIdsByGroupId={categoryIdsByGroupId}
             onCategoryPickerSelect={handleCategoryPickerSelect}
             isAdmin={isAdmin}

@@ -3,6 +3,7 @@ import type { PieceAccessRepository } from '@/application/ports/piece-access-rep
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceAccessInput } from '@/domain/repertoire';
 import { pieceHasNoAudience } from '@/domain/repertoire';
+import { REPERTOIRE_UNLINKED_FILTER } from '@/domain/repertoire/repertoire-filters';
 import { Result } from '@/domain/shared';
 
 function uniqueIds(ids: string[]): string[] {
@@ -68,6 +69,12 @@ export async function listPieceCategoryIdsByGroup(
   accessRepo: PieceAccessRepository,
   organizationId: string,
 ) {
-  const categoryIdsByGroup = await accessRepo.listCategoryIdsByGroup(organizationId);
-  return Result.ok(Object.fromEntries(categoryIdsByGroup));
+  const [categoryIdsByGroup, unlinkedCategoryIds] = await Promise.all([
+    accessRepo.listCategoryIdsByGroup(organizationId),
+    accessRepo.listUnlinkedCategoryIds(organizationId),
+  ]);
+
+  const record = Object.fromEntries(categoryIdsByGroup);
+  record[REPERTOIRE_UNLINKED_FILTER] = unlinkedCategoryIds;
+  return Result.ok(record);
 }

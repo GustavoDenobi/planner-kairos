@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
 import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
+import { isRepertoireUnlinkedFilter } from '@/domain/repertoire/repertoire-filters';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import {
   RepertoireCategoryPicker,
   type RepertoireGroupPickerOption,
 } from '@/ui/features/repertoire/RepertoireCategoryPicker';
+import {
+  REPERTOIRE_UNLINKED_FILTER,
+  REPERTOIRE_UNLINKED_LABEL,
+} from '@/ui/features/repertoire/repertoire-filter-ids';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -16,7 +21,7 @@ type RepertoirePiecesSectionProps = {
   showCategoryPicker?: boolean;
   pickerGroups: RepertoireGroupPickerOption[];
   showGroupPicker: boolean;
-  resolvedGroupId: string;
+  implicitGroupId: string;
   categoryIdsByGroupId: Record<string, string[]>;
   onCategoryPickerSelect?: (selection: { groupId: string; categoryId: string }) => void;
   isAdmin: boolean;
@@ -40,7 +45,7 @@ export function RepertoirePiecesSection({
   showCategoryPicker = false,
   pickerGroups,
   showGroupPicker,
-  resolvedGroupId,
+  implicitGroupId,
   categoryIdsByGroupId,
   onCategoryPickerSelect,
   isAdmin,
@@ -56,9 +61,11 @@ export function RepertoirePiecesSection({
   const themeById = new Map(themes.map((theme) => [theme.id, theme]));
   const isMemberView = !isAdmin;
 
-  const memberCategoryLabel = memberCategoryId
-    ? (categories.find((category) => category.id === memberCategoryId)?.name ?? 'Categoria')
-    : 'Todas';
+  const memberCategoryLabel = isRepertoireUnlinkedFilter(memberCategoryId ?? '')
+    ? REPERTOIRE_UNLINKED_LABEL
+    : memberCategoryId
+      ? (categories.find((category) => category.id === memberCategoryId)?.name ?? 'Categoria')
+      : 'Todas';
 
   const filterSelectClass =
     'w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
@@ -72,7 +79,8 @@ export function RepertoirePiecesSection({
           <RepertoireCategoryPicker
             groups={pickerGroups}
             showGroupPicker={showGroupPicker}
-            resolvedGroupId={resolvedGroupId}
+            implicitGroupId={implicitGroupId}
+            showUnlinkedOption={isAdmin}
             categories={categories}
             categoryIdsByGroupId={categoryIdsByGroupId}
             onSelect={(selection) => onCategoryPickerSelect?.(selection)}
@@ -119,6 +127,7 @@ export function RepertoirePiecesSection({
                       {category.name}
                     </option>
                   ))}
+                  <option value={REPERTOIRE_UNLINKED_FILTER}>{REPERTOIRE_UNLINKED_LABEL}</option>
                 </select>
               )}
             </label>

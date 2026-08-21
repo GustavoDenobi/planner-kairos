@@ -29,4 +29,5 @@ export type PieceAccessRepository = {
     input: Pick<PieceAccessInput, 'fileAccessScope' | 'allowFileDownload'>,
   ): Promise<void>;
   listCategoryIdsByGroup(organizationId: string): Promise<Map<string, string[]>>;
+  listUnlinkedCategoryIds(organizationId: string): Promise<string[]>;
 };

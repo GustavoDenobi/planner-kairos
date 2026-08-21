@@ -155,5 +155,37 @@ export function createPieceAccessRepository(): PieceAccessRepository {
 
       return byGroup;
     },
+
+    async listUnlinkedCategoryIds(organizationId) {
+      const { data: linkedRows, error: linkedError } = await supabase
+        .from('piece_groups')
+        .select('piece_id')
+        .eq('organization_id', organizationId);
+
+      if (linkedError) {
+        return [];
+      }
+
+      const linkedPieceIds = new Set((linkedRows ?? []).map((row) => row.piece_id));
+
+      const { data: pieces, error: piecesError } = await supabase
+        .from('pieces')
+        .select('id, category_id')
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
+
+      if (piecesError || !pieces) {
+        return [];
+      }
+
+      const categoryIds = new Set<string>();
+      for (const piece of pieces) {
+        if (!linkedPieceIds.has(piece.id)) {
+          categoryIds.add(piece.category_id);
+        }
+      }
+
+      return [...categoryIds];
+    },
   };
 }

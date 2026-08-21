@@ -86,3 +86,8 @@ export type {
   PieceAccessPath,
   ResolvedPieceFileAccess,
 } from './file-access';
+export {
+  REPERTOIRE_UNLINKED_FILTER,
+  isRepertoireUnlinkedFilter,
+  resolveRepertoireSearchFilters,
+} from './repertoire-filters';

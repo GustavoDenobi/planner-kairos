@@ -96,6 +96,31 @@ function intersectPieceIds(current: string[] | null, next: string[]): string[] |
   return current.filter((id) => nextSet.has(id));
 }
 
+async function loadUnlinkedPieceIds(organizationId: string): Promise<string[]> {
+  const { data: linkedRows, error: linkedError } = await supabase
+    .from('piece_groups')
+    .select('piece_id')
+    .eq('organization_id', organizationId);
+
+  if (linkedError) {
+    return [];
+  }
+
+  const linkedPieceIds = new Set((linkedRows ?? []).map((row) => row.piece_id));
+
+  const { data: pieces, error: piecesError } = await supabase
+    .from('pieces')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null);
+
+  if (piecesError || !pieces) {
+    return [];
+  }
+
+  return pieces.filter((piece) => !linkedPieceIds.has(piece.id)).map((piece) => piece.id);
+}
+
 async function loadThemesForPiece(organizationId: string, pieceId: string) {
   const { data, error } = await supabase
     .from('piece_theme_links')
@@ -204,7 +229,16 @@ export function createPieceRepository(): PieceRepository {
         }
       }
 
-      if (options?.groupId) {
+      if (options?.unlinkedOnly) {
+        const unlinkedIds = await loadUnlinkedPieceIds(organizationId);
+        if (unlinkedIds.length === 0) {
+          return [];
+        }
+        pieceIdsFilter = intersectPieceIds(pieceIdsFilter, unlinkedIds);
+        if (pieceIdsFilter && pieceIdsFilter.length === 0) {
+          return [];
+        }
+      } else if (options?.groupId) {
         const { data: groupRows, error: groupError } = await supabase
           .from('piece_groups')
           .select('piece_id')

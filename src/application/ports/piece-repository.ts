@@ -5,6 +5,7 @@ export type SearchPiecesOptions = {
   categoryId?: string;
   themeIds?: string[];
   groupId?: string;
+  unlinkedOnly?: boolean;
   accessibleForPartId?: string;
 };
 
