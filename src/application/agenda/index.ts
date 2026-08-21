@@ -8,6 +8,7 @@ import {
   updateEventType,
 } from './event-type-use-cases';
 import type { EventRepository, ListEventsInRangeOptions } from '@/application/ports/event-repository';
+import type { EventAbsenceRepository } from '@/application/ports/event-absence-repository';
 import type { AssignmentRepository } from '@/application/ports/assignment-repository';
 import type { GroupRepository } from '@/application/ports/group-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
@@ -22,12 +23,14 @@ import {
   updateEvent,
   listEventsInRange,
 } from './event-use-cases';
+import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases';
 import { listAssociableAudience } from './list-associable-audience';
 import { setEventProgram } from './program-use-cases';
 
 export type AgendaDeps = {
   eventTypeRepo: EventTypeRepository;
   eventRepo: EventRepository;
+  eventAbsenceRepo: EventAbsenceRepository;
   pieceRepo: PieceRepository;
   membershipRepo: MembershipRepository;
   musicianRepo: MusicianRepository;
@@ -111,6 +114,34 @@ export function createAgendaUseCases(deps: AgendaDeps) {
       eventId: string,
       items: ProgramItemInput[],
     ) => setEventProgram(deps.eventRepo, deps.pieceRepo, organizationId, eventId, items),
+    listEventAbsences: (organizationId: string, userId: string, eventId: string) =>
+      listEventAbsences(
+        deps.eventRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.eventAbsenceRepo,
+        organizationId,
+        userId,
+        eventId,
+      ),
+    toggleEventAbsence: (
+      organizationId: string,
+      userId: string,
+      eventId: string,
+      musicianId: string,
+    ) =>
+      toggleEventAbsence(
+        deps.eventRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.eventAbsenceRepo,
+        organizationId,
+        userId,
+        eventId,
+        musicianId,
+      ),
   };
 }
 

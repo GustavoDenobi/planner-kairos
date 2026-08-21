@@ -152,6 +152,62 @@ export type Database = {
           },
         ]
       }
+      event_absences: {
+        Row: {
+          event_id: string
+          id: string
+          marked_at: string
+          marked_by: string
+          musician_id: string
+          organization_id: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          marked_at?: string
+          marked_by: string
+          musician_id: string
+          organization_id: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          marked_at?: string
+          marked_by?: string
+          musician_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_absences_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_absences_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_absences_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_absences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_musicians: {
         Row: {
           created_at: string

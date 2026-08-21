@@ -1,5 +1,6 @@
-import type { EventInput } from './event';
+import type { EventInput, EventAudienceMusician } from './event';
 import type { EventKind, EventType, EventTypeInput } from './event-type';
+import type { EventParticipant } from './event-absence';
 import type { ProgramItemInput } from './program-item';
 
 const EVENT_KINDS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
@@ -166,4 +167,49 @@ export function canWriteEvent(input: {
   }
   const writableGroups = new Set(input.writableGroupIds);
   return input.eventGroupIds.some((groupId) => writableGroups.has(groupId));
+}
+
+export function resolveEventParticipants(input: {
+  groupAssignments: Array<{ musicianId: string; musicianName: string; groupName: string }>;
+  directMusicians: EventAudienceMusician[];
+  partNamesByMusicianId: Map<string, string[]>;
+}): EventParticipant[] {
+  const byMusicianId = new Map<string, EventParticipant>();
+
+  for (const assignment of input.groupAssignments) {
+    const existing = byMusicianId.get(assignment.musicianId);
+    if (existing) {
+      if (!existing.groupNames.includes(assignment.groupName)) {
+        existing.groupNames.push(assignment.groupName);
+      }
+      continue;
+    }
+
+    byMusicianId.set(assignment.musicianId, {
+      musicianId: assignment.musicianId,
+      fullName: assignment.musicianName,
+      groupNames: [assignment.groupName],
+      partNames: input.partNamesByMusicianId.get(assignment.musicianId) ?? [],
+    });
+  }
+
+  for (const musician of input.directMusicians) {
+    if (!byMusicianId.has(musician.id)) {
+      byMusicianId.set(musician.id, {
+        musicianId: musician.id,
+        fullName: musician.fullName,
+        groupNames: [],
+        partNames: input.partNamesByMusicianId.get(musician.id) ?? [],
+      });
+    }
+  }
+
+  return [...byMusicianId.values()]
+    .map((participant) => ({
+      ...participant,
+      groupNames: [...participant.groupNames].sort((left, right) =>
+        left.localeCompare(right, 'pt-BR'),
+      ),
+    }))
+    .sort((left, right) => left.fullName.localeCompare(right.fullName, 'pt-BR'));
 }

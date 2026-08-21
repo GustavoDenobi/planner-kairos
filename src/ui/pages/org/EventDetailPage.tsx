@@ -28,6 +28,7 @@ import { EventAudienceChips } from '@/ui/features/agenda/EventAudienceChips';
 import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
+import { EventAbsencesSection } from '@/ui/features/agenda/EventAbsencesSection';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
@@ -392,6 +393,20 @@ export function EventDetailPage() {
                       setEvent((current) => (current ? { ...current, program } : current))
                     }
                     setEventProgram={agenda.setEventProgram}
+                  />
+                ) : null,
+            },
+            {
+              id: 'ausencias',
+              label: 'Ausências',
+              content:
+                org && eventId ? (
+                  <EventAbsencesSection
+                    organizationId={org.id}
+                    eventId={eventId}
+                    groups={event.groups}
+                    musicians={event.musicians}
+                    disabled={isOfflineReadOnly}
                   />
                 ) : null,
             },

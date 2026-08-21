@@ -8,6 +8,7 @@ export type {
 } from './event';
 export type { ProgramItem, ProgramItemInput, ProgramItemDetail } from './program-item';
 export type { EventDetail } from './event-detail';
+export type { EventParticipant, EventAbsence } from './event-absence';
 export {
   canWriteEvent,
   eventDisplayTitle,
@@ -15,6 +16,7 @@ export {
   extraAudienceMusicianIds,
   normalizeOptionalText,
   resolveEventColor,
+  resolveEventParticipants,
   uniqueIds,
   validateEventAudienceForGroupWriter,
   validateEventInput,

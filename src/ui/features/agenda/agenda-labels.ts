@@ -29,6 +29,8 @@ export const AGENDA_ERROR_MESSAGES: Record<string, string> = {
   audience_musician_not_allowed: 'Você só pode associar músicos dos grupos em que é professor ou regente.',
   not_allowed: 'Você não tem permissão para alterar este evento.',
   not_a_member: 'Você não faz parte desta organização.',
+  invalid_musician: 'Este músico não faz parte do evento.',
+  absence_failed: 'Não foi possível registrar a ausência. Tente novamente.',
 };
 
 export function agendaErrorMessage(code: string): string {

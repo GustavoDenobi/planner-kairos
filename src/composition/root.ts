@@ -6,6 +6,7 @@ import { createIdentityUseCases } from '@/application/identity';
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
 import { createFileStorage } from '@/infrastructure/supabase/file-storage';
 import { createEventRepository } from '@/infrastructure/supabase/event-repository';
+import { createEventAbsenceRepository } from '@/infrastructure/supabase/event-absence-repository';
 import { createEventTypeRepository } from '@/infrastructure/supabase/event-type-repository';
 import { createGroupInviteRepository } from '@/infrastructure/supabase/group-invite-repository';
 import { createAssignmentRepository } from '@/infrastructure/supabase/assignment-repository';
@@ -48,6 +49,7 @@ export function createAppServices() {
   const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
+  const eventAbsenceRepo = createEventAbsenceRepository();
 
   const identity = createIdentityUseCases({
     auth,
@@ -82,6 +84,7 @@ export function createAppServices() {
   const agenda = createAgendaUseCases({
     eventTypeRepo,
     eventRepo,
+    eventAbsenceRepo,
     pieceRepo,
     membershipRepo,
     musicianRepo,

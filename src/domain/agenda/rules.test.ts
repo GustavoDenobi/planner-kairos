@@ -8,6 +8,7 @@ import {
   canWriteEvent,
   eventHasNoAudience,
   extraAudienceMusicianIds,
+  resolveEventParticipants,
   validateEventAudienceForGroupWriter,
 } from './rules';
 
@@ -216,5 +217,70 @@ describe('canWriteEvent', () => {
         writableGroupIds: ['class-1'],
       }),
     ).toBe(false);
+  });
+});
+
+describe('resolveEventParticipants', () => {
+  it('merges group members and direct musicians without duplicates', () => {
+    const result = resolveEventParticipants({
+      groupAssignments: [
+        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' },
+        { musicianId: 'm2', musicianName: 'Bruno', groupName: 'Orquestra' },
+      ],
+      directMusicians: [
+        { id: 'm2', fullName: 'Bruno Silva', userId: null },
+        { id: 'm3', fullName: 'Carlos', userId: null },
+      ],
+      partNamesByMusicianId: new Map([
+        ['m1', ['Violino']],
+        ['m2', ['Viola']],
+      ]),
+    });
+
+    expect(result).toHaveLength(3);
+    expect(result.map((item) => item.musicianId)).toEqual(['m1', 'm2', 'm3']);
+    expect(result[0]?.groupNames).toEqual(['Orquestra']);
+    expect(result[0]?.partNames).toEqual(['Violino']);
+    expect(result[1]?.fullName).toBe('Bruno');
+    expect(result[1]?.groupNames).toEqual(['Orquestra']);
+    expect(result[1]?.partNames).toEqual(['Viola']);
+    expect(result[2]?.groupNames).toEqual([]);
+  });
+
+  it('collects multiple group names for the same musician', () => {
+    const result = resolveEventParticipants({
+      groupAssignments: [
+        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Coro' },
+        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' },
+      ],
+      directMusicians: [],
+      partNamesByMusicianId: new Map(),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.groupNames).toEqual(['Coro', 'Orquestra']);
+  });
+
+  it('sorts participants by name in pt-BR locale', () => {
+    const result = resolveEventParticipants({
+      groupAssignments: [
+        { musicianId: 'm1', musicianName: 'Zélia', groupName: 'Grupo A' },
+        { musicianId: 'm2', musicianName: 'Álvaro', groupName: 'Grupo B' },
+      ],
+      directMusicians: [],
+      partNamesByMusicianId: new Map(),
+    });
+
+    expect(result.map((item) => item.fullName)).toEqual(['Álvaro', 'Zélia']);
+  });
+
+  it('returns empty list when no participants', () => {
+    expect(
+      resolveEventParticipants({
+        groupAssignments: [],
+        directMusicians: [],
+        partNamesByMusicianId: new Map(),
+      }),
+    ).toEqual([]);
   });
 });
