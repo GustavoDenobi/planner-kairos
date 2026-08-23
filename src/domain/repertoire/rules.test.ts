@@ -174,24 +174,28 @@ describe('pieceFileMatchesUserParts', () => {
   it('returns false when user has no parts', () => {
     expect(
       pieceFileMatchesUserParts(
-        { kind: 'score', partLinks: [{ partId: saxPartId, partDivisionId: null }] },
+        { partLinks: [{ partId: saxPartId, partDivisionId: null }] },
         [],
       ),
     ).toBe(false);
   });
 
-  it('returns false for audio files', () => {
-    expect(pieceFileMatchesUserParts({ kind: 'audio', partLinks: [] }, [saxPartId])).toBe(false);
+  it('matches audio files linked to user parts', () => {
+    expect(
+      pieceFileMatchesUserParts({ partLinks: [{ partId: saxPartId, partDivisionId: null }] }, [
+        saxPartId,
+      ]),
+    ).toBe(true);
   });
 
-  it('includes general scores without part links', () => {
-    expect(pieceFileMatchesUserParts({ kind: 'score', partLinks: [] }, [saxPartId])).toBe(true);
+  it('includes general files without part links', () => {
+    expect(pieceFileMatchesUserParts({ partLinks: [] }, [saxPartId])).toBe(true);
   });
 
   it('matches when a linked part is assigned to the user', () => {
     expect(
       pieceFileMatchesUserParts(
-        { kind: 'score', partLinks: [{ partId: saxPartId, partDivisionId: null }] },
+        { partLinks: [{ partId: saxPartId, partDivisionId: null }] },
         [saxPartId],
       ),
     ).toBe(true);
@@ -200,7 +204,7 @@ describe('pieceFileMatchesUserParts', () => {
   it('does not match when linked parts differ from user assignments', () => {
     expect(
       pieceFileMatchesUserParts(
-        { kind: 'score', partLinks: [{ partId: violinPartId, partDivisionId: null }] },
+        { partLinks: [{ partId: violinPartId, partDivisionId: null }] },
         [saxPartId],
       ),
     ).toBe(false);

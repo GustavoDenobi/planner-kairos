@@ -132,10 +132,6 @@ export async function updatePieceFile(
   }
 
   if (input.partLinks !== undefined) {
-    if (existing.kind !== 'score') {
-      return Result.fail('invalid_part_link');
-    }
-
     const parts = await partRepo.listForOrg(organizationId);
     const divisionPartIds = new Map<string, string>();
     for (const part of parts) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
@@ -20,6 +20,7 @@ import {
   IconMaximize,
   IconMinimize,
   IconMoon,
+  IconMusic,
   IconPencil,
   IconUndo,
   IconSun,
@@ -118,6 +119,11 @@ type PdfViewerProps = {
   initialPage?: number;
   entryDirection?: 'next' | 'prev';
   preloadedPdf?: pdfjs.PDFDocumentProxy | null;
+  audioPicker?: {
+    visible: boolean;
+    onOpenPicker: () => void;
+  };
+  inlineAudioBar?: ReactNode;
   onAnnotationCreate: (
     input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>,
   ) => Promise<PdfAnnotation | null>;
@@ -329,6 +335,8 @@ export function PdfViewer({
   initialPage = 1,
   entryDirection,
   preloadedPdf = null,
+  audioPicker,
+  inlineAudioBar,
   onAnnotationCreate,
   onAnnotationDelete,
 }: PdfViewerProps) {
@@ -1473,6 +1481,18 @@ export function PdfViewer({
                 {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
               </button>
 
+              {audioPicker?.visible && (
+                <button
+                  type="button"
+                  onClick={audioPicker.onOpenPicker}
+                  aria-label="Áudios da peça"
+                  title="Áudios da peça"
+                  className={toolbarIconButtonClass()}
+                >
+                  <IconMusic className="h-4 w-4" />
+                </button>
+              )}
+
             <button
               type="button"
               onClick={() =>
@@ -1512,6 +1532,7 @@ export function PdfViewer({
       }
     >
       {controlsBar}
+      {inlineAudioBar}
 
       {navigation === 'horizontal' ? (
         <div

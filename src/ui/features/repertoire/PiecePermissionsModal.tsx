@@ -20,6 +20,8 @@ type PiecePermissionsModalProps = {
     musicianIds: string[];
     fileAccessScope: PieceFileAccessScope | null;
     allowFileDownload: boolean | null;
+    audioAccessScope: PieceFileAccessScope | null;
+    audioAllowDownload: boolean | null;
   }) => Promise<boolean>;
   isSaving?: boolean;
   error?: string | null;
@@ -37,9 +39,12 @@ export function PiecePermissionsModal({
 }: PiecePermissionsModalProps) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedMusicianIds, setSelectedMusicianIds] = useState<string[]>([]);
-  const [inheritRules, setInheritRules] = useState(true);
+  const [inheritScoreRules, setInheritScoreRules] = useState(true);
   const [fileAccessScope, setFileAccessScope] = useState<PieceFileAccessScope | null>(null);
   const [allowFileDownload, setAllowFileDownload] = useState<boolean | null>(null);
+  const [inheritAudioRules, setInheritAudioRules] = useState(true);
+  const [audioAccessScope, setAudioAccessScope] = useState<PieceFileAccessScope | null>(null);
+  const [audioAllowDownload, setAudioAllowDownload] = useState<boolean | null>(null);
   const [confirmEmptyAudience, setConfirmEmptyAudience] = useState(false);
 
   useEffect(() => {
@@ -48,11 +53,12 @@ export function PiecePermissionsModal({
     }
     setSelectedGroupIds(piece.groups.map((group) => group.id));
     setSelectedMusicianIds(piece.musicians.map((musician) => musician.id));
-    const hasPieceRules =
-      piece.fileAccessScope !== null || piece.allowFileDownload !== null;
-    setInheritRules(!hasPieceRules);
+    setInheritScoreRules(piece.fileAccessScope === null && piece.allowFileDownload === null);
     setFileAccessScope(piece.fileAccessScope);
     setAllowFileDownload(piece.allowFileDownload);
+    setInheritAudioRules(piece.audioAccessScope === null && piece.audioAllowDownload === null);
+    setAudioAccessScope(piece.audioAccessScope);
+    setAudioAllowDownload(piece.audioAllowDownload);
   }, [open, piece]);
 
   async function submit() {
@@ -64,7 +70,14 @@ export function PiecePermissionsModal({
   }
 
   async function performSave() {
-    const settings = toPieceAccessSettingsInput(inheritRules, fileAccessScope, allowFileDownload);
+    const settings = toPieceAccessSettingsInput(
+      inheritScoreRules,
+      fileAccessScope,
+      allowFileDownload,
+      inheritAudioRules,
+      audioAccessScope,
+      audioAllowDownload,
+    );
     const ok = await onSave({
       groupIds: selectedGroupIds,
       musicianIds: selectedMusicianIds,
@@ -98,12 +111,18 @@ export function PiecePermissionsModal({
           />
 
           <PieceFileAccessOverrideForm
-            inheritRules={inheritRules}
+            inheritScoreRules={inheritScoreRules}
             fileAccessScope={fileAccessScope}
             allowFileDownload={allowFileDownload}
-            onInheritRulesChange={setInheritRules}
+            inheritAudioRules={inheritAudioRules}
+            audioAccessScope={audioAccessScope}
+            audioAllowDownload={audioAllowDownload}
+            onInheritScoreRulesChange={setInheritScoreRules}
             onFileAccessScopeChange={setFileAccessScope}
             onAllowFileDownloadChange={setAllowFileDownload}
+            onInheritAudioRulesChange={setInheritAudioRules}
+            onAudioAccessScopeChange={setAudioAccessScope}
+            onAudioAllowDownloadChange={setAudioAllowDownload}
             disabled={isSaving}
           />
 

@@ -3,9 +3,11 @@ import type { PieceFileWithLinks } from '@/domain/repertoire';
 import type { GroupFileAccessSettings } from '@/domain/ensemble';
 import {
   buildAccessPathsForUser,
+  filterAccessibleAudioFiles,
   filterPieceFilesForAccess,
   mergeResolvedAccess,
   pieceHasNoAudience,
+  resolvePieceAudioAccess,
   resolvePieceFileAccess,
   resolveRulesForPath,
   type PieceAccessContext,
@@ -14,12 +16,16 @@ import {
 const ownPartsGroup: GroupFileAccessSettings = {
   fileAccessScope: 'own_parts',
   allowFileDownload: false,
+  audioAccessScope: 'own_parts',
+  audioAllowDownload: false,
   allowPieceAccessOverride: true,
 };
 
 const allFilesGroup: GroupFileAccessSettings = {
   fileAccessScope: 'all_files',
   allowFileDownload: true,
+  audioAccessScope: 'all_files',
+  audioAllowDownload: true,
   allowPieceAccessOverride: false,
 };
 
@@ -30,33 +36,75 @@ function baseContext(overrides: Partial<PieceAccessContext> = {}): PieceAccessCo
     isConductor: false,
     hasAudience: true,
     isInAudience: true,
-    pieceSettings: { fileAccessScope: null, allowFileDownload: null },
+    pieceSettings: {
+      fileAccessScope: null,
+      allowFileDownload: null,
+      audioAccessScope: null,
+      audioAllowDownload: null,
+    },
     accessPaths: [{ kind: 'group', groupId: 'g1', groupSettings: ownPartsGroup }],
     ...overrides,
   };
 }
 
 describe('resolveRulesForPath', () => {
-  it('uses piece override when enabled', () => {
+  it('uses piece override when enabled for scores', () => {
     const result = resolveRulesForPath(
       { kind: 'group', groupId: 'g1', groupSettings: ownPartsGroup },
-      { fileAccessScope: 'all_files', allowFileDownload: null },
+      {
+        fileAccessScope: 'all_files',
+        allowFileDownload: null,
+        audioAccessScope: null,
+        audioAllowDownload: null,
+      },
       true,
+      'score',
     );
     expect(result).toEqual({ scope: 'all_files', allowDownload: false });
+  });
+
+  it('uses independent audio override when enabled', () => {
+    const result = resolveRulesForPath(
+      { kind: 'group', groupId: 'g1', groupSettings: ownPartsGroup },
+      {
+        fileAccessScope: null,
+        allowFileDownload: null,
+        audioAccessScope: 'all_files',
+        audioAllowDownload: true,
+      },
+      true,
+      'audio',
+    );
+    expect(result).toEqual({ scope: 'all_files', allowDownload: true });
   });
 
   it('uses group rules when override disabled', () => {
     const result = resolveRulesForPath(
       { kind: 'group', groupId: 'g1', groupSettings: ownPartsGroup },
-      { fileAccessScope: 'all_files', allowFileDownload: true },
+      {
+        fileAccessScope: 'all_files',
+        allowFileDownload: true,
+        audioAccessScope: 'all_files',
+        audioAllowDownload: true,
+      },
       false,
+      'score',
     );
     expect(result).toEqual({ scope: 'own_parts', allowDownload: false });
   });
 
   it('defaults direct musician access', () => {
-    const result = resolveRulesForPath({ kind: 'musician' }, { fileAccessScope: null, allowFileDownload: null }, false);
+    const result = resolveRulesForPath(
+      { kind: 'musician' },
+      {
+        fileAccessScope: null,
+        allowFileDownload: null,
+        audioAccessScope: null,
+        audioAllowDownload: null,
+      },
+      false,
+      'score',
+    );
     expect(result).toEqual({ scope: 'own_parts', allowDownload: true });
   });
 });
@@ -102,6 +150,26 @@ describe('resolvePieceFileAccess', () => {
   });
 });
 
+describe('resolvePieceAudioAccess', () => {
+  it('can resolve stricter audio access than scores', () => {
+    const audioStrictGroup: GroupFileAccessSettings = {
+      fileAccessScope: 'all_files',
+      allowFileDownload: true,
+      audioAccessScope: 'own_parts',
+      audioAllowDownload: false,
+      allowPieceAccessOverride: false,
+    };
+
+    const access = resolvePieceAudioAccess(
+      baseContext({
+        accessPaths: [{ kind: 'group', groupId: 'g1', groupSettings: audioStrictGroup }],
+      }),
+    );
+
+    expect(access).toEqual({ scope: 'own_parts', allowDownload: false });
+  });
+});
+
 describe('filterPieceFilesForAccess', () => {
   const saxFile: PieceFileWithLinks = {
     id: 'f1',
@@ -129,10 +197,10 @@ describe('filterPieceFilesForAccess', () => {
     id: 'f3',
     kind: 'audio',
     mimeType: 'audio/mpeg',
-    partLinks: [],
+    partLinks: [{ partId: 'part-sax', partDivisionId: null }],
   };
 
-  it('returns all files for all_files scope', () => {
+  it('returns all score files for all_files scope', () => {
     expect(
       filterPieceFilesForAccess(
         [saxFile, fluteFile, audioFile],
@@ -140,10 +208,10 @@ describe('filterPieceFilesForAccess', () => {
         ['part-sax'],
         false,
       ),
-    ).toHaveLength(3);
+    ).toEqual([saxFile, fluteFile]);
   });
 
-  it('filters to own parts and hides audio under own_parts', () => {
+  it('filters scores to own parts under own_parts', () => {
     expect(
       filterPieceFilesForAccess(
         [saxFile, fluteFile, audioFile],
@@ -152,6 +220,62 @@ describe('filterPieceFilesForAccess', () => {
         false,
       ),
     ).toEqual([saxFile]);
+  });
+});
+
+describe('filterAccessibleAudioFiles', () => {
+  const audioFile: PieceFileWithLinks = {
+    id: 'f3',
+    organizationId: 'org',
+    pieceId: 'piece',
+    kind: 'audio',
+    storageKey: 'k',
+    mimeType: 'audio/mpeg',
+    title: 'Audio',
+    originalName: 'audio.mp3',
+    byteSize: 1,
+    contentHash: null,
+    partLinks: [{ partId: 'part-sax', partDivisionId: null }],
+  };
+
+  const generalAudio: PieceFileWithLinks = {
+    ...audioFile,
+    id: 'f4',
+    title: 'General audio',
+    partLinks: [],
+  };
+
+  it('returns all audios for all_files scope', () => {
+    expect(
+      filterAccessibleAudioFiles(
+        [audioFile, generalAudio],
+        { scope: 'all_files', allowDownload: true },
+        ['part-sax'],
+        false,
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('filters audios by part and hides general audio for non-conductors', () => {
+    expect(
+      filterAccessibleAudioFiles(
+        [audioFile, generalAudio],
+        { scope: 'own_parts', allowDownload: true },
+        ['part-sax'],
+        false,
+      ),
+    ).toEqual([audioFile]);
+  });
+
+  it('allows general audio for conductors', () => {
+    expect(
+      filterAccessibleAudioFiles(
+        [audioFile, generalAudio],
+        { scope: 'own_parts', allowDownload: true },
+        ['part-sax'],
+        true,
+      ),
+    ).toEqual([audioFile, generalAudio]);
   });
 });
 

@@ -47,6 +47,7 @@ export type {
 export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,
+  isGeneralPieceFile,
   isGeneralScoreFile,
   partitionPieceFilesForViewer,
   isPieceFileScore,
@@ -74,10 +75,13 @@ export {
 export {
   buildAccessPathsForUser,
   canSeePiece,
+  filterAccessibleAudioFiles,
   filterPieceFilesForAccess,
+  filterPieceFilesForKindAccess,
   isUserConductorInLinkedGroups,
   mergeResolvedAccess,
   pieceHasNoAudience,
+  resolvePieceAudioAccess,
   resolvePieceFileAccess,
   resolveRulesForPath,
 } from './file-access';

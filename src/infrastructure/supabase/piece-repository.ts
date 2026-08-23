@@ -6,7 +6,7 @@ import { createPieceFileRepository } from './piece-file-repository';
 import { supabase } from './client';
 
 const PIECE_COLUMNS =
-  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_access_scope, allow_file_download';
+  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download';
 
 const CATEGORY_COLUMNS = 'id, organization_id, name, slug, sort_order, color';
 
@@ -169,6 +169,8 @@ async function buildPieceDetail(
     deleted_at: string | null;
     file_access_scope: PieceDetail['fileAccessScope'];
     allow_file_download: boolean | null;
+    audio_access_scope: PieceDetail['audioAccessScope'];
+    audio_allow_download: boolean | null;
   },
   category: PieceCategory,
 ): Promise<PieceDetail> {
@@ -191,6 +193,8 @@ async function buildPieceDetail(
     deletedAt: pieceRow.deleted_at,
     fileAccessScope: pieceRow.file_access_scope,
     allowFileDownload: pieceRow.allow_file_download,
+    audioAccessScope: pieceRow.audio_access_scope,
+    audioAllowDownload: pieceRow.audio_allow_download,
     category,
     themes,
     files,

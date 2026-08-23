@@ -117,6 +117,8 @@ export function createPieceAccessRepository(): PieceAccessRepository {
         .update({
           file_access_scope: input.fileAccessScope,
           allow_file_download: input.allowFileDownload,
+          audio_access_scope: input.audioAccessScope,
+          audio_allow_download: input.audioAllowDownload,
         })
         .eq('organization_id', organizationId)
         .eq('id', pieceId)

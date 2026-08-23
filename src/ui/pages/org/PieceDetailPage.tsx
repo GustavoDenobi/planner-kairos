@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { defaultPieceFileTitle, isPieceFileScore, resolvePieceFileMime } from '@/domain/repertoire';
+import { defaultPieceFileTitle, resolvePieceFileMime } from '@/domain/repertoire';
 import type {
   PieceCategory,
   PieceDetail,
@@ -220,6 +220,8 @@ export function PieceDetailPage() {
           groupSettingsById.set(groupId, {
             fileAccessScope: result.value.fileAccessScope,
             allowFileDownload: result.value.allowFileDownload,
+            audioAccessScope: result.value.audioAccessScope,
+            audioAllowDownload: result.value.audioAllowDownload,
             allowPieceAccessOverride: result.value.allowPieceAccessOverride,
           });
         }
@@ -359,6 +361,8 @@ export function PieceDetailPage() {
     musicianIds: string[];
     fileAccessScope: PieceFileAccessScope | null;
     allowFileDownload: boolean | null;
+    audioAccessScope: PieceFileAccessScope | null;
+    audioAllowDownload: boolean | null;
   }) {
     if (!org || !piece) {
       return false;
@@ -545,7 +549,7 @@ export function PieceDetailPage() {
         pieceId: piece.id,
         file: entry.file,
         title: entry.title,
-        partLinks: isPieceFileScore(entry.file) ? partLinks : [],
+        partLinks: partLinks,
         contentHash: entry.contentHash,
       });
 
@@ -579,7 +583,7 @@ export function PieceDetailPage() {
 
     const result = await repertoire.updatePieceFile(org.id, piece.id, editingFile.id, {
       title: editFileTitle,
-      partLinks: editingFile.kind === 'score' ? partLinks : undefined,
+      partLinks,
     });
 
     setIsSavingFile(false);
@@ -1011,12 +1015,12 @@ export function PieceDetailPage() {
             )}
             <div className="space-y-1 text-sm text-muted">
               <p>{pieceFileKindLabel(editingFile.kind)}</p>
-              {editingFile.kind === 'score' && !isAdmin && (
+              {editingFile.partLinks.length > 0 && !isAdmin && (
                 <p>{formatPartLinks(editingFile.partLinks, parts)}</p>
               )}
               <p className="text-xs">{editingFile.originalName}</p>
             </div>
-            {isAdmin && editingFile.kind === 'score' && (
+            {isAdmin && (
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-text">
                   Partes (instrumentos ou vozes)
@@ -1096,8 +1100,7 @@ export function PieceDetailPage() {
                       isRemovingFile ||
                       isSavingFile ||
                       (editFileTitle.trim() === editingFile.title &&
-                        (editingFile.kind !== 'score' ||
-                          partLinksEqual(editFilePartLinks, editingFile.partLinks)))
+                        partLinksEqual(editFilePartLinks, editingFile.partLinks))
                     }
                     className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                   >

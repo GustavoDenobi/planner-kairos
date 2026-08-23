@@ -18,10 +18,13 @@ import {
 } from '@/ui/features/pwa/OfflineDownloadButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
+import type { PartWithDivisions } from '@/application/ports/part-repository';
+import { PieceAudioPickerModal } from '@/ui/features/repertoire/PieceAudioPickerModal';
+import { PdfViewerInlineAudioBar } from '@/ui/features/repertoire/PdfViewerInlineAudioBar';
+import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-viewer-audio';
 import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
 import type { PieceDetail } from '@/domain/repertoire';
-import type { AssignmentWithDetails } from '@/domain/ensemble';
-import type { GroupFileAccessSettings } from '@/domain/ensemble';
+import type { AssignmentWithDetails, GroupFileAccessSettings } from '@/domain/ensemble';
 
 export function PiecePdfViewerPage() {
   const { orgSlug, pieceId, fileId } = useParams();
@@ -43,6 +46,11 @@ export function PiecePdfViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCachedLocally, setIsCachedLocally] = useState(false);
   const [allowFileDownload, setAllowFileDownload] = useState(true);
+  const [accessibleAudios, setAccessibleAudios] = useState<PieceFileWithLinks[]>([]);
+  const [audioParts, setAudioParts] = useState<PartWithDivisions[]>([]);
+  const [audioPickerOpen, setAudioPickerOpen] = useState(false);
+  const [activeAudio, setActiveAudio] = useState<PieceFileWithLinks | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
 
@@ -87,6 +95,8 @@ export function PiecePdfViewerPage() {
           groupSettingsById.set(groupId, {
             fileAccessScope: result.value.fileAccessScope,
             allowFileDownload: result.value.allowFileDownload,
+            audioAccessScope: result.value.audioAccessScope,
+            audioAllowDownload: result.value.audioAllowDownload,
             allowPieceAccessOverride: result.value.allowPieceAccessOverride,
           });
         }
@@ -254,6 +264,63 @@ export function PiecePdfViewerPage() {
   }, [org, pieceId, fileId, repertoire, offline, ensemble, userId, online]);
 
   useEffect(() => {
+    if (!org || !pieceId || !online) {
+      setAccessibleAudios([]);
+      setAudioParts([]);
+      setActiveAudio(null);
+      setAudioUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void loadPieceViewerAudioContext({
+      repertoire,
+      ensemble,
+      organizationId: org.id,
+      pieceId,
+      isAdmin,
+      userId,
+      online,
+    }).then((context) => {
+      if (cancelled) {
+        return;
+      }
+      setAccessibleAudios(context?.audios ?? []);
+      setAudioParts(context?.parts ?? []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [org, pieceId, online, isAdmin, userId, repertoire, ensemble]);
+
+  const handleSelectAudio = useCallback(
+    async (selected: PieceFileWithLinks) => {
+      if (!org || !pieceId) {
+        return;
+      }
+
+      setActiveAudio(selected);
+      setAudioUrl(null);
+
+      const result = await repertoire.getPieceFileDownloadUrl(org.id, pieceId, selected.id);
+      if (!result.ok) {
+        setActiveAudio(null);
+        return;
+      }
+
+      setAudioUrl(result.value);
+    },
+    [org, pieceId, repertoire],
+  );
+
+  const handleCloseAudio = useCallback(() => {
+    setActiveAudio(null);
+    setAudioUrl(null);
+  }, []);
+
+  useEffect(() => {
     return () => {
       revokePdfObjectUrl(downloadUrl);
     };
@@ -360,8 +427,31 @@ export function PiecePdfViewerPage() {
         annotations={annotations}
         sectionLeadOptions={sectionLeadOptions}
         preloadedPdf={preloadedPdf}
+        audioPicker={{
+          visible: online && accessibleAudios.length > 0,
+          onOpenPicker: () => setAudioPickerOpen(true),
+        }}
+        inlineAudioBar={
+          activeAudio && audioUrl ? (
+            <PdfViewerInlineAudioBar
+              title={activeAudio.title}
+              url={audioUrl}
+              onClose={handleCloseAudio}
+            />
+          ) : null
+        }
         onAnnotationCreate={handleAnnotationCreate}
         onAnnotationDelete={handleAnnotationDelete}
+      />
+
+      <PieceAudioPickerModal
+        open={audioPickerOpen}
+        onClose={() => setAudioPickerOpen(false)}
+        files={accessibleAudios}
+        parts={audioParts}
+        onSelect={(selected) => {
+          void handleSelectAudio(selected);
+        }}
       />
     </ReaderLayout>
   );

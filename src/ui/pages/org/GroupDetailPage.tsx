@@ -156,6 +156,8 @@ export function GroupDetailPage() {
   const [isRemovingAssignment, setIsRemovingAssignment] = useState(false);
   const [fileAccessScope, setFileAccessScope] = useState<PieceFileAccessScope>('own_parts');
   const [allowFileDownload, setAllowFileDownload] = useState(true);
+  const [audioAccessScope, setAudioAccessScope] = useState<PieceFileAccessScope>('own_parts');
+  const [audioAllowDownload, setAudioAllowDownload] = useState(true);
   const [allowPieceAccessOverride, setAllowPieceAccessOverride] = useState(true);
   const [isSavingFileAccess, setIsSavingFileAccess] = useState(false);
   const [fileAccessError, setFileAccessError] = useState<string | null>(null);
@@ -186,6 +188,8 @@ export function GroupDetailPage() {
         setNotes(cachedGroup.notes ?? '');
         setFileAccessScope(cachedGroup.fileAccessScope);
         setAllowFileDownload(cachedGroup.allowFileDownload);
+        setAudioAccessScope(cachedGroup.audioAccessScope);
+        setAudioAllowDownload(cachedGroup.audioAllowDownload);
         setAllowPieceAccessOverride(cachedGroup.allowPieceAccessOverride);
         } else {
           setGroup(null);
@@ -208,6 +212,8 @@ export function GroupDetailPage() {
         setNotes(result.value.notes ?? '');
         setFileAccessScope(result.value.fileAccessScope);
         setAllowFileDownload(result.value.allowFileDownload);
+        setAudioAccessScope(result.value.audioAccessScope);
+        setAudioAllowDownload(result.value.audioAllowDownload);
         setAllowPieceAccessOverride(result.value.allowPieceAccessOverride);
       }
       setIsLoading(false);
@@ -496,6 +502,8 @@ export function GroupDetailPage() {
     const result = await ensemble.updateGroupFileAccessSettings(org!.id, group!.id, {
       fileAccessScope,
       allowFileDownload,
+      audioAccessScope,
+      audioAllowDownload,
       allowPieceAccessOverride,
     });
     setIsSavingFileAccess(false);
@@ -777,9 +785,13 @@ export function GroupDetailPage() {
                     <GroupFileAccessSettingsForm
                       fileAccessScope={fileAccessScope}
                       allowFileDownload={allowFileDownload}
+                      audioAccessScope={audioAccessScope}
+                      audioAllowDownload={audioAllowDownload}
                       allowPieceAccessOverride={allowPieceAccessOverride}
                       onFileAccessScopeChange={setFileAccessScope}
                       onAllowFileDownloadChange={setAllowFileDownload}
+                      onAudioAccessScopeChange={setAudioAccessScope}
+                      onAudioAllowDownloadChange={setAudioAllowDownload}
                       onAllowPieceAccessOverrideChange={setAllowPieceAccessOverride}
                       disabled={!canEdit}
                     />

@@ -68,6 +68,8 @@ function UploadEntryCard({
   canRemove: boolean;
 }) {
   const isPdf = isPieceFileScore(entry.file);
+  const supportsPartLinks =
+    isPdf || entry.file.type.startsWith('audio/') || /\.(mp3|wav)$/i.test(entry.file.name);
 
   return (
     <div className="">
@@ -112,7 +114,7 @@ function UploadEntryCard({
         />
       </label>
 
-      {isPdf && (
+      {supportsPartLinks && (
         <fieldset className="space-y-2 mt-4">
           <legend className="text-sm font-medium text-text">Partes</legend>
           <div className="min-h-48 max-h-80 space-y-2 overflow-y-auto rounded-lg border border-border p-3">

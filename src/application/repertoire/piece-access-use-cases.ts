@@ -44,6 +44,8 @@ export async function updatePieceAccess(
     await accessRepo.updateAccessSettings(organizationId, pieceId, {
       fileAccessScope: input.fileAccessScope,
       allowFileDownload: input.allowFileDownload,
+      audioAccessScope: input.audioAccessScope,
+      audioAllowDownload: input.audioAllowDownload,
     });
   } catch {
     return Result.fail('update_failed');

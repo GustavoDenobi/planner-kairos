@@ -51,6 +51,8 @@ export type PieceListItem = {
 export type PieceFileAccessSettingsInput = {
   fileAccessScope: PieceFileAccessScope | null;
   allowFileDownload: boolean | null;
+  audioAccessScope: PieceFileAccessScope | null;
+  audioAllowDownload: boolean | null;
 };
 
 export type PieceAccessInput = PieceFileAccessSettingsInput & {
@@ -64,6 +66,8 @@ export type PieceDetail = Piece & {
   files: PieceFileWithLinks[];
   fileAccessScope: PieceFileAccessScope | null;
   allowFileDownload: boolean | null;
+  audioAccessScope: PieceFileAccessScope | null;
+  audioAllowDownload: boolean | null;
   groups: PieceAudienceGroup[];
   musicians: PieceAudienceMusician[];
 };

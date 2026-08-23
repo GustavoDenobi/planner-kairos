@@ -5,6 +5,8 @@ export type GroupKind = 'ensemble' | 'choir' | 'class' | 'other';
 export type GroupFileAccessSettings = {
   fileAccessScope: PieceFileAccessScope;
   allowFileDownload: boolean;
+  audioAccessScope: PieceFileAccessScope;
+  audioAllowDownload: boolean;
   allowPieceAccessOverride: boolean;
 };
 

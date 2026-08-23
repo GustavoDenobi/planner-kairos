@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import type { CreatePdfAnnotationInput, PdfAnnotation, ReadingPlaylistDetail } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, PdfAnnotation, PieceFileWithLinks, ReadingPlaylistDetail } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -57,6 +57,14 @@ import {
 } from '@/ui/features/pwa/OfflineDownloadButton';
 
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+
+import type { PartWithDivisions } from '@/application/ports/part-repository';
+
+import { PieceAudioPickerModal } from '@/ui/features/repertoire/PieceAudioPickerModal';
+
+import { PdfViewerInlineAudioBar } from '@/ui/features/repertoire/PdfViewerInlineAudioBar';
+
+import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-viewer-audio';
 
 
 
@@ -177,6 +185,18 @@ export function ReadingPlaylistReaderPage() {
   const [isCachedLocally, setIsCachedLocally] = useState(false);
 
   const online = useOnlineStatus();
+
+  const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+
+  const [accessibleAudios, setAccessibleAudios] = useState<PieceFileWithLinks[]>([]);
+
+  const [audioParts, setAudioParts] = useState<PartWithDivisions[]>([]);
+
+  const [audioPickerOpen, setAudioPickerOpen] = useState(false);
+
+  const [activeAudio, setActiveAudio] = useState<PieceFileWithLinks | null>(null);
+
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
 
 
@@ -790,6 +810,132 @@ export function ReadingPlaylistReaderPage() {
 
 
 
+  useEffect(() => {
+
+    if (!org || !currentItem?.pieceId || !online) {
+
+      setAccessibleAudios([]);
+
+      setAudioParts([]);
+
+      setActiveAudio(null);
+
+      setAudioUrl(null);
+
+      return;
+
+    }
+
+
+
+    let cancelled = false;
+
+
+
+    void loadPieceViewerAudioContext({
+
+      repertoire,
+
+      ensemble,
+
+      organizationId: org.id,
+
+      pieceId: currentItem.pieceId,
+
+      isAdmin,
+
+      userId,
+
+      online,
+
+    }).then((context) => {
+
+      if (cancelled) {
+
+        return;
+
+      }
+
+      setAccessibleAudios(context?.audios ?? []);
+
+      setAudioParts(context?.parts ?? []);
+
+      setActiveAudio(null);
+
+      setAudioUrl(null);
+
+    });
+
+
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [org, currentItem?.pieceId, online, isAdmin, userId, repertoire, ensemble]);
+
+
+
+  const handleSelectAudio = useCallback(
+
+    async (selected: PieceFileWithLinks) => {
+
+      if (!org || !currentItem?.pieceId) {
+
+        return;
+
+      }
+
+
+
+      setActiveAudio(selected);
+
+      setAudioUrl(null);
+
+
+
+      const result = await repertoire.getPieceFileDownloadUrl(
+
+        org.id,
+
+        currentItem.pieceId,
+
+        selected.id,
+
+      );
+
+      if (!result.ok) {
+
+        setActiveAudio(null);
+
+        return;
+
+      }
+
+
+
+      setAudioUrl(result.value);
+
+    },
+
+    [org, currentItem?.pieceId, repertoire],
+
+  );
+
+
+
+  const handleCloseAudio = useCallback(() => {
+
+    setActiveAudio(null);
+
+    setAudioUrl(null);
+
+  }, []);
+
+
+
   const handleAnnotationCreate = useCallback(
 
     async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
@@ -1166,9 +1312,55 @@ export function ReadingPlaylistReaderPage() {
 
         preloadedPdf={cachedCurrentItem?.pdfDocument ?? null}
 
+        audioPicker={{
+
+          visible: online && accessibleAudios.length > 0,
+
+          onOpenPicker: () => setAudioPickerOpen(true),
+
+        }}
+
+        inlineAudioBar={
+
+          activeAudio && audioUrl ? (
+
+            <PdfViewerInlineAudioBar
+
+              title={activeAudio.title}
+
+              url={audioUrl}
+
+              onClose={handleCloseAudio}
+
+            />
+
+          ) : null
+
+        }
+
         onAnnotationCreate={handleAnnotationCreate}
 
         onAnnotationDelete={handleAnnotationDelete}
+
+      />
+
+
+
+      <PieceAudioPickerModal
+
+        open={audioPickerOpen}
+
+        onClose={() => setAudioPickerOpen(false)}
+
+        files={accessibleAudios}
+
+        parts={audioParts}
+
+        onSelect={(selected) => {
+
+          void handleSelectAudio(selected);
+
+        }}
 
       />
 

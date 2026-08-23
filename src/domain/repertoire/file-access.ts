@@ -1,13 +1,15 @@
 import type { EnsembleRole, GroupFileAccessSettings } from '@/domain/ensemble';
-import type { PieceFileAccessScope, PieceFileWithLinks } from '@/domain/repertoire';
+import type { PieceFileAccessScope, PieceFileKind, PieceFileWithLinks } from '@/domain/repertoire';
 import {
-  isGeneralScoreFile,
+  isGeneralPieceFile,
   pieceFileMatchesUserParts,
 } from '@/domain/repertoire/rules';
 
 export type PieceFileAccessSettings = {
   fileAccessScope: PieceFileAccessScope | null;
   allowFileDownload: boolean | null;
+  audioAccessScope: PieceFileAccessScope | null;
+  audioAllowDownload: boolean | null;
 };
 
 export type PieceAccessPathViaGroup = {
@@ -42,6 +44,44 @@ const DEFAULT_MUSICIAN_ACCESS: ResolvedPieceFileAccess = {
   allowDownload: true,
 };
 
+function pieceSettingsHasOverride(
+  pieceSettings: PieceFileAccessSettings,
+  kind: PieceFileKind,
+): boolean {
+  if (kind === 'audio') {
+    return pieceSettings.audioAccessScope !== null || pieceSettings.audioAllowDownload !== null;
+  }
+  return pieceSettings.fileAccessScope !== null || pieceSettings.allowFileDownload !== null;
+}
+
+function scopeFromPieceSettings(
+  pieceSettings: PieceFileAccessSettings,
+  kind: PieceFileKind,
+): PieceFileAccessScope | null {
+  return kind === 'audio' ? pieceSettings.audioAccessScope : pieceSettings.fileAccessScope;
+}
+
+function downloadFromPieceSettings(
+  pieceSettings: PieceFileAccessSettings,
+  kind: PieceFileKind,
+): boolean | null {
+  return kind === 'audio' ? pieceSettings.audioAllowDownload : pieceSettings.allowFileDownload;
+}
+
+function scopeFromGroupSettings(
+  groupSettings: GroupFileAccessSettings,
+  kind: PieceFileKind,
+): PieceFileAccessScope {
+  return kind === 'audio' ? groupSettings.audioAccessScope : groupSettings.fileAccessScope;
+}
+
+function downloadFromGroupSettings(
+  groupSettings: GroupFileAccessSettings,
+  kind: PieceFileKind,
+): boolean {
+  return kind === 'audio' ? groupSettings.audioAllowDownload : groupSettings.allowFileDownload;
+}
+
 export function pieceAllowsOverride(accessPaths: PieceAccessPath[]): boolean {
   return accessPaths.some(
     (path) => path.kind === 'group' && path.groupSettings.allowPieceAccessOverride,
@@ -52,12 +92,14 @@ export function resolveRulesForPath(
   path: PieceAccessPath,
   pieceSettings: PieceFileAccessSettings,
   usePieceRules: boolean,
+  kind: PieceFileKind = 'score',
 ): ResolvedPieceFileAccess {
   if (path.kind === 'musician') {
     if (usePieceRules) {
       return {
-        scope: pieceSettings.fileAccessScope ?? DEFAULT_MUSICIAN_ACCESS.scope,
-        allowDownload: pieceSettings.allowFileDownload ?? DEFAULT_MUSICIAN_ACCESS.allowDownload,
+        scope: scopeFromPieceSettings(pieceSettings, kind) ?? DEFAULT_MUSICIAN_ACCESS.scope,
+        allowDownload:
+          downloadFromPieceSettings(pieceSettings, kind) ?? DEFAULT_MUSICIAN_ACCESS.allowDownload,
       };
     }
     return DEFAULT_MUSICIAN_ACCESS;
@@ -67,14 +109,17 @@ export function resolveRulesForPath(
 
   if (usePieceRules) {
     return {
-      scope: pieceSettings.fileAccessScope ?? groupSettings.fileAccessScope,
-      allowDownload: pieceSettings.allowFileDownload ?? groupSettings.allowFileDownload,
+      scope:
+        scopeFromPieceSettings(pieceSettings, kind) ?? scopeFromGroupSettings(groupSettings, kind),
+      allowDownload:
+        downloadFromPieceSettings(pieceSettings, kind) ??
+        downloadFromGroupSettings(groupSettings, kind),
     };
   }
 
   return {
-    scope: groupSettings.fileAccessScope,
-    allowDownload: groupSettings.allowFileDownload,
+    scope: scopeFromGroupSettings(groupSettings, kind),
+    allowDownload: downloadFromGroupSettings(groupSettings, kind),
   };
 }
 
@@ -95,7 +140,10 @@ export function mergeResolvedAccess(
   );
 }
 
-export function resolvePieceFileAccess(context: PieceAccessContext): ResolvedPieceFileAccess | null {
+function resolvePieceAccessByKind(
+  context: PieceAccessContext,
+  kind: PieceFileKind,
+): ResolvedPieceFileAccess | null {
   if (context.isAdmin) {
     return { scope: 'all_files', allowDownload: true };
   }
@@ -105,15 +153,21 @@ export function resolvePieceFileAccess(context: PieceAccessContext): ResolvedPie
   }
 
   const usePieceRules =
-    pieceAllowsOverride(context.accessPaths) &&
-    (context.pieceSettings.fileAccessScope !== null ||
-      context.pieceSettings.allowFileDownload !== null);
+    pieceAllowsOverride(context.accessPaths) && pieceSettingsHasOverride(context.pieceSettings, kind);
 
   const pathRules = context.accessPaths.map((path) =>
-    resolveRulesForPath(path, context.pieceSettings, usePieceRules),
+    resolveRulesForPath(path, context.pieceSettings, usePieceRules, kind),
   );
 
   return mergeResolvedAccess(pathRules);
+}
+
+export function resolvePieceFileAccess(context: PieceAccessContext): ResolvedPieceFileAccess | null {
+  return resolvePieceAccessByKind(context, 'score');
+}
+
+export function resolvePieceAudioAccess(context: PieceAccessContext): ResolvedPieceFileAccess | null {
+  return resolvePieceAccessByKind(context, 'audio');
 }
 
 export function canSeePiece(context: PieceAccessContext): boolean {
@@ -123,27 +177,44 @@ export function canSeePiece(context: PieceAccessContext): boolean {
   return context.hasAudience && context.isInAudience;
 }
 
+export function filterPieceFilesForKindAccess(
+  files: PieceFileWithLinks[],
+  access: ResolvedPieceFileAccess,
+  userPartIds: string[],
+  isConductor: boolean,
+  kind: PieceFileKind,
+): PieceFileWithLinks[] {
+  const ofKind = files.filter((file) => file.kind === kind);
+
+  if (access.scope === 'all_files') {
+    return ofKind;
+  }
+
+  return ofKind.filter((file) => {
+    if (isGeneralPieceFile(file)) {
+      return isConductor;
+    }
+
+    return pieceFileMatchesUserParts(file, userPartIds);
+  });
+}
+
 export function filterPieceFilesForAccess(
   files: PieceFileWithLinks[],
   access: ResolvedPieceFileAccess,
   userPartIds: string[],
   isConductor: boolean,
 ): PieceFileWithLinks[] {
-  if (access.scope === 'all_files') {
-    return files;
-  }
+  return filterPieceFilesForKindAccess(files, access, userPartIds, isConductor, 'score');
+}
 
-  return files.filter((file) => {
-    if (file.kind === 'audio') {
-      return false;
-    }
-
-    if (isGeneralScoreFile(file)) {
-      return isConductor;
-    }
-
-    return pieceFileMatchesUserParts(file, userPartIds);
-  });
+export function filterAccessibleAudioFiles(
+  files: PieceFileWithLinks[],
+  audioAccess: ResolvedPieceFileAccess,
+  userPartIds: string[],
+  isConductor: boolean,
+): PieceFileWithLinks[] {
+  return filterPieceFilesForKindAccess(files, audioAccess, userPartIds, isConductor, 'audio');
 }
 
 export function buildAccessPathsForUser(input: {

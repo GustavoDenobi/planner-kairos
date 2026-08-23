@@ -79,6 +79,8 @@ function sampleGroup(overrides: Partial<GroupListItem> = {}): GroupListItem {
     archivedAt: null,
     fileAccessScope: 'own_parts',
     allowFileDownload: true,
+    audioAccessScope: 'own_parts',
+    audioAllowDownload: true,
     allowPieceAccessOverride: true,
     memberCount: 5,
     sortOrder: 1,

@@ -254,12 +254,9 @@ export function validateAnnotationLayer(
 }
 
 export function pieceFileMatchesUserParts(
-  file: Pick<PieceFileWithLinks, 'kind' | 'partLinks'>,
+  file: Pick<PieceFileWithLinks, 'partLinks'>,
   userPartIds: string[],
 ): boolean {
-  if (file.kind !== 'score') {
-    return false;
-  }
   if (userPartIds.length === 0) {
     return false;
   }
@@ -269,10 +266,16 @@ export function pieceFileMatchesUserParts(
   return file.partLinks.some((link) => userPartIds.includes(link.partId));
 }
 
+export function isGeneralPieceFile(
+  file: Pick<PieceFileWithLinks, 'partLinks'>,
+): boolean {
+  return file.partLinks.length === 0;
+}
+
 export function isGeneralScoreFile(
   file: Pick<PieceFileWithLinks, 'kind' | 'partLinks'>,
 ): boolean {
-  return file.kind === 'score' && file.partLinks.length === 0;
+  return file.kind === 'score' && isGeneralPieceFile(file);
 }
 
 export function partitionPieceFilesForViewer(
@@ -292,7 +295,9 @@ export function partitionPieceFilesForViewer(
     userPartIds.length > 0
       ? files.filter(
           (file) =>
-            !generalIds.has(file.id) && pieceFileMatchesUserParts(file, userPartIds),
+            file.kind === 'score' &&
+            !generalIds.has(file.id) &&
+            pieceFileMatchesUserParts(file, userPartIds),
         )
       : [];
   const userIds = new Set(userFiles.map((file) => file.id));

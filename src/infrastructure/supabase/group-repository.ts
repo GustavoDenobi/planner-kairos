@@ -4,7 +4,7 @@ import { nextSortOrder, sortOrdersFromIds } from '@/domain/ensemble/sort-order';
 import { supabase } from './client';
 
 const GROUP_COLUMNS =
-  'id, organization_id, name, kind, notes, archived_at, sort_order, file_access_scope, allow_file_download, allow_piece_access_override';
+  'id, organization_id, name, kind, notes, archived_at, sort_order, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download, allow_piece_access_override';
 
 function mapGroup(row: {
   id: string;
@@ -16,6 +16,8 @@ function mapGroup(row: {
   sort_order: number;
   file_access_scope: Group['fileAccessScope'];
   allow_file_download: boolean;
+  audio_access_scope: Group['audioAccessScope'];
+  audio_allow_download: boolean;
   allow_piece_access_override: boolean;
 }): Group {
   return {
@@ -28,6 +30,8 @@ function mapGroup(row: {
     sortOrder: row.sort_order,
     fileAccessScope: row.file_access_scope,
     allowFileDownload: row.allow_file_download,
+    audioAccessScope: row.audio_access_scope,
+    audioAllowDownload: row.audio_allow_download,
     allowPieceAccessOverride: row.allow_piece_access_override,
   };
 }
@@ -42,6 +46,8 @@ function mapGroupListItem(row: {
   sort_order: number;
   file_access_scope: Group['fileAccessScope'];
   allow_file_download: boolean;
+  audio_access_scope: Group['audioAccessScope'];
+  audio_allow_download: boolean;
   allow_piece_access_override: boolean;
   assignments: { count: number }[];
 }): GroupListItem {
@@ -85,6 +91,8 @@ export function createGroupRepository(): GroupRepository {
           sort_order: row.sort_order,
           file_access_scope: row.file_access_scope ?? 'own_parts',
           allow_file_download: row.allow_file_download ?? true,
+          audio_access_scope: row.audio_access_scope ?? 'own_parts',
+          audio_allow_download: row.audio_allow_download ?? true,
           allow_piece_access_override: row.allow_piece_access_override ?? true,
           assignments: [{ count }],
         });
@@ -155,6 +163,8 @@ export function createGroupRepository(): GroupRepository {
         .update({
           file_access_scope: input.fileAccessScope,
           allow_file_download: input.allowFileDownload,
+          audio_access_scope: input.audioAccessScope,
+          audio_allow_download: input.audioAllowDownload,
           allow_piece_access_override: input.allowPieceAccessOverride,
         })
         .eq('organization_id', organizationId)

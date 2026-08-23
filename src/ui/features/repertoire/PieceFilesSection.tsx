@@ -43,8 +43,8 @@ function fileMatchesPartFilter(
   partId: string,
   divisionId: string,
 ): boolean {
-  if (file.kind === 'audio') {
-    return partId === '' && divisionId === '';
+  if (!partId && !divisionId) {
+    return true;
   }
 
   if (file.partLinks.length === 0) {
@@ -108,7 +108,7 @@ function FileList({
             >
               <p className="font-medium text-text">{file.title}</p>
               <p className="mt-0.5 text-sm text-muted">
-                {file.kind === 'score'
+                {file.partLinks.length > 0
                   ? formatPartLinks(file.partLinks, parts)
                   : pieceFileKindLabel(file.kind)}
               </p>
@@ -167,9 +167,6 @@ export function PieceFilesSection({
     const seen = new Set<string>();
 
     for (const file of files) {
-      if (file.kind !== 'score') {
-        continue;
-      }
       if (file.partLinks.length === 0) {
         if (!seen.has('general')) {
           seen.add('general');
@@ -198,9 +195,6 @@ export function PieceFilesSection({
     const seen = new Set<string>();
 
     for (const file of files) {
-      if (file.kind !== 'score') {
-        continue;
-      }
       for (const link of file.partLinks) {
         if (!link.partDivisionId || seen.has(link.partDivisionId)) {
           continue;

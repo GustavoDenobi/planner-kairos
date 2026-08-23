@@ -26,7 +26,10 @@ export type PieceAccessRepository = {
   updateAccessSettings(
     organizationId: string,
     pieceId: string,
-    input: Pick<PieceAccessInput, 'fileAccessScope' | 'allowFileDownload'>,
+    input: Pick<
+      PieceAccessInput,
+      'fileAccessScope' | 'allowFileDownload' | 'audioAccessScope' | 'audioAllowDownload'
+    >,
   ): Promise<void>;
   listCategoryIdsByGroup(organizationId: string): Promise<Map<string, string[]>>;
   listUnlinkedCategoryIds(organizationId: string): Promise<string[]>;
