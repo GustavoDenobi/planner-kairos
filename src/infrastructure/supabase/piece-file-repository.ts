@@ -152,6 +152,7 @@ export function createPieceFileRepository(): PieceFileRepository {
       const { data, error } = await supabase
         .from('piece_files')
         .insert({
+          id: input.id,
           organization_id: organizationId,
           piece_id: input.pieceId,
           kind: input.kind,

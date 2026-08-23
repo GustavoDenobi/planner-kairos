@@ -87,6 +87,7 @@ export async function attachPieceFile(
     );
 
     const pieceFile = await fileRepo.create(organizationId, {
+      id: fileId,
       pieceId: input.pieceId,
       kind,
       storageKey,

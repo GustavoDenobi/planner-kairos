@@ -62,9 +62,9 @@ const COPY_BY_KIND: Record<Exclude<PwaInstallContextKind, 'installed' | 'unsuppo
     secondaryCta: SHARED_SECONDARY,
   },
   'samsung-internet': {
-    title: 'Instalação não recomendada',
+    title: 'Instalação recomendada no Chrome',
     description:
-      'O Samsung Internet gera um pacote PWA para uma versão antiga do Android. A Play Store pode avisar que a instalação é de risco. Use o Chrome para instalar com segurança.',
+      'O Samsung Internet é conhecido por não instalar corretamente o app. Use o Chrome para instalar com segurança.',
     steps: [
       'Abra o Chrome neste aparelho.',
       'Acesse o Planner Musical.',
@@ -78,7 +78,7 @@ const COPY_BY_KIND: Record<Exclude<PwaInstallContextKind, 'installed' | 'unsuppo
     description:
       'Este navegador interno não permite instalar o app. Abra o Planner Musical no Safari ou no Chrome para continuar.',
     steps: [
-      'Toque no menu do aplicativo (⋯ ou “Abrir no navegador”).',
+      'Toque no menu do aplicativo (⋯ ou "Abrir no navegador").',
       'Abra o link no Safari ou no Chrome.',
       'Siga as instruções para instalar o app.',
     ],

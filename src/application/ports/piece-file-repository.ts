@@ -1,6 +1,7 @@
 import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from '@/domain/repertoire';
 
 export type CreatePieceFileInput = {
+  id: string;
   pieceId: string;
   kind: PieceFileKind;
   storageKey: string;
