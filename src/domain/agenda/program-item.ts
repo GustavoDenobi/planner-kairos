@@ -1,3 +1,5 @@
+export type ProgramItemStatus = 'planned' | 'performed' | 'skipped';
+
 export type ProgramItem = {
   id: string;
   organizationId: string;
@@ -5,11 +7,13 @@ export type ProgramItem = {
   pieceId: string;
   sortOrder: number;
   notes: string | null;
+  status: ProgramItemStatus;
 };
 
 export type ProgramItemInput = {
   pieceId: string;
   notes?: string | null;
+  status?: ProgramItemStatus;
 };
 
 export type ProgramItemDetail = ProgramItem & {

@@ -1,4 +1,4 @@
-import type { EventKind } from '@/domain/agenda';
+import type { EventKind, ProgramItemStatus } from '@/domain/agenda';
 
 export const EVENT_KIND_LABELS: Record<EventKind, string> = {
   rehearsal: 'Ensaio',
@@ -24,6 +24,7 @@ export const AGENDA_ERROR_MESSAGES: Record<string, string> = {
   create_failed: 'Não foi possível criar o evento. Verifique os campos e tente novamente.',
   update_failed: 'Não foi possível atualizar o evento. Verifique os campos e tente novamente.',
   program_failed: 'Não foi possível salvar a programação. Tente novamente em instantes.',
+  invalid_status: 'Status de execução inválido na programação.',
   cannot_create_event: 'Você não tem permissão para criar eventos.',
   audience_group_not_allowed: 'Você só pode associar grupos em que é professor ou regente.',
   audience_musician_not_allowed: 'Você só pode associar músicos dos grupos em que é professor ou regente.',
@@ -39,4 +40,14 @@ export function agendaErrorMessage(code: string): string {
 
 export function eventKindLabel(kind: EventKind): string {
   return EVENT_KIND_LABELS[kind];
+}
+
+export const PROGRAM_ITEM_STATUS_LABELS: Record<ProgramItemStatus, string> = {
+  planned: 'Planejada',
+  performed: 'Executada',
+  skipped: 'Não executada',
+};
+
+export function programItemStatusLabel(status: ProgramItemStatus): string {
+  return PROGRAM_ITEM_STATUS_LABELS[status];
 }

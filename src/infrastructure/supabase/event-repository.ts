@@ -146,7 +146,7 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
   const { data, error } = await supabase
     .from('program_items')
     .select(
-      'id, organization_id, event_id, piece_id, sort_order, notes, pieces (title, deleted_at, piece_categories (name, slug, color))',
+      'id, organization_id, event_id, piece_id, sort_order, notes, status, pieces (title, deleted_at, piece_categories (name, slug, color))',
     )
     .eq('organization_id', organizationId)
     .eq('event_id', eventId)
@@ -170,6 +170,7 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
       pieceId: row.piece_id,
       sortOrder: row.sort_order,
       notes: row.notes,
+      status: row.status,
       pieceTitle: piece?.title ?? 'Obra removida',
       pieceDeleted: piece?.deleted_at != null,
       pieceCategory: category
@@ -484,6 +485,7 @@ export function createEventRepository(): EventRepository {
             piece_id: item.pieceId,
             sort_order: index,
             notes: normalizeOptionalText(item.notes),
+            status: item.status ?? 'planned',
           })),
         );
 

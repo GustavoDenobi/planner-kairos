@@ -1,9 +1,10 @@
 import type { EventInput, EventAudienceMusician } from './event';
 import type { EventKind, EventType, EventTypeInput } from './event-type';
 import type { EventParticipant } from './event-absence';
-import type { ProgramItemInput } from './program-item';
+import type { ProgramItemInput, ProgramItemStatus } from './program-item';
 
 const EVENT_KINDS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
+const PROGRAM_ITEM_STATUSES: ProgramItemStatus[] = ['planned', 'performed', 'skipped'];
 
 const EVENT_KIND_COLORS: Record<EventKind, string> = {
   rehearsal: 'blue-500',
@@ -62,11 +63,18 @@ export function validateEventInput(input: EventInput): string | null {
   return null;
 }
 
+export function isValidProgramItemStatus(status: ProgramItemStatus): boolean {
+  return PROGRAM_ITEM_STATUSES.includes(status);
+}
+
 export function validateProgramItems(items: ProgramItemInput[]): string | null {
   const seen = new Set<string>();
   for (const item of items) {
     if (!item.pieceId.trim()) {
       return 'invalid_piece';
+    }
+    if (item.status !== undefined && !isValidProgramItemStatus(item.status)) {
+      return 'invalid_status';
     }
     if (seen.has(item.pieceId)) {
       return 'duplicate_piece';

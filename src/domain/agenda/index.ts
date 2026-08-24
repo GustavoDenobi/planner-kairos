@@ -6,7 +6,12 @@ export type {
   EventAudienceGroup,
   EventAudienceMusician,
 } from './event';
-export type { ProgramItem, ProgramItemInput, ProgramItemDetail } from './program-item';
+export type {
+  ProgramItem,
+  ProgramItemInput,
+  ProgramItemDetail,
+  ProgramItemStatus,
+} from './program-item';
 export type { EventDetail } from './event-detail';
 export type { EventParticipant, EventAbsence } from './event-absence';
 export {

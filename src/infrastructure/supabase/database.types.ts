@@ -1273,6 +1273,7 @@ export type Database = {
           organization_id: string
           piece_id: string
           sort_order: number
+          status: Database["public"]["Enums"]["program_item_status"]
         }
         Insert: {
           created_at?: string
@@ -1282,6 +1283,7 @@ export type Database = {
           organization_id: string
           piece_id: string
           sort_order?: number
+          status?: Database["public"]["Enums"]["program_item_status"]
         }
         Update: {
           created_at?: string
@@ -1291,6 +1293,7 @@ export type Database = {
           organization_id?: string
           piece_id?: string
           sort_order?: number
+          status?: Database["public"]["Enums"]["program_item_status"]
         }
         Relationships: [
           {
@@ -1654,6 +1657,7 @@ export type Database = {
       part_kind: "instrument" | "voice"
       piece_file_access_scope: "own_parts" | "all_files"
       piece_file_kind: "score" | "audio"
+      program_item_status: "planned" | "performed" | "skipped"
       theme_preference: "light" | "dark"
     }
     CompositeTypes: {
@@ -1794,6 +1798,7 @@ export const Constants = {
       part_kind: ["instrument", "voice"],
       piece_file_access_scope: ["own_parts", "all_files"],
       piece_file_kind: ["score", "audio"],
+      program_item_status: ["planned", "performed", "skipped"],
       theme_preference: ["light", "dark"],
     },
   },

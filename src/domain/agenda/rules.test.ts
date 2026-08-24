@@ -78,6 +78,28 @@ describe('validateProgramItems', () => {
       ]),
     ).toBe('duplicate_piece');
   });
+
+  it('accepts items without explicit status', () => {
+    expect(validateProgramItems([{ pieceId: 'piece-1' }])).toBeNull();
+  });
+
+  it('accepts valid statuses', () => {
+    expect(
+      validateProgramItems([
+        { pieceId: 'piece-1', status: 'planned' },
+        { pieceId: 'piece-2', status: 'performed' },
+        { pieceId: 'piece-3', status: 'skipped' },
+      ]),
+    ).toBeNull();
+  });
+
+  it('rejects invalid status', () => {
+    expect(
+      validateProgramItems([
+        { pieceId: 'piece-1', status: 'cancelled' as 'planned' },
+      ]),
+    ).toBe('invalid_status');
+  });
 });
 
 describe('resolveEventColor', () => {
