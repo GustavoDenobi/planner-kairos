@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type * as pdfjs from 'pdfjs-dist';
-import type { CreatePdfAnnotationInput, PdfAnnotation, PieceFileWithLinks } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdatePdfNavigationShortcutInput } from '@/domain/repertoire';
 import { useRepertoire, useOffline, useEnsemble } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -24,6 +24,7 @@ import { PdfViewerInlineAudioBar } from '@/ui/features/repertoire/PdfViewerInlin
 import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-viewer-audio';
 import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
 import type { PieceDetail } from '@/domain/repertoire';
+import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
 import type { AssignmentWithDetails, GroupFileAccessSettings } from '@/domain/ensemble';
 
 export function PiecePdfViewerPage() {
@@ -42,6 +43,8 @@ export function PiecePdfViewerPage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [preloadedPdf, setPreloadedPdf] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
+  const [navigationShortcuts, setNavigationShortcuts] = useState<PdfNavigationShortcut[]>([]);
+  const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('piece-pdf-viewer', isLoading);
@@ -148,6 +151,8 @@ export function PiecePdfViewerPage() {
       setDownloadUrl(null);
       setPreloadedPdf(null);
       setAnnotations([]);
+      setNavigationShortcuts([]);
+      setCanManageNavigationShortcuts(false);
 
       const pdfLoad = await resolvePdfDocument(
         offline,
@@ -177,9 +182,11 @@ export function PiecePdfViewerPage() {
       }
 
       let pieceFile: PieceFileWithLinks | null = null;
+      let pieceDetailForAccess: PieceDetail | null = null;
       if (online && pdfLoad.resolved?.source !== 'local') {
         const pieceResult = await repertoire.getPiece(resolvedOrganizationId, currentPieceId);
         if (!cancelled && pieceResult.ok) {
+          pieceDetailForAccess = pieceResult.value;
           const found = pieceResult.value.files.find((item) => item.id === currentFileId);
           if (!found) {
             setError('Arquivo não encontrado nesta obra. Volte à obra e escolha outra partitura.');
@@ -197,6 +204,10 @@ export function PiecePdfViewerPage() {
       }
 
       const annotationsResult = await offline.listAnnotationsForReading(
+        resolvedOrganizationId,
+        currentFileId,
+      );
+      const shortcutsResult = await offline.listNavigationShortcutsForReading(
         resolvedOrganizationId,
         currentFileId,
       );
@@ -228,6 +239,73 @@ export function PiecePdfViewerPage() {
       if (annotationsResult.ok) {
         setAnnotations(annotationsResult.value);
       }
+      if (shortcutsResult.ok) {
+        setNavigationShortcuts(shortcutsResult.value);
+      }
+
+      if (userId) {
+        if (isAdmin) {
+          setCanManageNavigationShortcuts(true);
+        } else if (pieceDetailForAccess) {
+          const musicianResult = await ensemble.getMyMusician(resolvedOrganizationId, userId);
+          let assignments: AssignmentWithDetails[] = [];
+          if (musicianResult.ok) {
+            const assignmentsResult = await ensemble.listAssignmentsForMusician(
+              resolvedOrganizationId,
+              musicianResult.value.id,
+            );
+            if (assignmentsResult.ok) {
+              assignments = assignmentsResult.value;
+            }
+          }
+
+          const sectionPartIds = new Set<string>();
+          for (const assignment of assignments) {
+            if (assignment.ensembleRole !== 'section_lead' || !assignment.sectionId) {
+              continue;
+            }
+            const groupId = assignment.groupId;
+            const cachedPartIds = online
+              ? null
+              : await offline.getCachedSectionPartIdsByGroup(
+                  resolvedOrganizationId,
+                  userId,
+                  groupId,
+                );
+            if (cachedPartIds) {
+              for (const partId of cachedPartIds) {
+                sectionPartIds.add(partId);
+              }
+            } else if (online) {
+              const sectionsResult = await ensemble.listSectionsForGroup(
+                resolvedOrganizationId,
+                groupId,
+              );
+              if (sectionsResult.ok) {
+                for (const section of sectionsResult.value) {
+                  if (section.id !== assignment.sectionId) {
+                    continue;
+                  }
+                  for (const partId of section.partIds) {
+                    sectionPartIds.add(partId);
+                  }
+                }
+              }
+            }
+          }
+
+          setCanManageNavigationShortcuts(
+            resolveCanManageNavigationShortcuts({
+              isAdmin: false,
+              assignments,
+              pieceGroupIds: pieceDetailForAccess.groups.map((group) => group.id),
+              filePartLinks: pieceFile.partLinks,
+              sectionPartIdsBySectionLead: [...sectionPartIds],
+            }),
+          );
+        }
+      }
+
       loadedKeyRef.current = loadKey;
       setIsLoading(false);
     }
@@ -237,7 +315,7 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble]);
+  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId]);
 
   useEffect(() => {
     if (!organizationId || !userId || !online) {
@@ -393,6 +471,95 @@ export function PiecePdfViewerPage() {
     [org, fileId, file, offline],
   );
 
+  const handleNavigationShortcutCreate = useCallback(
+    async (input: Omit<CreatePdfNavigationShortcutInput, 'pieceFileId'>) => {
+      if (!org || !pieceId || !fileId || !userId || !file) {
+        return null;
+      }
+
+      const result = await offline.createPieceFileNavigationShortcut(
+        org.id,
+        pieceId,
+        userId,
+        { ...input, pieceFileId: file.id },
+      );
+
+      if (!result.ok) {
+        return null;
+      }
+
+      setNavigationShortcuts((current) =>
+        [...current.filter((item) => item.id !== result.value.id), result.value].sort(
+          (a, b) => a.sortOrder - b.sortOrder,
+        ),
+      );
+      return result.value;
+    },
+    [org, pieceId, fileId, userId, file, offline],
+  );
+
+  const handleNavigationShortcutUpdate = useCallback(
+    async (shortcutId: string, input: UpdatePdfNavigationShortcutInput) => {
+      if (!org || !fileId || !file) {
+        return null;
+      }
+
+      const result = await offline.updatePieceFileNavigationShortcut(
+        org.id,
+        file.id,
+        shortcutId,
+        input,
+      );
+
+      if (!result.ok) {
+        return null;
+      }
+
+      setNavigationShortcuts((current) =>
+        current
+          .map((item) => (item.id === shortcutId ? result.value : item))
+          .sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+      return result.value;
+    },
+    [org, fileId, file, offline],
+  );
+
+  const handleNavigationShortcutDelete = useCallback(
+    async (shortcutId: string) => {
+      if (!org || !fileId || !file) {
+        return;
+      }
+
+      const result = await offline.deletePieceFileNavigationShortcut(org.id, file.id, shortcutId);
+      if (!result.ok) {
+        return;
+      }
+
+      setNavigationShortcuts((current) => current.filter((item) => item.id !== shortcutId));
+    },
+    [org, fileId, file, offline],
+  );
+
+  const handleNavigationShortcutReorder = useCallback(
+    async (orderedIds: string[]) => {
+      if (!org || !fileId || !file) {
+        return;
+      }
+
+      const result = await offline.reorderPieceFileNavigationShortcuts(
+        org.id,
+        file.id,
+        orderedIds,
+      );
+
+      if (result.ok) {
+        setNavigationShortcuts(result.value);
+      }
+    },
+    [org, fileId, file, offline],
+  );
+
   if (!orgSlug || !pieceId || !fileId) {
     return null;
   }
@@ -462,6 +629,12 @@ export function PiecePdfViewerPage() {
         }
         onAnnotationCreate={handleAnnotationCreate}
         onAnnotationDelete={handleAnnotationDelete}
+        navigationShortcuts={navigationShortcuts}
+        canManageNavigationShortcuts={canManageNavigationShortcuts}
+        onNavigationShortcutCreate={handleNavigationShortcutCreate}
+        onNavigationShortcutUpdate={handleNavigationShortcutUpdate}
+        onNavigationShortcutDelete={handleNavigationShortcutDelete}
+        onNavigationShortcutReorder={handleNavigationShortcutReorder}
       />
 
       <PieceAudioPickerModal

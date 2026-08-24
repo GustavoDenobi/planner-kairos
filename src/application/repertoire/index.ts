@@ -2,13 +2,14 @@ import type { FileStorage } from '@/application/ports/file-storage';
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceAccessRepository } from '@/application/ports/piece-access-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { CreatePdfAnnotationInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -23,8 +24,15 @@ import {
   listPieceFileAnnotations,
   updatePieceFileAnnotation,
 } from './annotation-use-cases';
-import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, updatePieceFile } from './file-use-cases';
+import {
+  createPieceFileNavigationShortcut,
+  deletePieceFileNavigationShortcut,
+  listPieceFileNavigationShortcuts,
+  reorderPieceFileNavigationShortcuts,
+  updatePieceFileNavigationShortcut,
+} from './navigation-shortcut-use-cases';
 import type { AttachPieceFileInput, UpdatePieceFileInput } from './file-use-cases';
+import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, updatePieceFile } from './file-use-cases';
 import {
   createReadingPlaylist,
   deleteReadingPlaylist,
@@ -59,6 +67,7 @@ export type RepertoireDeps = {
   accessRepo: PieceAccessRepository;
   fileRepo: PieceFileRepository;
   annotationRepo: PieceFileAnnotationRepository;
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository;
   playlistRepo: ReadingPlaylistRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
@@ -174,6 +183,58 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       pieceFileId: string,
       annotationId: string,
     ) => deletePieceFileAnnotation(deps.annotationRepo, organizationId, pieceFileId, annotationId),
+
+    listPieceFileNavigationShortcuts: (organizationId: string, pieceFileId: string) =>
+      listPieceFileNavigationShortcuts(deps.navigationShortcutRepo, organizationId, pieceFileId),
+    createPieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      input: CreatePdfNavigationShortcutInput,
+    ) =>
+      createPieceFileNavigationShortcut(
+        deps.fileRepo,
+        deps.navigationShortcutRepo,
+        organizationId,
+        pieceId,
+        authorUserId,
+        input,
+      ),
+    updatePieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceFileId: string,
+      shortcutId: string,
+      input: UpdatePdfNavigationShortcutInput,
+    ) =>
+      updatePieceFileNavigationShortcut(
+        deps.navigationShortcutRepo,
+        organizationId,
+        pieceFileId,
+        shortcutId,
+        input,
+      ),
+    deletePieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceFileId: string,
+      shortcutId: string,
+    ) =>
+      deletePieceFileNavigationShortcut(
+        deps.navigationShortcutRepo,
+        organizationId,
+        pieceFileId,
+        shortcutId,
+      ),
+    reorderPieceFileNavigationShortcuts: (
+      organizationId: string,
+      pieceFileId: string,
+      orderedIds: string[],
+    ) =>
+      reorderPieceFileNavigationShortcuts(
+        deps.navigationShortcutRepo,
+        organizationId,
+        pieceFileId,
+        orderedIds,
+      ),
 
     listReadingPlaylists: (organizationId: string, ownerUserId: string) =>
       listReadingPlaylists(deps.playlistRepo, organizationId, ownerUserId),

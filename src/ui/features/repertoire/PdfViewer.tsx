@@ -4,9 +4,12 @@ import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
+  CreatePdfNavigationShortcutInput,
   NormalizedPoint,
   PdfAnnotation,
+  PdfNavigationShortcut,
   StrokeGeometry,
+  UpdatePdfNavigationShortcutInput,
 } from '@/domain/repertoire';
 import {
   ANNOTATION_COLORS,
@@ -37,7 +40,15 @@ import {
 } from '@/ui/features/repertoire/AnnotationOverlay';
 import {
   isDraftAnnotationId,
+  toNormalizedCoords,
 } from '@/ui/features/repertoire/annotation-coordinates';
+import { PdfNavigationShortcutBar } from '@/ui/features/repertoire/PdfNavigationShortcutBar';
+import { NavigationShortcutOverlay } from '@/ui/features/repertoire/NavigationShortcutOverlay';
+import {
+  PdfNavigationShortcutEditor,
+  type ShortcutPickRequest,
+  type ShortcutPickResult,
+} from '@/ui/features/repertoire/PdfNavigationShortcutEditor';
 import {
   loadPdfReaderPreferences,
   savePdfReaderPreferences,
@@ -130,6 +141,17 @@ type PdfViewerProps = {
     input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>,
   ) => Promise<PdfAnnotation | null>;
   onAnnotationDelete: (annotationId: string) => Promise<void>;
+  navigationShortcuts?: PdfNavigationShortcut[];
+  canManageNavigationShortcuts?: boolean;
+  onNavigationShortcutCreate?: (
+    input: Omit<CreatePdfNavigationShortcutInput, 'pieceFileId'>,
+  ) => Promise<PdfNavigationShortcut | null>;
+  onNavigationShortcutUpdate?: (
+    id: string,
+    input: UpdatePdfNavigationShortcutInput,
+  ) => Promise<PdfNavigationShortcut | null>;
+  onNavigationShortcutDelete?: (id: string) => Promise<void>;
+  onNavigationShortcutReorder?: (orderedIds: string[]) => Promise<void>;
 };
 
 type PdfPageFrameProps = {
@@ -148,6 +170,10 @@ type PdfPageFrameProps = {
   onHighlightComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
   gesturesActive: boolean;
+  navigationShortcuts: PdfNavigationShortcut[];
+  onNavigationShortcutPress: (shortcut: PdfNavigationShortcut) => void;
+  shortcutPickRequest: ShortcutPickRequest;
+  onShortcutPageTap: (pageNumber: number, point: NormalizedPoint) => void;
 };
 
 function PdfPageFrame({
@@ -166,6 +192,10 @@ function PdfPageFrame({
   onHighlightComplete,
   onEraseAnnotation,
   gesturesActive,
+  navigationShortcuts,
+  onNavigationShortcutPress,
+  shortcutPickRequest,
+  onShortcutPageTap,
 }: PdfPageFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -222,6 +252,7 @@ function PdfPageFrame({
   return (
     <div
       className="relative mx-auto shrink-0"
+      data-page-number={pageNumber}
       style={{
         width: dimensions.width > 0 ? dimensions.width : undefined,
         height: dimensions.height > 0 ? dimensions.height : undefined,
@@ -270,6 +301,27 @@ function PdfPageFrame({
             onDraftStrokeChange={setDraftStroke}
           />
         </>
+      )}
+      <NavigationShortcutOverlay
+        shortcuts={navigationShortcuts}
+        pageNumber={pageNumber}
+        onShortcutPress={onNavigationShortcutPress}
+        inverted={inverted}
+        disabled={gesturesActive || shortcutPickRequest != null}
+      />
+      {shortcutPickRequest != null && dimensions.width > 0 && dimensions.height > 0 && (
+        <button
+          type="button"
+          className="absolute inset-0 z-30 cursor-crosshair bg-primary/5"
+          aria-label="Selecionar posição na partitura"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            onShortcutPageTap(
+              pageNumber,
+              toNormalizedCoords(event.clientX, event.clientY, rect),
+            );
+          }}
+        />
       )}
     </div>
   );
@@ -341,6 +393,12 @@ export function PdfViewer({
   inlineAudioBar,
   onAnnotationCreate,
   onAnnotationDelete,
+  navigationShortcuts = [],
+  canManageNavigationShortcuts = false,
+  onNavigationShortcutCreate,
+  onNavigationShortcutUpdate,
+  onNavigationShortcutDelete,
+  onNavigationShortcutReorder,
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -399,6 +457,14 @@ export function PdfViewer({
     'zoom' | 'annotate' | 'metronome' | null
   >(null);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
+  const [shortcutEditorOpen, setShortcutEditorOpen] = useState(false);
+  const [shortcutPickRequest, setShortcutPickRequest] = useState<ShortcutPickRequest>(null);
+  const [shortcutPickResult, setShortcutPickResult] = useState<ShortcutPickResult | null>(null);
+
+  const sortedNavigationShortcuts = useMemo(
+    () => [...navigationShortcuts].sort((a, b) => a.sortOrder - b.sortOrder),
+    [navigationShortcuts],
+  );
 
   useEffect(() => {
     if (leadOptions.length === 0) {
@@ -816,9 +882,70 @@ export function PdfViewer({
     navigateHorizontal('next');
   }, [currentPage, isAnnotating, numPages, navigateHorizontal, navigation, playlist]);
 
+  const goToShortcut = useCallback(
+    (shortcut: PdfNavigationShortcut) => {
+      if (isAnnotating || isGesturing || shortcutPickRequest != null) {
+        return;
+      }
+
+      const targetPage = Math.min(Math.max(1, shortcut.targetPageNumber), numPages);
+      setShouldAnimate(false);
+
+      if (navigation === 'horizontal') {
+        setCurrentPage(targetPage);
+        resetPan();
+        return;
+      }
+
+      setCurrentPage(targetPage);
+      resetPan();
+      requestAnimationFrame(() => {
+        const container = scrollRef.current;
+        const pageEl = container?.querySelector(
+          `[data-page-number="${targetPage}"]`,
+        ) as HTMLElement | null;
+        if (!container || !pageEl) {
+          return;
+        }
+        const offsetY =
+          shortcut.targetY != null ? pageEl.offsetHeight * shortcut.targetY : pageEl.offsetHeight * 0.5;
+        const offsetX =
+          shortcut.targetX != null ? pageEl.offsetWidth * shortcut.targetX : pageEl.offsetWidth * 0.5;
+        container.scrollTop = pageEl.offsetTop + offsetY - container.clientHeight / 2;
+        container.scrollLeft = Math.max(
+          0,
+          pageEl.offsetLeft + offsetX - container.clientWidth / 2,
+        );
+      });
+    },
+    [
+      isAnnotating,
+      isGesturing,
+      shortcutPickRequest,
+      numPages,
+      navigation,
+      resetPan,
+    ],
+  );
+
+  const handleShortcutPageTap = useCallback(
+    (pageNumber: number, point: NormalizedPoint) => {
+      if (!shortcutPickRequest) {
+        return;
+      }
+
+      setShortcutPickResult({
+        pageNumber,
+        y: point.y,
+        x: point.x,
+      });
+    },
+    [shortcutPickRequest],
+  );
+
   const handleViewportSingleTap = useCallback(
     (point: { x: number; y: number }) => {
-      if (isAnnotating) {
+      if (isAnnotating || shortcutPickRequest != null) {
         return;
       }
 
@@ -853,6 +980,7 @@ export function PdfViewer({
       isFullscreen,
       isZoomed,
       navigation,
+      shortcutPickRequest,
     ],
   );
   viewportSingleTapRef.current = handleViewportSingleTap;
@@ -872,11 +1000,28 @@ export function PdfViewer({
   }, [isAnnotating, playlist]);
 
   useEffect(() => {
-    if (navigation !== 'horizontal' || isAnnotating) {
+    if (navigation !== 'horizontal' || isAnnotating || shortcutPickRequest != null) {
       return;
     }
 
     function onKeyDown(event: KeyboardEvent) {
+      const shortcutIndex = Number.parseInt(event.key, 10);
+      if (
+        !event.shiftKey
+        && !event.ctrlKey
+        && !event.metaKey
+        && !event.altKey
+        && shortcutIndex >= 1
+        && shortcutIndex <= 9
+      ) {
+        const shortcut = sortedNavigationShortcuts[shortcutIndex - 1];
+        if (shortcut) {
+          event.preventDefault();
+          goToShortcut(shortcut);
+          return;
+        }
+      }
+
       if (playlist && event.shiftKey) {
         if (event.key === 'ArrowRight' || event.key === 'PageDown') {
           event.preventDefault();
@@ -904,8 +1049,11 @@ export function PdfViewer({
   }, [
     navigation,
     isAnnotating,
+    shortcutPickRequest,
     goToNextPage,
     goToPreviousPage,
+    goToShortcut,
+    sortedNavigationShortcuts,
     playlist,
     goToNextItem,
     goToPreviousItem,
@@ -1191,7 +1339,11 @@ export function PdfViewer({
     onStrokeComplete: handleStrokeComplete,
     onHighlightComplete: handleHighlightComplete,
     onEraseAnnotation: handleEraseAnnotation,
-    gesturesActive: isGesturing,
+    gesturesActive: isGesturing || shortcutPickRequest != null,
+    navigationShortcuts: sortedNavigationShortcuts,
+    onNavigationShortcutPress: goToShortcut,
+    shortcutPickRequest,
+    onShortcutPageTap: handleShortcutPageTap,
   };
 
   const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
@@ -1202,7 +1354,7 @@ export function PdfViewer({
     : 'flex shrink-0 flex-col border-b border-border';
   const rootClass = isFullscreen
     ? `fixed inset-x-0 z-50 flex flex-col ${surfaceClass}`
-    : 'flex min-h-0 flex-1 flex-col';
+    : 'relative flex min-h-0 flex-1 flex-col';
   const viewportPadding = isFullscreen ? 'p-0' : 'p-2';
   const viewportInteractionProps = isFullscreen && !isAnnotating
     ? {
@@ -1313,6 +1465,15 @@ export function PdfViewer({
           className="rounded-lg border border-border px-2 py-1 text-sm text-text"
         >
           Anotar
+        </button>
+      )}
+      {canManageNavigationShortcuts && onNavigationShortcutCreate && (
+        <button
+          type="button"
+          onClick={() => setShortcutEditorOpen(true)}
+          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        >
+          Atalhos
         </button>
       )}
     </>
@@ -1656,6 +1817,55 @@ export function PdfViewer({
             ))}
           </div>
         </div>
+      )}
+      <PdfNavigationShortcutBar
+        shortcuts={sortedNavigationShortcuts}
+        onShortcutPress={goToShortcut}
+        visible={false}
+      />
+      {shortcutPickRequest != null && (
+        <div className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center px-4">
+          <p className="rounded-lg border border-primary bg-primary/90 px-4 py-2 text-sm font-medium text-white shadow-md">
+            {shortcutPickRequest.kind === 'target'
+              ? 'Toque na partitura para definir o destino'
+              : 'Toque na partitura para posicionar o botão'}
+          </p>
+        </div>
+      )}
+      {canManageNavigationShortcuts && onNavigationShortcutCreate && (
+        <PdfNavigationShortcutEditor
+          open={shortcutEditorOpen}
+          shortcuts={sortedNavigationShortcuts}
+          numPages={numPages}
+          currentPage={currentPage}
+          pickRequest={shortcutPickRequest}
+          lastPick={shortcutPickResult}
+          onPickConsumed={() => setShortcutPickResult(null)}
+          onClose={() => {
+            setShortcutEditorOpen(false);
+            setShortcutPickRequest(null);
+            setShortcutPickResult(null);
+          }}
+          onRequestPick={setShortcutPickRequest}
+          onCreate={async (input) => {
+            await onNavigationShortcutCreate(input);
+          }}
+          onUpdate={async (id, input) => {
+            if (onNavigationShortcutUpdate) {
+              await onNavigationShortcutUpdate(id, input);
+            }
+          }}
+          onDelete={async (id) => {
+            if (onNavigationShortcutDelete) {
+              await onNavigationShortcutDelete(id);
+            }
+          }}
+          onReorder={async (orderedIds) => {
+            if (onNavigationShortcutReorder) {
+              await onNavigationShortcutReorder(orderedIds);
+            }
+          }}
+        />
       )}
       <Modal
         open={showDiscardConfirm}

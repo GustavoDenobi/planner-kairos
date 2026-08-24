@@ -18,6 +18,18 @@ export type {
   PieceFileWithLinks,
 } from './piece-file';
 export type {
+  CreatePdfNavigationShortcutInput,
+  PdfNavigationShortcut,
+  ReorderPdfNavigationShortcutsInput,
+  UpdatePdfNavigationShortcutInput,
+} from './piece-file-navigation-shortcut';
+export {
+  NAVIGATION_SHORTCUT_COLORS,
+  navigationShortcutColorForIndex,
+  pickNavigationShortcutColor,
+  resolveNavigationShortcutColor,
+} from './navigation-shortcut-colors';
+export type {
   AnnotationGeometry,
   AnnotationLayer,
   AnnotationType,
@@ -57,6 +69,8 @@ export {
   pieceFileMatchesUserParts,
   resolveDefaultScoreFile,
   slugifyName,
+  validateCreatePdfNavigationShortcutInput,
+  validateUpdatePdfNavigationShortcutInput,
   validateAnnotationGeometry,
   validateAnnotationLayer,
   validateCreatePdfAnnotationInput,

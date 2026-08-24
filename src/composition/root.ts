@@ -17,6 +17,7 @@ import { createOrganizationRepository } from '@/infrastructure/supabase/organiza
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
 import { createPieceFileAnnotationRepository } from '@/infrastructure/supabase/piece-file-annotation-repository';
+import { createPieceFileNavigationShortcutRepository } from '@/infrastructure/supabase/piece-file-navigation-shortcut-repository';
 import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
 import { createPieceAccessRepository } from '@/infrastructure/supabase/piece-access-repository';
 import { createPieceRepository } from '@/infrastructure/supabase/piece-repository';
@@ -46,6 +47,7 @@ export function createAppServices() {
   const pieceAccessRepo = createPieceAccessRepository();
   const pieceFileRepo = createPieceFileRepository();
   const annotationRepo = createPieceFileAnnotationRepository();
+  const navigationShortcutRepo = createPieceFileNavigationShortcutRepository();
   const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
@@ -76,6 +78,7 @@ export function createAppServices() {
     accessRepo: pieceAccessRepo,
     fileRepo: pieceFileRepo,
     annotationRepo,
+    navigationShortcutRepo,
     playlistRepo,
     partRepo,
     fileStorage,
@@ -99,6 +102,7 @@ export function createAppServices() {
     fileRepo: pieceFileRepo,
     fileStorage,
     annotationRepo,
+    navigationShortcutRepo,
     playlistRepo,
     offlineStorage,
     eventRepo,

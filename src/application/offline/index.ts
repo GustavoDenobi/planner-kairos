@@ -1,5 +1,5 @@
 import type { FileStorage } from '@/application/ports/file-storage';
-import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
+import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflineIdentityStore } from '@/application/ports/offline-identity-store';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
@@ -14,13 +14,24 @@ import type { SectionRepository } from '@/application/ports/section-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type {
   CreatePdfAnnotationInput,
+  CreatePdfNavigationShortcutInput,
   UpdatePdfAnnotationInput,
+  UpdatePdfNavigationShortcutInput,
 } from '@/domain/repertoire';
+import {
+  createNavigationShortcutWithOffline,
+  deleteNavigationShortcutWithOffline,
+  listNavigationShortcutsForReading,
+  reorderNavigationShortcutsWithOffline,
+  syncPendingNavigationShortcutChanges,
+  updateNavigationShortcutWithOffline,
+} from './navigation-shortcut-offline-use-cases';
 import {
   createAnnotationWithOffline,
   deleteAnnotationWithOffline,
@@ -75,6 +86,7 @@ import type { CachePlaylistProgress } from './types';
 export type OfflineStoragePorts = {
   fileCache: OfflineFileCache;
   annotationStore: OfflineAnnotationStore;
+  navigationShortcutStore: OfflineNavigationShortcutStore;
   playlistCache: OfflinePlaylistCache;
   identityStore: OfflineIdentityStore;
   agendaCache: OfflineAgendaCache;
@@ -86,6 +98,7 @@ export type OfflineUseCaseDeps = {
   fileRepo: PieceFileRepository;
   fileStorage: FileStorage;
   annotationRepo: PieceFileAnnotationRepository;
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository;
   playlistRepo: ReadingPlaylistRepository;
   offlineStorage: OfflineStoragePorts;
   eventRepo: EventRepository;
@@ -101,6 +114,7 @@ export type OfflineUseCaseDeps = {
 export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const fileCache = deps.offlineStorage.fileCache;
   const annotationStore = deps.offlineStorage.annotationStore;
+  const navigationShortcutStore = deps.offlineStorage.navigationShortcutStore;
   const playlistCache = deps.offlineStorage.playlistCache;
   const identityStore = deps.offlineStorage.identityStore;
   const agendaCache = deps.offlineStorage.agendaCache;
@@ -133,6 +147,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         playlistCache,
         deps.annotationRepo,
         annotationStore,
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
         organizationId,
         playlistId,
         userId,
@@ -153,6 +169,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         playlistCache,
         deps.annotationRepo,
         annotationStore,
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
         organizationId,
         userId,
         onProgress,
@@ -224,6 +242,70 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         input,
       ),
 
+    listNavigationShortcutsForReading: (organizationId: string, pieceFileId: string) =>
+      listNavigationShortcutsForReading(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        pieceFileId,
+      ),
+
+    createPieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      input: CreatePdfNavigationShortcutInput,
+    ) =>
+      createNavigationShortcutWithOffline(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        pieceId,
+        authorUserId,
+        input,
+      ),
+
+    updatePieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceFileId: string,
+      shortcutId: string,
+      input: UpdatePdfNavigationShortcutInput,
+    ) =>
+      updateNavigationShortcutWithOffline(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        pieceFileId,
+        shortcutId,
+        input,
+      ),
+
+    deletePieceFileNavigationShortcut: (
+      organizationId: string,
+      pieceFileId: string,
+      shortcutId: string,
+    ) =>
+      deleteNavigationShortcutWithOffline(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        pieceFileId,
+        shortcutId,
+      ),
+
+    reorderPieceFileNavigationShortcuts: (
+      organizationId: string,
+      pieceFileId: string,
+      orderedIds: string[],
+    ) =>
+      reorderNavigationShortcutsWithOffline(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        pieceFileId,
+        orderedIds,
+      ),
+
     getOfflineStatus: (
       organizationId: string,
       pieceId: string,
@@ -266,8 +348,20 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     estimatePlaylistCacheSize: (organizationId: string, pieceFileIds: string[]) =>
       estimatePlaylistCacheSize(deps.fileRepo, organizationId, pieceFileIds),
 
-    syncPendingOfflineChanges: () =>
-      syncPendingOfflineChanges(deps.annotationRepo, annotationStore),
+    syncPendingOfflineChanges: async () => {
+      const annotationResult = await syncPendingOfflineChanges(
+        deps.annotationRepo,
+        annotationStore,
+      );
+      const shortcutResult = await syncPendingNavigationShortcutChanges(
+        deps.navigationShortcutRepo,
+        navigationShortcutStore,
+      );
+      return {
+        synced: annotationResult.synced + shortcutResult.synced,
+        failed: annotationResult.failed + shortcutResult.failed,
+      };
+    },
 
     cacheAgendaForOffline: (organizationId: string, userId: string) =>
       cacheAgendaForOffline(
@@ -357,6 +451,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     clearAllOfflineData: async () => {
       await fileCache.clearAll();
       await annotationStore.clearAll();
+      await navigationShortcutStore.clearAll();
       await playlistCache.clearAll();
       await agendaCache.clearAll();
       await musicianCache.clearAll();

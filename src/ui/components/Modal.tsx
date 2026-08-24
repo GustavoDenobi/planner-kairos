@@ -7,6 +7,7 @@ type ModalProps = {
   title: string;
   children: ReactNode;
   size?: 'md' | 'lg';
+  allowBackdropInteraction?: boolean;
 };
 
 const modalPanelMaxHeightStyle = {
@@ -14,7 +15,14 @@ const modalPanelMaxHeightStyle = {
     'calc(var(--app-vh) - max(1rem, var(--safe-area-top)) - max(1rem, var(--safe-area-bottom)))',
 } as const;
 
-export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  size = 'md',
+  allowBackdropInteraction = false,
+}: ModalProps) {
   useBodyScrollLock(open);
 
   if (!open) {
@@ -38,7 +46,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
     >
       <button
         type="button"
-        className="absolute inset-0 bg-black/50"
+        className={`absolute inset-0 bg-black/50 ${allowBackdropInteraction ? 'pointer-events-none' : ''}`}
         aria-label="Fechar"
         onClick={onClose}
       />

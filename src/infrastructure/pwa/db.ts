@@ -83,6 +83,34 @@ export type CachedMusiciansRecord = {
   sectionPartIdsByGroupJson?: string;
 };
 
+export type CachedNavigationShortcutRecord = {
+  clientId: string;
+  id: string;
+  organizationId: string;
+  pieceFileId: string;
+  label: string;
+  color: string;
+  sortOrder: number;
+  targetPageNumber: number;
+  targetX: number | null;
+  targetY: number | null;
+  anchorPageNumber: number | null;
+  anchorX: number | null;
+  anchorY: number | null;
+  authorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: import('@/application/ports/offline-navigation-shortcut-store').NavigationShortcutSyncStatus;
+};
+
+export type NavigationShortcutSyncOutboxRecord = {
+  id: string;
+  op: 'shortcut_create' | 'shortcut_update' | 'shortcut_delete' | 'shortcut_reorder';
+  payloadJson: string;
+  createdAt: string;
+  retryCount: number;
+};
+
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
@@ -91,6 +119,8 @@ export class PlannerKairosOfflineDb extends Dexie {
   identitySnapshot!: Table<IdentitySnapshotRecord, string>;
   cachedAgenda!: Table<CachedAgendaRecord, string>;
   cachedMusicians!: Table<CachedMusiciansRecord, string>;
+  cachedNavigationShortcuts!: Table<CachedNavigationShortcutRecord, string>;
+  navigationShortcutSyncOutbox!: Table<NavigationShortcutSyncOutboxRecord, string>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -137,6 +167,19 @@ export class PlannerKairosOfflineDb extends Dexie {
       identitySnapshot: 'id, userId',
       cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
       cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+    });
+    this.version(6).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
     });
   }
 }

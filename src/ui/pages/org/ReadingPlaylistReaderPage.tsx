@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import type { CreatePdfAnnotationInput, PdfAnnotation, PieceFileWithLinks, ReadingPlaylistDetail } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, ReadingPlaylistDetail, UpdatePdfNavigationShortcutInput } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -57,6 +57,10 @@ import {
 } from '@/ui/features/pwa/OfflineDownloadButton';
 
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+
+import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
+
+import type { AssignmentWithDetails } from '@/domain/ensemble';
 
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 
@@ -171,6 +175,10 @@ export function ReadingPlaylistReaderPage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
+
+  const [navigationShortcuts, setNavigationShortcuts] = useState<PdfNavigationShortcut[]>([]);
+
+  const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
 
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
 
@@ -432,6 +440,8 @@ export function ReadingPlaylistReaderPage() {
 
         setAnnotations([]);
 
+        setNavigationShortcuts([]);
+
         setSkipUnavailable(true);
 
         setIsLoadingItem(false);
@@ -449,6 +459,8 @@ export function ReadingPlaylistReaderPage() {
         setDownloadUrl(cached.downloadUrl);
 
         setAnnotations(cached.annotations);
+
+        setNavigationShortcuts(cached.navigationShortcuts);
 
         setIsCachedLocally(cached.isCachedLocally);
 
@@ -509,6 +521,8 @@ export function ReadingPlaylistReaderPage() {
       setDownloadUrl(result.downloadUrl);
 
       setAnnotations(result.annotations);
+
+      setNavigationShortcuts(result.navigationShortcuts);
 
       setIsCachedLocally(result.isCachedLocally);
 
@@ -1032,6 +1046,370 @@ export function ReadingPlaylistReaderPage() {
 
 
 
+  useEffect(() => {
+
+    if (!organizationId || !userId || !currentItem?.pieceId) {
+
+      setCanManageNavigationShortcuts(false);
+
+      return;
+
+    }
+
+
+
+    if (isAdmin) {
+
+      setCanManageNavigationShortcuts(true);
+
+      return;
+
+    }
+
+
+
+    let cancelled = false;
+
+
+
+    async function loadManageAccess() {
+
+      const pieceResult = await repertoire.getPiece(organizationId, currentItem!.pieceId!);
+
+      if (cancelled || !pieceResult.ok) {
+
+        setCanManageNavigationShortcuts(false);
+
+        return;
+
+      }
+
+
+
+      const musicianResult = await ensemble.getMyMusician(organizationId, userId!);
+
+      let assignments: AssignmentWithDetails[] = [];
+
+      if (musicianResult.ok) {
+
+        const assignmentsResult = await ensemble.listAssignmentsForMusician(
+
+          organizationId,
+
+          musicianResult.value.id,
+
+        );
+
+        if (assignmentsResult.ok) {
+
+          assignments = assignmentsResult.value;
+
+        }
+
+      }
+
+
+
+      const sectionPartIds = new Set<string>();
+
+      for (const assignment of assignments) {
+
+        if (assignment.ensembleRole !== 'section_lead' || !assignment.sectionId) {
+
+          continue;
+
+        }
+
+        const cachedPartIds = online
+
+          ? null
+
+          : await offline.getCachedSectionPartIdsByGroup(
+
+              organizationId,
+
+              userId!,
+
+              assignment.groupId,
+
+            );
+
+        if (cachedPartIds) {
+
+          for (const partId of cachedPartIds) {
+
+            sectionPartIds.add(partId);
+
+          }
+
+        } else if (online) {
+
+          const sectionsResult = await ensemble.listSectionsForGroup(
+
+            organizationId,
+
+            assignment.groupId,
+
+          );
+
+          if (sectionsResult.ok) {
+
+            for (const section of sectionsResult.value) {
+
+              if (section.id !== assignment.sectionId) {
+
+                continue;
+
+              }
+
+              for (const partId of section.partIds) {
+
+                sectionPartIds.add(partId);
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+
+
+      if (!cancelled) {
+
+        setCanManageNavigationShortcuts(
+
+          resolveCanManageNavigationShortcuts({
+
+            isAdmin: false,
+
+            assignments,
+
+            pieceGroupIds: pieceResult.value.groups.map((group) => group.id),
+
+            filePartLinks: currentItem!.partLinks,
+
+            sectionPartIdsBySectionLead: [...sectionPartIds],
+
+          }),
+
+        );
+
+      }
+
+    }
+
+
+
+    void loadManageAccess();
+
+
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [organizationId, userId, currentItem, isAdmin, online, repertoire, ensemble, offline]);
+
+
+
+  const handleNavigationShortcutCreate = useCallback(
+
+    async (input: Omit<CreatePdfNavigationShortcutInput, 'pieceFileId'>) => {
+
+      if (!organizationId || !userId || !currentItem?.pieceId) {
+
+        return null;
+
+      }
+
+
+
+      const result = await offline.createPieceFileNavigationShortcut(
+
+        organizationId,
+
+        currentItem.pieceId,
+
+        userId,
+
+        {
+
+          ...input,
+
+          pieceFileId: currentItem.pieceFileId,
+
+        },
+
+      );
+
+
+
+      if (!result.ok) {
+
+        return null;
+
+      }
+
+
+
+      setNavigationShortcuts((current) =>
+
+        [...current.filter((item) => item.id !== result.value.id), result.value].sort(
+
+          (a, b) => a.sortOrder - b.sortOrder,
+
+        ),
+
+      );
+
+      return result.value;
+
+    },
+
+    [organizationId, userId, currentItem, offline],
+
+  );
+
+
+
+  const handleNavigationShortcutUpdate = useCallback(
+
+    async (shortcutId: string, input: UpdatePdfNavigationShortcutInput) => {
+
+      if (!organizationId || !currentItem) {
+
+        return null;
+
+      }
+
+
+
+      const result = await offline.updatePieceFileNavigationShortcut(
+
+        organizationId,
+
+        currentItem.pieceFileId,
+
+        shortcutId,
+
+        input,
+
+      );
+
+
+
+      if (!result.ok) {
+
+        return null;
+
+      }
+
+
+
+      setNavigationShortcuts((current) =>
+
+        current
+
+          .map((item) => (item.id === shortcutId ? result.value : item))
+
+          .sort((a, b) => a.sortOrder - b.sortOrder),
+
+      );
+
+      return result.value;
+
+    },
+
+    [organizationId, currentItem, offline],
+
+  );
+
+
+
+  const handleNavigationShortcutDelete = useCallback(
+
+    async (shortcutId: string) => {
+
+      if (!organizationId || !currentItem) {
+
+        return;
+
+      }
+
+
+
+      const result = await offline.deletePieceFileNavigationShortcut(
+
+        organizationId,
+
+        currentItem.pieceFileId,
+
+        shortcutId,
+
+      );
+
+      if (!result.ok) {
+
+        return;
+
+      }
+
+
+
+      setNavigationShortcuts((current) => current.filter((item) => item.id !== shortcutId));
+
+    },
+
+    [organizationId, currentItem, offline],
+
+  );
+
+
+
+  const handleNavigationShortcutReorder = useCallback(
+
+    async (orderedIds: string[]) => {
+
+      if (!organizationId || !currentItem) {
+
+        return;
+
+      }
+
+
+
+      const result = await offline.reorderPieceFileNavigationShortcuts(
+
+        organizationId,
+
+        currentItem.pieceFileId,
+
+        orderedIds,
+
+      );
+
+
+
+      if (result.ok) {
+
+        setNavigationShortcuts(result.value);
+
+      }
+
+    },
+
+    [organizationId, currentItem, offline],
+
+  );
+
+
+
   if (!orgSlug || !playlistId || !itemIndexParam) {
 
     return null;
@@ -1339,6 +1717,18 @@ export function ReadingPlaylistReaderPage() {
         onAnnotationCreate={handleAnnotationCreate}
 
         onAnnotationDelete={handleAnnotationDelete}
+
+        navigationShortcuts={navigationShortcuts}
+
+        canManageNavigationShortcuts={canManageNavigationShortcuts}
+
+        onNavigationShortcutCreate={handleNavigationShortcutCreate}
+
+        onNavigationShortcutUpdate={handleNavigationShortcutUpdate}
+
+        onNavigationShortcutDelete={handleNavigationShortcutDelete}
+
+        onNavigationShortcutReorder={handleNavigationShortcutReorder}
 
       />
 

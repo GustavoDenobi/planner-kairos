@@ -10,6 +10,11 @@ import type { PieceCategoryInput } from './piece-category';
 import type { PieceInput } from './piece';
 import type { PieceThemeInput } from './piece-theme';
 import type {
+  CreatePdfNavigationShortcutInput,
+  PdfNavigationShortcut,
+  UpdatePdfNavigationShortcutInput,
+} from './piece-file-navigation-shortcut';
+import type {
   CreateReadingPlaylistInput,
   UpdateReadingPlaylistInput,
 } from './reading-playlist';
@@ -251,6 +256,126 @@ export function validateAnnotationLayer(
     return 'section_layer_requires_section';
   }
   return null;
+}
+
+function validateOptionalNormalizedCoord(value: number | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (!isNormalizedCoord(value)) {
+    return 'invalid_coordinates';
+  }
+  return null;
+}
+
+function validateNavigationShortcutAnchor(
+  anchorPageNumber: number | null | undefined,
+  anchorX: number | null | undefined,
+  anchorY: number | null | undefined,
+): string | null {
+  const hasPage = anchorPageNumber != null;
+  const hasX = anchorX != null;
+  const hasY = anchorY != null;
+
+  if (!hasPage && !hasX && !hasY) {
+    return null;
+  }
+
+  if (!hasPage || !hasX || !hasY) {
+    return 'invalid_anchor';
+  }
+
+  if (!Number.isInteger(anchorPageNumber) || anchorPageNumber < 1) {
+    return 'invalid_page_number';
+  }
+
+  const xError = validateOptionalNormalizedCoord(anchorX);
+  if (xError) {
+    return xError;
+  }
+
+  const yError = validateOptionalNormalizedCoord(anchorY);
+  if (yError) {
+    return yError;
+  }
+
+  return null;
+}
+
+export function validateCreatePdfNavigationShortcutInput(
+  input: CreatePdfNavigationShortcutInput,
+): string | null {
+  if (!input.pieceFileId.trim()) {
+    return 'invalid_piece_file';
+  }
+  if (!input.label.trim()) {
+    return 'invalid_label';
+  }
+  if (!Number.isInteger(input.targetPageNumber) || input.targetPageNumber < 1) {
+    return 'invalid_page_number';
+  }
+  if (input.sortOrder !== undefined && (!Number.isInteger(input.sortOrder) || input.sortOrder < 0)) {
+    return 'invalid_sort_order';
+  }
+  if (input.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(input.color)) {
+    return 'invalid_color';
+  }
+
+  const targetXError = validateOptionalNormalizedCoord(input.targetX);
+  if (targetXError) {
+    return targetXError;
+  }
+
+  const targetYError = validateOptionalNormalizedCoord(input.targetY);
+  if (targetYError) {
+    return targetYError;
+  }
+
+  return validateNavigationShortcutAnchor(
+    input.anchorPageNumber,
+    input.anchorX,
+    input.anchorY,
+  );
+}
+
+export function validateUpdatePdfNavigationShortcutInput(
+  input: UpdatePdfNavigationShortcutInput,
+  existing: Pick<
+    PdfNavigationShortcut,
+    'targetPageNumber' | 'targetX' | 'targetY' | 'anchorPageNumber' | 'anchorX' | 'anchorY'
+  >,
+): string | null {
+  if (input.label !== undefined && !input.label.trim()) {
+    return 'invalid_label';
+  }
+  if (input.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(input.color)) {
+    return 'invalid_color';
+  }
+  if (
+    input.targetPageNumber !== undefined
+    && (!Number.isInteger(input.targetPageNumber) || input.targetPageNumber < 1)
+  ) {
+    return 'invalid_page_number';
+  }
+  if (input.sortOrder !== undefined && (!Number.isInteger(input.sortOrder) || input.sortOrder < 0)) {
+    return 'invalid_sort_order';
+  }
+
+  const targetXError = validateOptionalNormalizedCoord(input.targetX);
+  if (targetXError) {
+    return targetXError;
+  }
+
+  const targetYError = validateOptionalNormalizedCoord(input.targetY);
+  if (targetYError) {
+    return targetYError;
+  }
+
+  return validateNavigationShortcutAnchor(
+    input.anchorPageNumber ?? existing.anchorPageNumber,
+    input.anchorX ?? existing.anchorX,
+    input.anchorY ?? existing.anchorY,
+  );
 }
 
 export function pieceFileMatchesUserParts(

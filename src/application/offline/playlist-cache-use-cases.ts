@@ -1,8 +1,10 @@
 import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
+import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
@@ -43,6 +45,44 @@ async function removeUnreferencedFiles(
   }
 }
 
+async function cacheAnnotationsAndShortcutsForFile(
+  annotationRepo: PieceFileAnnotationRepository,
+  annotationStore: OfflineAnnotationStore,
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository,
+  navigationShortcutStore: OfflineNavigationShortcutStore,
+  organizationId: string,
+  pieceFileId: string,
+): Promise<void> {
+  const annotations = await annotationRepo.listForFile(organizationId, pieceFileId);
+  for (const annotation of annotations) {
+    await annotationStore.upsert({
+      clientId: annotation.id,
+      id: annotation.id,
+      organizationId: annotation.organizationId,
+      pieceFileId: annotation.pieceFileId,
+      pageNumber: annotation.pageNumber,
+      layer: annotation.layer,
+      type: annotation.type,
+      geometry: annotation.geometry,
+      color: annotation.color,
+      authorUserId: annotation.authorUserId,
+      sectionId: annotation.sectionId,
+      createdAt: annotation.createdAt,
+      updatedAt: annotation.updatedAt,
+      syncStatus: 'synced',
+    });
+  }
+
+  const shortcuts = await navigationShortcutRepo.listForFile(organizationId, pieceFileId);
+  for (const shortcut of shortcuts) {
+    await navigationShortcutStore.upsert({
+      clientId: shortcut.id,
+      ...shortcut,
+      syncStatus: 'synced',
+    });
+  }
+}
+
 export async function cacheReadingPlaylistForOffline(
   pieceRepo: PieceRepository,
   fileRepo: PieceFileRepository,
@@ -52,6 +92,8 @@ export async function cacheReadingPlaylistForOffline(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository,
+  navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
   playlistId: string,
   userId: string,
@@ -90,25 +132,14 @@ export async function cacheReadingPlaylistForOffline(
     if (!fileResult.ok) {
       progress.errors.push(`${item.fileTitle}: ${fileResult.error}`);
     } else {
-      const annotations = await annotationRepo.listForFile(organizationId, item.pieceFileId);
-      for (const annotation of annotations) {
-        await annotationStore.upsert({
-          clientId: annotation.id,
-          id: annotation.id,
-          organizationId: annotation.organizationId,
-          pieceFileId: annotation.pieceFileId,
-          pageNumber: annotation.pageNumber,
-          layer: annotation.layer,
-          type: annotation.type,
-          geometry: annotation.geometry,
-          color: annotation.color,
-          authorUserId: annotation.authorUserId,
-          sectionId: annotation.sectionId,
-          createdAt: annotation.createdAt,
-          updatedAt: annotation.updatedAt,
-          syncStatus: 'synced',
-        });
-      }
+      await cacheAnnotationsAndShortcutsForFile(
+        annotationRepo,
+        annotationStore,
+        navigationShortcutRepo,
+        navigationShortcutStore,
+        organizationId,
+        item.pieceFileId,
+      );
     }
 
     progress.done += 1;
@@ -153,6 +184,8 @@ export async function cacheUserReadingPlaylistsForOffline(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository,
+  navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
   userId: string,
   onProgress?: (progress: CachePlaylistProgress) => void,
@@ -172,6 +205,8 @@ export async function cacheUserReadingPlaylistsForOffline(
     playlistCache,
     annotationRepo,
     annotationStore,
+    navigationShortcutRepo,
+    navigationShortcutStore,
     organizationId,
     userId,
     onProgress,
@@ -195,6 +230,8 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  navigationShortcutRepo: PieceFileNavigationShortcutRepository,
+  navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
   userId: string,
   onProgress?: (progress: CachePlaylistProgress) => void,
@@ -229,6 +266,8 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
       playlistCache,
       annotationRepo,
       annotationStore,
+      navigationShortcutRepo,
+      navigationShortcutStore,
       organizationId,
       playlist.id,
       userId,
