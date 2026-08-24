@@ -1,16 +1,31 @@
+import {
+  clampMetronomeBpm,
+  normalizeBeatsPerMeasure,
+} from '@/ui/features/repertoire/metronome-engine';
+
 export type PdfNavigationMode = 'vertical' | 'horizontal';
 
 export type PdfReaderPreferences = {
   inverted: boolean;
   navigation: PdfNavigationMode;
+  metronomeBpm?: number;
+  metronomeBeatsPerMeasure?: number;
+  metronomeVolume?: number;
 };
 
 const STORAGE_KEY = 'planner-kairos:pdf-reader';
 const LEGACY_INVERT_KEY = 'planner-kairos:pdf-invert';
 
+export const DEFAULT_METRONOME_BPM = 120;
+export const DEFAULT_METRONOME_BEATS = 4;
+export const DEFAULT_METRONOME_VOLUME = 0.8;
+
 const DEFAULT_PREFERENCES: PdfReaderPreferences = {
   inverted: false,
   navigation: 'horizontal',
+  metronomeBpm: DEFAULT_METRONOME_BPM,
+  metronomeBeatsPerMeasure: DEFAULT_METRONOME_BEATS,
+  metronomeVolume: DEFAULT_METRONOME_VOLUME,
 };
 
 function storageKey(userId: string): string {
@@ -21,6 +36,32 @@ function legacyInvertKey(userId: string): string {
   return `${LEGACY_INVERT_KEY}:${userId}`;
 }
 
+function parseMetronomeVolume(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_METRONOME_VOLUME;
+  }
+  return Math.min(1, Math.max(0, value));
+}
+
+function parseMetronomePreferences(
+  parsed: Partial<PdfReaderPreferences>,
+): Pick<
+  PdfReaderPreferences,
+  'metronomeBpm' | 'metronomeBeatsPerMeasure' | 'metronomeVolume'
+> {
+  return {
+    metronomeBpm:
+      typeof parsed.metronomeBpm === 'number'
+        ? clampMetronomeBpm(parsed.metronomeBpm)
+        : DEFAULT_METRONOME_BPM,
+    metronomeBeatsPerMeasure:
+      typeof parsed.metronomeBeatsPerMeasure === 'number'
+        ? normalizeBeatsPerMeasure(parsed.metronomeBeatsPerMeasure)
+        : DEFAULT_METRONOME_BEATS,
+    metronomeVolume: parseMetronomeVolume(parsed.metronomeVolume),
+  };
+}
+
 export function loadPdfReaderPreferences(userId: string): PdfReaderPreferences {
   try {
     const raw = localStorage.getItem(storageKey(userId));
@@ -29,6 +70,7 @@ export function loadPdfReaderPreferences(userId: string): PdfReaderPreferences {
       return {
         inverted: parsed.inverted === true,
         navigation: parsed.navigation === 'horizontal' ? 'horizontal' : 'vertical',
+        ...parseMetronomePreferences(parsed),
       };
     }
 
@@ -67,4 +109,33 @@ export function loadPdfNavigationPreference(userId: string): PdfNavigationMode {
 export function savePdfNavigationPreference(userId: string, navigation: PdfNavigationMode): void {
   const current = loadPdfReaderPreferences(userId);
   savePdfReaderPreferences(userId, { ...current, navigation });
+}
+
+export function loadMetronomePreferences(userId: string): Pick<
+  PdfReaderPreferences,
+  'metronomeBpm' | 'metronomeBeatsPerMeasure' | 'metronomeVolume'
+> {
+  const preferences = loadPdfReaderPreferences(userId);
+  return {
+    metronomeBpm: preferences.metronomeBpm ?? DEFAULT_METRONOME_BPM,
+    metronomeBeatsPerMeasure:
+      preferences.metronomeBeatsPerMeasure ?? DEFAULT_METRONOME_BEATS,
+    metronomeVolume: preferences.metronomeVolume ?? DEFAULT_METRONOME_VOLUME,
+  };
+}
+
+export function saveMetronomePreferences(
+  userId: string,
+  patch: Partial<
+    Pick<
+      PdfReaderPreferences,
+      'metronomeBpm' | 'metronomeBeatsPerMeasure' | 'metronomeVolume'
+    >
+  >,
+): void {
+  const current = loadPdfReaderPreferences(userId);
+  savePdfReaderPreferences(userId, {
+    ...current,
+    ...patch,
+  });
 }

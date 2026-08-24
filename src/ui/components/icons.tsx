@@ -268,6 +268,15 @@ export function IconZoomIn(props: IconProps) {
   );
 }
 
+export function IconMetronome(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" id="Metronome--Streamline-Tabler" height="24" width="24">
+      <path d="m14.153 8.188 -0.72 -3.236a2.493 2.493 0 0 0 -4.867 0L5.541 18.566A2 2 0 0 0 7.493 21h7.014a2 2 0 0 0 1.952 -2.434l-0.524 -2.357M11 18l9 -13" stroke-width="2"></path>
+      <path d="M19 5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" stroke-width="2"></path>
+    </svg>
+  );
+}
+
 export function IconMic(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

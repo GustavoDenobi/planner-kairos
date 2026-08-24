@@ -18,6 +18,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconMaximize,
+  IconMetronome,
   IconMinimize,
   IconMoon,
   IconMusic,
@@ -48,6 +49,7 @@ import {
   nextDoubleTapFitMode,
 } from '@/ui/features/repertoire/pdf-viewport-gestures';
 import { usePdfViewportGestures } from '@/ui/features/repertoire/usePdfViewportGestures';
+import { PdfViewerMetronomeBar } from '@/ui/features/repertoire/PdfViewerMetronomeBar';
 
 const SWIPE_THRESHOLD_PX = 48;
 
@@ -393,7 +395,10 @@ export function PdfViewer({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
-  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | 'annotate' | null>(null);
+  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<
+    'zoom' | 'annotate' | 'metronome' | null
+  >(null);
+  const [metronomeOpen, setMetronomeOpen] = useState(false);
 
   useEffect(() => {
     if (leadOptions.length === 0) {
@@ -467,7 +472,22 @@ export function PdfViewer({
     }
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
 
+  const toggleMetronome = useCallback(() => {
+    setMetronomeOpen((current) => {
+      const next = !current;
+      if (next) {
+        setMobileToolbarPanel(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const closeMetronome = useCallback(() => {
+    setMetronomeOpen(false);
+  }, []);
+
   const enterAnnotationMode = useCallback(() => {
+    setMetronomeOpen(false);
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
     setInteractionMode('pen');
@@ -1520,6 +1540,17 @@ export function PdfViewer({
                 </button>
               )}
 
+              <button
+                type="button"
+                onClick={toggleMetronome}
+                aria-label={metronomeOpen ? 'Fechar metrônomo' : 'Abrir metrônomo'}
+                aria-pressed={metronomeOpen}
+                title={metronomeOpen ? 'Fechar metrônomo' : 'Metrônomo'}
+                className={toolbarIconButtonClass(metronomeOpen)}
+              >
+                <IconMetronome className="h-4 w-4" />
+              </button>
+
             <button
               type="button"
               onClick={() =>
@@ -1559,6 +1590,9 @@ export function PdfViewer({
       }
     >
       {controlsBar}
+      {metronomeOpen ? (
+        <PdfViewerMetronomeBar userId={userId} onClose={closeMetronome} />
+      ) : null}
       {inlineAudioBar}
 
       {navigation === 'horizontal' ? (

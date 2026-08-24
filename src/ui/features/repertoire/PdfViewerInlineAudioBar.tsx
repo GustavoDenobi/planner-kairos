@@ -1,18 +1,7 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { IconPause, IconPlay, IconVolume, IconVolumeMuted, IconX } from '@/ui/components/icons';
-
-function isIosVolumeControlUnsupported(): boolean {
-  if (typeof navigator === 'undefined') {
-    return false;
-  }
-
-  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    return true;
-  }
-
-  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-}
+import { isIosVolumeControlUnsupported } from '@/ui/features/repertoire/audio-device';
 
 function subscribeToSmallScreen(onStoreChange: () => void): () => void {
   const mediaQuery = window.matchMedia('(max-width: 639px)');
