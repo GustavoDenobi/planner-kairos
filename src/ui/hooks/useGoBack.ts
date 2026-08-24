@@ -14,7 +14,13 @@ export function useGoBack(fallbackTo: string) {
   return useCallback(() => {
     const returnTo = readReturnTo(location.state);
     if (returnTo) {
-      navigate(returnTo);
+      // Voltar no histórico quando possível; evita empilhar returnTo como nova entrada
+      // (ex.: fechar o PDF viewer e depois "voltar" na peça reabrir o viewer).
+      if (historyCanGoBack()) {
+        navigate(-1);
+      } else {
+        navigate(returnTo, { replace: true });
+      }
       return;
     }
 

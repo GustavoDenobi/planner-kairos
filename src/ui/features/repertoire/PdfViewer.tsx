@@ -345,6 +345,11 @@ export function PdfViewer({
   const contentRef = useRef<HTMLDivElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const tapStartRef = useRef<{ x: number; y: number } | null>(null);
+  const loadedDocumentRef = useRef<{
+    pdf: pdfjs.PDFDocumentProxy;
+    initialPage: number;
+    entryDirection?: 'next' | 'prev';
+  } | null>(null);
 
   const leadOptions = useMemo(
     () => dedupeSectionLeadOptions(sectionLeadOptions),
@@ -484,7 +489,20 @@ export function PdfViewer({
     const resolvedInitialPage = Math.max(1, initialPage);
 
     if (preloadedPdf) {
-      setLoading(true);
+      const previous = loadedDocumentRef.current;
+      if (
+        previous?.pdf === preloadedPdf &&
+        previous.initialPage === resolvedInitialPage &&
+        previous.entryDirection === entryDirection
+      ) {
+        return;
+      }
+
+      loadedDocumentRef.current = {
+        pdf: preloadedPdf,
+        initialPage: resolvedInitialPage,
+        entryDirection,
+      };
       setError(null);
       setPdf(preloadedPdf);
       setNumPages(preloadedPdf.numPages);
@@ -494,6 +512,8 @@ export function PdfViewer({
       setLoading(false);
       return;
     }
+
+    loadedDocumentRef.current = null;
 
     const loadingTask = openPdfDocument({ url });
 
@@ -652,16 +672,23 @@ export function PdfViewer({
       return;
     }
 
+    let timeoutId: ReturnType<typeof setTimeout>;
     const handleResize = () => {
-      if (navigation === 'horizontal') {
-        void fitToPage();
-      } else {
-        void fitToWidth();
-      }
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (navigation === 'horizontal') {
+          void fitToPage();
+        } else {
+          void fitToWidth();
+        }
+      }, 150);
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [pdf, numPages, navigation, fitToPage, fitToWidth]);
 
   useEffect(() => {

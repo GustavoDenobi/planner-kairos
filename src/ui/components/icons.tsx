@@ -40,6 +40,35 @@ export function IconPlay(props: IconProps) {
   );
 }
 
+export function IconPause(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+      <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconVolume(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+export function IconVolumeMuted(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+      <line x1="22" x2="16" y1="9" y2="15" />
+      <line x1="16" x2="22" y1="9" y2="15" />
+    </svg>
+  );
+}
+
 export function IconUser(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

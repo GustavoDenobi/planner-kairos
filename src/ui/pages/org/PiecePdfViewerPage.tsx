@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type * as pdfjs from 'pdfjs-dist';
 import type { CreatePdfAnnotationInput, PdfAnnotation, PieceFileWithLinks } from '@/domain/repertoire';
@@ -34,7 +34,9 @@ export function PiecePdfViewerPage() {
   const { userId } = useAuth();
   const { resolveOrgBySlug } = useOrg();
   const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
+  const organizationId = org?.id;
   const online = useOnlineStatus();
+  const loadedKeyRef = useRef<string | null>(null);
 
   const [file, setFile] = useState<PieceFileWithLinks | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -122,15 +124,20 @@ export function PiecePdfViewerPage() {
       return;
     }
 
-    if (!org) {
+    if (!organizationId) {
       setIsLoading(false);
       setError('Organização não encontrada. Volte e selecione outra organização.');
       return;
     }
 
-    const organizationId = org.id;
+    const resolvedOrganizationId = organizationId;
     const currentPieceId = pieceId;
     const currentFileId = fileId;
+    const loadKey = `${resolvedOrganizationId}:${currentPieceId}:${currentFileId}`;
+
+    if (loadedKeyRef.current === loadKey) {
+      return;
+    }
 
     let cancelled = false;
 
@@ -141,11 +148,10 @@ export function PiecePdfViewerPage() {
       setDownloadUrl(null);
       setPreloadedPdf(null);
       setAnnotations([]);
-      setSectionLeadOptions([]);
 
       const pdfLoad = await resolvePdfDocument(
         offline,
-        organizationId,
+        resolvedOrganizationId,
         currentPieceId,
         currentFileId,
       );
@@ -172,7 +178,7 @@ export function PiecePdfViewerPage() {
 
       let pieceFile: PieceFileWithLinks | null = null;
       if (online && pdfLoad.resolved?.source !== 'local') {
-        const pieceResult = await repertoire.getPiece(organizationId, currentPieceId);
+        const pieceResult = await repertoire.getPiece(resolvedOrganizationId, currentPieceId);
         if (!cancelled && pieceResult.ok) {
           const found = pieceResult.value.files.find((item) => item.id === currentFileId);
           if (!found) {
@@ -186,12 +192,12 @@ export function PiecePdfViewerPage() {
             return;
           }
           pieceFile = found;
-          await resolveDownloadAccess(pieceResult.value, organizationId, cancelled);
+          await resolveDownloadAccess(pieceResult.value, resolvedOrganizationId, cancelled);
         }
       }
 
       const annotationsResult = await offline.listAnnotationsForReading(
-        organizationId,
+        resolvedOrganizationId,
         currentFileId,
       );
 
@@ -202,7 +208,7 @@ export function PiecePdfViewerPage() {
       if (!pieceFile) {
         pieceFile = {
           id: currentFileId,
-          organizationId,
+          organizationId: resolvedOrganizationId,
           pieceId: currentPieceId,
           kind: 'score',
           storageKey: '',
@@ -222,38 +228,8 @@ export function PiecePdfViewerPage() {
       if (annotationsResult.ok) {
         setAnnotations(annotationsResult.value);
       }
+      loadedKeyRef.current = loadKey;
       setIsLoading(false);
-
-      if (!userId || !online) {
-        return;
-      }
-
-      const musicianResult = await ensemble.getMyMusician(organizationId, userId);
-      if (!cancelled && musicianResult.ok) {
-        const assignmentsResult = await ensemble.listAssignmentsForMusician(
-          organizationId,
-          musicianResult.value.id,
-        );
-        if (!cancelled && assignmentsResult.ok) {
-          const leads: SectionLeadOption[] = [];
-          const seen = new Set<string>();
-          for (const assignment of assignmentsResult.value) {
-            if (
-              assignment.ensembleRole !== 'section_lead' ||
-              !assignment.sectionId ||
-              seen.has(assignment.sectionId)
-            ) {
-              continue;
-            }
-            seen.add(assignment.sectionId);
-            leads.push({
-              id: assignment.sectionId,
-              name: assignment.sectionName ?? 'Naipe',
-            });
-          }
-          setSectionLeadOptions(leads);
-        }
-      }
     }
 
     void load();
@@ -261,10 +237,60 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [org, pieceId, fileId, repertoire, offline, ensemble, userId, online]);
+  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble]);
 
   useEffect(() => {
-    if (!org || !pieceId || !online) {
+    if (!organizationId || !userId || !online) {
+      setSectionLeadOptions([]);
+      return;
+    }
+
+    const resolvedOrganizationId = organizationId;
+    const resolvedUserId = userId;
+    let cancelled = false;
+
+    async function loadSectionLeads() {
+      const musicianResult = await ensemble.getMyMusician(resolvedOrganizationId, resolvedUserId);
+      if (cancelled || !musicianResult.ok) {
+        return;
+      }
+
+      const assignmentsResult = await ensemble.listAssignmentsForMusician(
+        resolvedOrganizationId,
+        musicianResult.value.id,
+      );
+      if (cancelled || !assignmentsResult.ok) {
+        return;
+      }
+
+      const leads: SectionLeadOption[] = [];
+      const seen = new Set<string>();
+      for (const assignment of assignmentsResult.value) {
+        if (
+          assignment.ensembleRole !== 'section_lead' ||
+          !assignment.sectionId ||
+          seen.has(assignment.sectionId)
+        ) {
+          continue;
+        }
+        seen.add(assignment.sectionId);
+        leads.push({
+          id: assignment.sectionId,
+          name: assignment.sectionName ?? 'Naipe',
+        });
+      }
+      setSectionLeadOptions(leads);
+    }
+
+    void loadSectionLeads();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, userId, online, ensemble]);
+
+  useEffect(() => {
+    if (!organizationId || !pieceId || !online) {
       setAccessibleAudios([]);
       setAudioParts([]);
       setActiveAudio(null);
@@ -277,7 +303,7 @@ export function PiecePdfViewerPage() {
     void loadPieceViewerAudioContext({
       repertoire,
       ensemble,
-      organizationId: org.id,
+      organizationId,
       pieceId,
       isAdmin,
       userId,
@@ -293,7 +319,7 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [org, pieceId, online, isAdmin, userId, repertoire, ensemble]);
+  }, [organizationId, pieceId, online, isAdmin, userId, repertoire, ensemble]);
 
   const handleSelectAudio = useCallback(
     async (selected: PieceFileWithLinks) => {
@@ -367,11 +393,6 @@ export function PiecePdfViewerPage() {
     [org, fileId, file, offline],
   );
 
-  const viewerKey = useMemo(
-    () => `${fileId}-${downloadUrl ?? 'local'}-${preloadedPdf?.numPages ?? 0}`,
-    [fileId, downloadUrl, preloadedPdf],
-  );
-
   if (!orgSlug || !pieceId || !fileId) {
     return null;
   }
@@ -421,7 +442,7 @@ export function PiecePdfViewerPage() {
         <OfflineFileStatusBadge organizationId={org.id} pieceId={pieceId} fileId={fileId} />
       )}
       <PdfViewer
-        key={viewerKey}
+        key={fileId}
         url={downloadUrl ?? ''}
         userId={userId}
         annotations={annotations}
@@ -434,7 +455,6 @@ export function PiecePdfViewerPage() {
         inlineAudioBar={
           activeAudio && audioUrl ? (
             <PdfViewerInlineAudioBar
-              title={activeAudio.title}
               url={audioUrl}
               onClose={handleCloseAudio}
             />

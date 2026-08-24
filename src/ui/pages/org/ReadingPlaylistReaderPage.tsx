@@ -152,6 +152,8 @@ export function ReadingPlaylistReaderPage() {
 
   const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
 
+  const organizationId = org?.id;
+
 
 
   const itemIndex = Number.parseInt(itemIndexParam ?? '0', 10);
@@ -234,7 +236,7 @@ export function ReadingPlaylistReaderPage() {
 
   const loadPlaylist = useCallback(async () => {
 
-    if (!org || !userId || !playlistId) {
+    if (!organizationId || !userId || !playlistId) {
 
       setIsLoadingPlaylist(false);
 
@@ -270,7 +272,7 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-    const result = await repertoire.getReadingPlaylist(org.id, playlistId, userId);
+    const result = await repertoire.getReadingPlaylist(organizationId, playlistId, userId);
 
     if (!result.ok) {
 
@@ -302,11 +304,11 @@ export function ReadingPlaylistReaderPage() {
 
     setIsLoadingPlaylist(false);
 
-    void offline.cacheReadingPlaylistForOffline(org.id, playlistId, userId);
+    void offline.cacheReadingPlaylistForOffline(organizationId, playlistId, userId);
 
     return result.value;
 
-  }, [org, userId, playlistId, repertoire, offline]);
+  }, [organizationId, userId, playlistId, repertoire, offline]);
 
 
 
@@ -328,7 +330,7 @@ export function ReadingPlaylistReaderPage() {
 
   const loadSectionLeads = useCallback(async () => {
 
-    if (!org || !userId || sectionLeadsLoadedRef.current) {
+    if (!organizationId || !userId || sectionLeadsLoadedRef.current) {
 
       return;
 
@@ -336,7 +338,7 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-    const musicianResult = await ensemble.getMyMusician(org.id, userId);
+    const musicianResult = await ensemble.getMyMusician(organizationId, userId);
 
     if (!musicianResult.ok) {
 
@@ -348,7 +350,7 @@ export function ReadingPlaylistReaderPage() {
 
     const assignmentsResult = await ensemble.listAssignmentsForMusician(
 
-      org.id,
+      organizationId,
 
       musicianResult.value.id,
 
@@ -398,7 +400,7 @@ export function ReadingPlaylistReaderPage() {
 
     sectionLeadsLoadedRef.current = true;
 
-  }, [org, userId, ensemble]);
+  }, [organizationId, userId, ensemble]);
 
 
 
@@ -406,7 +408,7 @@ export function ReadingPlaylistReaderPage() {
 
     async (index: number, options?: { showLoading?: boolean }) => {
 
-      if (!org || !playlist) {
+      if (!organizationId || !playlist) {
 
         return null;
 
@@ -472,7 +474,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await itemCacheRef.current.load(index, () =>
 
-        loadPlaylistItemData(offline, org.id, item),
+        loadPlaylistItemData(offline, organizationId, item),
 
       );
 
@@ -518,7 +520,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, playlist, offline, online],
+    [organizationId, playlist, offline, online],
 
   );
 
@@ -526,7 +528,7 @@ export function ReadingPlaylistReaderPage() {
 
   useEffect(() => {
 
-    if (!playlist || !org) {
+    if (!playlist || !organizationId) {
 
       return;
 
@@ -580,9 +582,7 @@ export function ReadingPlaylistReaderPage() {
 
     playlist,
 
-    org,
-
-    itemIndex,
+    org?.id,
 
     loadItemAtIndex,
 
@@ -600,7 +600,7 @@ export function ReadingPlaylistReaderPage() {
 
   useEffect(() => {
 
-    if (!playlist || !org) {
+    if (!playlist || !organizationId) {
 
       return;
 
@@ -626,11 +626,11 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-      itemCacheRef.current.prefetch(index, () => loadPlaylistItemData(offline, org.id, item));
+      itemCacheRef.current.prefetch(index, () => loadPlaylistItemData(offline, organizationId, item));
 
     }
 
-  }, [playlist, org, itemIndex, offline]);
+  }, [playlist, organizationId, itemIndex, offline]);
 
 
 
@@ -718,7 +718,7 @@ export function ReadingPlaylistReaderPage() {
 
   const continueToPreviousItem = useCallback(async () => {
 
-    if (!playlist || !org) {
+    if (!playlist || !organizationId) {
 
       return;
 
@@ -736,7 +736,7 @@ export function ReadingPlaylistReaderPage() {
 
     const cached = await itemCacheRef.current.load(previousIndex, () =>
 
-      loadPlaylistItemData(offline, org.id, playlist.items[previousIndex]),
+      loadPlaylistItemData(offline, organizationId, playlist.items[previousIndex]),
 
     );
 
@@ -754,7 +754,7 @@ export function ReadingPlaylistReaderPage() {
 
     });
 
-  }, [playlist, org, itemIndex, goToItem, offline]);
+  }, [playlist, organizationId, itemIndex, goToItem, offline]);
 
 
 
@@ -812,7 +812,7 @@ export function ReadingPlaylistReaderPage() {
 
   useEffect(() => {
 
-    if (!org || !currentItem?.pieceId || !online) {
+    if (!organizationId || !currentItem?.pieceId || !online) {
 
       setAccessibleAudios([]);
 
@@ -838,7 +838,7 @@ export function ReadingPlaylistReaderPage() {
 
       ensemble,
 
-      organizationId: org.id,
+      organizationId,
 
       pieceId: currentItem.pieceId,
 
@@ -874,7 +874,7 @@ export function ReadingPlaylistReaderPage() {
 
     };
 
-  }, [org, currentItem?.pieceId, online, isAdmin, userId, repertoire, ensemble]);
+  }, [organizationId, currentItem?.pieceId, online, isAdmin, userId, repertoire, ensemble]);
 
 
 
@@ -882,7 +882,7 @@ export function ReadingPlaylistReaderPage() {
 
     async (selected: PieceFileWithLinks) => {
 
-      if (!org || !currentItem?.pieceId) {
+      if (!organizationId || !currentItem?.pieceId) {
 
         return;
 
@@ -898,7 +898,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await repertoire.getPieceFileDownloadUrl(
 
-        org.id,
+        organizationId,
 
         currentItem.pieceId,
 
@@ -920,7 +920,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, currentItem?.pieceId, repertoire],
+    [organizationId, currentItem?.pieceId, repertoire],
 
   );
 
@@ -940,7 +940,7 @@ export function ReadingPlaylistReaderPage() {
 
     async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
 
-      if (!org || !userId || !currentItem?.pieceId) {
+      if (!organizationId || !userId || !currentItem?.pieceId) {
 
         return null;
 
@@ -954,7 +954,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await offline.createPieceFileAnnotation(
 
-        org.id,
+        organizationId,
 
         currentItem.pieceId,
 
@@ -986,7 +986,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, userId, currentItem, offline, online],
+    [organizationId, userId, currentItem, offline, online],
 
   );
 
@@ -996,7 +996,7 @@ export function ReadingPlaylistReaderPage() {
 
     async (annotationId: string) => {
 
-      if (!org || !currentItem) {
+      if (!organizationId || !currentItem) {
 
         return;
 
@@ -1006,7 +1006,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await offline.deletePieceFileAnnotation(
 
-        org.id,
+        organizationId,
 
         currentItem.pieceFileId,
 
@@ -1026,7 +1026,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [org, currentItem, offline],
+    [organizationId, currentItem, offline],
 
   );
 
@@ -1325,8 +1325,6 @@ export function ReadingPlaylistReaderPage() {
           activeAudio && audioUrl ? (
 
             <PdfViewerInlineAudioBar
-
-              title={activeAudio.title}
 
               url={audioUrl}
 
