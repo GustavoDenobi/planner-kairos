@@ -1,4 +1,5 @@
 import type { FileStorage } from '@/application/ports/file-storage';
+import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
 import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflineIdentityStore } from '@/application/ports/offline-identity-store';

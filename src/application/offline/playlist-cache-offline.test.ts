@@ -4,6 +4,8 @@ import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
+import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
@@ -266,6 +268,8 @@ describe('cacheReadingPlaylistForOffline', () => {
       playlistCache,
       { listForFile: vi.fn(async () => []) } as unknown as PieceFileAnnotationRepository,
       { upsert: vi.fn() } as unknown as OfflineAnnotationStore,
+      { listForFile: vi.fn(async () => []) } as unknown as PieceFileNavigationShortcutRepository,
+      { upsert: vi.fn() } as unknown as OfflineNavigationShortcutStore,
       'org-1',
       'playlist-1',
       'user-1',
@@ -336,6 +340,8 @@ describe('cacheUserReadingPlaylistsForOffline', () => {
       playlistCache,
       { listForFile: vi.fn(async () => []) } as unknown as PieceFileAnnotationRepository,
       { upsert: vi.fn() } as unknown as OfflineAnnotationStore,
+      { listForFile: vi.fn(async () => []) } as unknown as PieceFileNavigationShortcutRepository,
+      { upsert: vi.fn() } as unknown as OfflineNavigationShortcutStore,
       'org-1',
       'user-1',
     );

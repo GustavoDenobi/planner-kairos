@@ -265,30 +265,25 @@ export function PiecePdfViewerPage() {
               continue;
             }
             const groupId = assignment.groupId;
-            const cachedPartIds = online
+            const cachedPartIdsMap = online
               ? null
               : await offline.getCachedSectionPartIdsByGroup(
                   resolvedOrganizationId,
                   userId,
                   groupId,
                 );
-            if (cachedPartIds) {
-              for (const partId of cachedPartIds) {
+            if (cachedPartIdsMap) {
+              for (const partId of cachedPartIdsMap.get(assignment.sectionId) ?? []) {
                 sectionPartIds.add(partId);
               }
             } else if (online) {
-              const sectionsResult = await ensemble.listSectionsForGroup(
+              const partIdsResult = await ensemble.listSectionPartIdsByGroup(
                 resolvedOrganizationId,
                 groupId,
               );
-              if (sectionsResult.ok) {
-                for (const section of sectionsResult.value) {
-                  if (section.id !== assignment.sectionId) {
-                    continue;
-                  }
-                  for (const partId of section.partIds) {
-                    sectionPartIds.add(partId);
-                  }
+              if (partIdsResult.ok) {
+                for (const partId of partIdsResult.value.get(assignment.sectionId) ?? []) {
+                  sectionPartIds.add(partId);
                 }
               }
             }

@@ -1056,7 +1056,9 @@ export function ReadingPlaylistReaderPage() {
 
     }
 
-
+    const resolvedOrganizationId = organizationId;
+    const resolvedUserId = userId;
+    const pieceId = currentItem.pieceId;
 
     if (isAdmin) {
 
@@ -1074,7 +1076,7 @@ export function ReadingPlaylistReaderPage() {
 
     async function loadManageAccess() {
 
-      const pieceResult = await repertoire.getPiece(organizationId, currentItem!.pieceId!);
+      const pieceResult = await repertoire.getPiece(resolvedOrganizationId, pieceId);
 
       if (cancelled || !pieceResult.ok) {
 
@@ -1086,7 +1088,7 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-      const musicianResult = await ensemble.getMyMusician(organizationId, userId!);
+      const musicianResult = await ensemble.getMyMusician(resolvedOrganizationId, resolvedUserId);
 
       let assignments: AssignmentWithDetails[] = [];
 
@@ -1094,7 +1096,7 @@ export function ReadingPlaylistReaderPage() {
 
         const assignmentsResult = await ensemble.listAssignmentsForMusician(
 
-          organizationId,
+          resolvedOrganizationId,
 
           musicianResult.value.id,
 
@@ -1120,23 +1122,23 @@ export function ReadingPlaylistReaderPage() {
 
         }
 
-        const cachedPartIds = online
+        const cachedPartIdsMap = online
 
           ? null
 
           : await offline.getCachedSectionPartIdsByGroup(
 
-              organizationId,
+              resolvedOrganizationId,
 
-              userId!,
+              resolvedUserId,
 
               assignment.groupId,
 
             );
 
-        if (cachedPartIds) {
+        if (cachedPartIdsMap) {
 
-          for (const partId of cachedPartIds) {
+          for (const partId of cachedPartIdsMap.get(assignment.sectionId) ?? []) {
 
             sectionPartIds.add(partId);
 
@@ -1144,29 +1146,19 @@ export function ReadingPlaylistReaderPage() {
 
         } else if (online) {
 
-          const sectionsResult = await ensemble.listSectionsForGroup(
+          const partIdsResult = await ensemble.listSectionPartIdsByGroup(
 
-            organizationId,
+            resolvedOrganizationId,
 
             assignment.groupId,
 
           );
 
-          if (sectionsResult.ok) {
+          if (partIdsResult.ok) {
 
-            for (const section of sectionsResult.value) {
+            for (const partId of partIdsResult.value.get(assignment.sectionId) ?? []) {
 
-              if (section.id !== assignment.sectionId) {
-
-                continue;
-
-              }
-
-              for (const partId of section.partIds) {
-
-                sectionPartIds.add(partId);
-
-              }
+              sectionPartIds.add(partId);
 
             }
 

@@ -55,6 +55,7 @@ describe('navigation shortcut validation', () => {
         { anchorX: 0.2 },
         {
           targetPageNumber: 3,
+          targetX: null,
           targetY: null,
           anchorPageNumber: 2,
           anchorX: 0.5,
