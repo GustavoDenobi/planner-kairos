@@ -3,6 +3,7 @@ import type { AssignmentInput } from './assignment';
 import { isGroupWriterRole } from './assignment';
 import type { Section } from './section';
 import {
+  canMergeMusicians,
   isValidEmailFormat,
   isValidMusicianName,
   isValidPartName,
@@ -79,6 +80,41 @@ describe('validateMusicianInput', () => {
 
   it('returns invalid_email for bad email', () => {
     expect(validateMusicianInput({ fullName: 'João', email: 'bad' })).toBe('invalid_email');
+  });
+});
+
+describe('canMergeMusicians', () => {
+  it('returns null when merge is allowed', () => {
+    expect(
+      canMergeMusicians({
+        sourceId: 'a',
+        targetId: 'b',
+        sourceUserId: null,
+        targetUserId: 'user-1',
+      }),
+    ).toBeNull();
+  });
+
+  it('returns same_musician when ids match', () => {
+    expect(
+      canMergeMusicians({
+        sourceId: 'a',
+        targetId: 'a',
+        sourceUserId: null,
+        targetUserId: null,
+      }),
+    ).toBe('same_musician');
+  });
+
+  it('returns both_have_accounts when both have linked users', () => {
+    expect(
+      canMergeMusicians({
+        sourceId: 'a',
+        targetId: 'b',
+        sourceUserId: 'user-1',
+        targetUserId: 'user-2',
+      }),
+    ).toBe('both_have_accounts');
   });
 });
 

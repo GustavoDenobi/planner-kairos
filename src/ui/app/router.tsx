@@ -5,6 +5,7 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { AppLayout } from '@/ui/layouts/AppLayout';
 import { PublicLayout } from '@/ui/layouts/PublicLayout';
 import { InvitePage } from '@/ui/pages/InvitePage';
+import { MusicianClaimPage } from '@/ui/pages/MusicianClaimPage';
 import { LoginPage } from '@/ui/pages/LoginPage';
 import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
 import { PasswordRecoveryPage } from '@/ui/pages/PasswordRecoveryPage';
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: '/login', element: <LoginPage /> },
           { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
           { path: '/convite/:token', element: <InvitePage /> },
+          { path: '/musico/:musicianId', element: <MusicianClaimPage /> },
         ],
       },
       {

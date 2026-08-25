@@ -4,6 +4,8 @@ import type {
   AuthUser,
   InviteSignUpInput,
   InviteSignUpError,
+  MusicianClaimSignUpError,
+  MusicianClaimSignUpInput,
 } from '@/application/ports/auth-gateway';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
@@ -46,6 +48,21 @@ function mapInviteSignUpError(data: unknown): InviteSignUpError {
   if (data && typeof data === 'object' && 'error' in data) {
     const error = String((data as { error: string }).error);
     if (error === 'email_taken' || error === 'invalid_invite' || error === 'invite_exhausted') {
+      return error;
+    }
+  }
+
+  return 'signup_failed';
+}
+
+function mapMusicianClaimSignUpError(data: unknown): MusicianClaimSignUpError {
+  if (data && typeof data === 'object' && 'error' in data) {
+    const error = String((data as { error: string }).error);
+    if (
+      error === 'email_taken' ||
+      error === 'not_found' ||
+      error === 'already_claimed'
+    ) {
       return error;
     }
   }
@@ -96,6 +113,28 @@ export function createAuthGateway(): AuthGateway {
 
       if (error || !data || typeof data !== 'object' || !('ok' in data) || !(data as { ok: boolean }).ok) {
         return { ok: false, error: mapInviteSignUpError(data) };
+      }
+
+      const session = await gateway.signIn(email, password);
+      if (!session) {
+        return { ok: false, error: 'signup_failed' };
+      }
+
+      return { ok: true, session };
+    },
+
+    async signUpForMusicianClaim({
+      musicianId,
+      email,
+      password,
+      displayName,
+    }: MusicianClaimSignUpInput) {
+      const { data, error } = await supabase.functions.invoke('musician-claim-signup', {
+        body: { musicianId, email, password, displayName },
+      });
+
+      if (error || !data || typeof data !== 'object' || !('ok' in data) || !(data as { ok: boolean }).ok) {
+        return { ok: false, error: mapMusicianClaimSignUpError(data) };
       }
 
       const session = await gateway.signIn(email, password);

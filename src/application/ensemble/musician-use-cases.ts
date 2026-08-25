@@ -78,3 +78,49 @@ export async function deleteMusician(
     return Result.fail('delete_failed');
   }
 }
+
+export async function createMusician(
+  musicianRepo: MusicianRepository,
+  organizationId: string,
+  input: MusicianInput,
+) {
+  const validationError = validateMusicianInput(input);
+  if (validationError) {
+    return Result.fail(validationError);
+  }
+
+  const phone = input.phone?.trim() ? normalizePhone(input.phone) : null;
+  const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
+
+  try {
+    const musician = await musicianRepo.create(organizationId, {
+      ...input,
+      fullName: input.fullName.trim(),
+      phone,
+      email,
+    });
+    return Result.ok(musician);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'create_failed';
+    return Result.fail(message);
+  }
+}
+
+export async function mergeMusicians(
+  musicianRepo: MusicianRepository,
+  organizationId: string,
+  sourceId: string,
+  targetId: string,
+) {
+  if (sourceId === targetId) {
+    return Result.fail('same_musician' as const);
+  }
+
+  try {
+    await musicianRepo.merge(organizationId, sourceId, targetId);
+    return Result.ok(undefined);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'merge_failed';
+    return Result.fail(message);
+  }
+}

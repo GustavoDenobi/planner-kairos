@@ -8,6 +8,10 @@ export type {
   GroupInviteListItem,
   GroupInviteRedeemedMusician,
 } from './group-invite';
+export type {
+  MusicianClaimAssignmentPreview,
+  MusicianClaimPreview,
+} from './musician-claim';
 export type { PasswordRecoveryCode } from './password-recovery-code';
 export {
   isGroupInviteExhausted,

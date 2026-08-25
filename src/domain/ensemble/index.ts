@@ -12,6 +12,7 @@ export type {
 } from './assignment';
 export { GROUP_WRITER_ROLES, isGroupWriterRole } from './assignment';
 export {
+  canMergeMusicians,
   isValidEmailFormat,
   isValidMusicianName,
   isValidPartName,

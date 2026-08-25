@@ -154,6 +154,14 @@ export function GroupDetailPage() {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isRemovingAssignment, setIsRemovingAssignment] = useState(false);
+  const [addMusicianModalOpen, setAddMusicianModalOpen] = useState(false);
+  const [addMusicianFullName, setAddMusicianFullName] = useState('');
+  const [addMusicianPhone, setAddMusicianPhone] = useState('');
+  const [addMusicianEmail, setAddMusicianEmail] = useState('');
+  const [addMusicianBirthDate, setAddMusicianBirthDate] = useState('');
+  const [addMusicianForm, setAddMusicianForm] = useState<AssignmentFormState>(emptyAssignmentForm);
+  const [addMusicianError, setAddMusicianError] = useState<string | null>(null);
+  const [isAddingMusician, setIsAddingMusician] = useState(false);
   const [fileAccessScope, setFileAccessScope] = useState<PieceFileAccessScope>('own_parts');
   const [allowFileDownload, setAllowFileDownload] = useState(true);
   const [audioAccessScope, setAudioAccessScope] = useState<PieceFileAccessScope>('own_parts');
@@ -269,6 +277,73 @@ export function GroupDetailPage() {
       setAssignments(result.value);
     }
   }
+
+  function openAddMusicianModal() {
+    setAddMusicianFullName('');
+    setAddMusicianPhone('');
+    setAddMusicianEmail('');
+    setAddMusicianBirthDate('');
+    setAddMusicianForm(emptyAssignmentForm());
+    setAddMusicianError(null);
+    setAddMusicianModalOpen(true);
+  }
+
+  async function handleAddMusicianToGroup(event: React.FormEvent) {
+    event.preventDefault();
+    if (!group) {
+      return;
+    }
+
+    setAddMusicianError(null);
+    setIsAddingMusician(true);
+
+    const createResult = await ensemble.createMusician(org!.id, {
+      fullName: addMusicianFullName,
+      phone: addMusicianPhone || null,
+      email: addMusicianEmail || null,
+      birthDate: addMusicianBirthDate || null,
+    });
+
+    if (!createResult.ok) {
+      setIsAddingMusician(false);
+      if (createResult.error === 'invalid_name') {
+        setAddMusicianError('Informe o nome do músico.');
+      } else if (createResult.error === 'invalid_phone') {
+        setAddMusicianError('Telefone inválido.');
+      } else if (createResult.error === 'invalid_email') {
+        setAddMusicianError('E-mail inválido.');
+      } else {
+        setAddMusicianError('Não foi possível cadastrar o músico.');
+      }
+      return;
+    }
+
+    const assignResult = await ensemble.assignMusician(org!.id, createResult.value.id, {
+      groupId: group.id,
+      sectionId: addMusicianForm.sectionId || null,
+      partId: addMusicianForm.partId || null,
+      ensembleRole: addMusicianForm.ensembleRole,
+    });
+
+    setIsAddingMusician(false);
+
+    if (!assignResult.ok) {
+      if (assignResult.error === 'duplicate_assignment') {
+        setAddMusicianError('Esta atribuição já existe.');
+      } else if (assignResult.error === 'section_lead_requires_section') {
+        setAddMusicianError('Chefe de naipe exige um naipe selecionado.');
+      } else if (assignResult.error === 'section_part_mismatch') {
+        setAddMusicianError('A parte selecionada não pertence ao naipe escolhido.');
+      } else {
+        setAddMusicianError('Músico cadastrado, mas não foi possível atribuí-lo ao grupo.');
+      }
+      return;
+    }
+
+    setAddMusicianModalOpen(false);
+    await refreshAssignments();
+  }
+
   function resetSectionForm() {
     setEditingSectionId(null);
     setSectionName('');
@@ -706,6 +781,14 @@ export function GroupDetailPage() {
       ? orgParts.filter((part) => assignmentPartIds.includes(part.id))
       : orgParts;
 
+  const addMusicianPartIds = addMusicianForm.sectionId
+    ? assignmentSectionPartIds.get(addMusicianForm.sectionId) ?? []
+    : null;
+  const partsForAddMusician =
+    addMusicianPartIds !== null
+      ? orgParts.filter((part) => addMusicianPartIds.includes(part.id))
+      : orgParts;
+
   return (
     <div className={orgPageContentClass}>
       <div className="flex items-center gap-2">
@@ -840,6 +923,17 @@ export function GroupDetailPage() {
               label: 'Integrantes',
               content: (
                 <>
+                  {canEdit && !isArchived && (
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={openAddMusicianModal}
+                        className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                      >
+                        + Adicionar músico ao grupo
+                      </button>
+                    </div>
+                  )}
                   {assignments.length === 0 ? (
                     <p className="text-sm text-muted">Nenhum integrante neste grupo.</p>
                   ) : (
@@ -1269,6 +1363,126 @@ export function GroupDetailPage() {
               {isRemovingAssignment ? 'Removendo…' : 'Remover'}
             </button>
           </div>
+        </form>
+      </Modal>
+      <Modal
+        open={addMusicianModalOpen}
+        onClose={() => {
+          if (!isAddingMusician) {
+            setAddMusicianModalOpen(false);
+          }
+        }}
+        title="Adicionar músico ao grupo"
+      >
+        <form className="flex flex-col gap-4" onSubmit={handleAddMusicianToGroup}>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Nome completo</span>
+            <input
+              type="text"
+              value={addMusicianFullName}
+              onChange={(e) => setAddMusicianFullName(e.target.value)}
+              required
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Telefone (opcional)</span>
+            <input
+              type="tel"
+              value={addMusicianPhone}
+              onChange={(e) => setAddMusicianPhone(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">E-mail (opcional)</span>
+            <input
+              type="email"
+              value={addMusicianEmail}
+              onChange={(e) => setAddMusicianEmail(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Data de nascimento (opcional)</span>
+            <input
+              type="date"
+              value={addMusicianBirthDate}
+              onChange={(e) => setAddMusicianBirthDate(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Naipe (opcional)</span>
+            <select
+              value={addMusicianForm.sectionId}
+              onChange={(e) => {
+                const sectionId = e.target.value;
+                const partIds = sectionId
+                  ? assignmentSectionPartIds.get(sectionId) ?? []
+                  : null;
+                const partId =
+                  partIds && addMusicianForm.partId && partIds.includes(addMusicianForm.partId)
+                    ? addMusicianForm.partId
+                    : '';
+
+                setAddMusicianForm((prev) => ({ ...prev, sectionId, partId }));
+              }}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            >
+              <option value="">Nenhum</option>
+              {sections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Parte (opcional)</span>
+            <select
+              value={addMusicianForm.partId}
+              onChange={(e) =>
+                setAddMusicianForm((prev) => ({ ...prev, partId: e.target.value }))
+              }
+              disabled={addMusicianForm.sectionId !== '' && partsForAddMusician.length === 0}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text disabled:opacity-50"
+            >
+              <option value="">Nenhuma</option>
+              {partsForAddMusician.map((part) => (
+                <option key={part.id} value={part.id}>
+                  {part.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Papel</span>
+            <select
+              value={addMusicianForm.ensembleRole}
+              onChange={(e) =>
+                setAddMusicianForm((prev) => ({
+                  ...prev,
+                  ensembleRole: e.target.value as EnsembleRole,
+                }))
+              }
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+            >
+              {ENSEMBLE_ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {addMusicianError && <p className="text-sm text-red-600">{addMusicianError}</p>}
+          <button
+            type="submit"
+            disabled={isAddingMusician}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {isAddingMusician ? 'Cadastrando…' : 'Cadastrar e adicionar'}
+          </button>
         </form>
       </Modal>
       <Modal

@@ -14,7 +14,7 @@ import {
 } from './assignment-use-cases';
 import { createGroup, deleteGroup, getGroup, updateGroup, archiveGroup, restoreGroup, updateGroupFileAccessSettings, reorderGroups } from './group-use-cases';
 import { listGroups } from './list-groups';
-import { deleteMusician, getMusician, getMyMusician, listMusicians, updateMusician } from './musician-use-cases';
+import { createMusician, deleteMusician, getMusician, getMyMusician, listMusicians, mergeMusicians, updateMusician } from './musician-use-cases';
 import {
   getPart,
   listParts,
@@ -74,6 +74,10 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
       getMyMusician(deps.musicianRepo, organizationId, userId),
     updateMusician: (organizationId: string, musicianId: string, input: MusicianInput) =>
       updateMusician(deps.musicianRepo, organizationId, musicianId, input),
+    createMusician: (organizationId: string, input: MusicianInput) =>
+      createMusician(deps.musicianRepo, organizationId, input),
+    mergeMusicians: (organizationId: string, sourceId: string, targetId: string) =>
+      mergeMusicians(deps.musicianRepo, organizationId, sourceId, targetId),
     deleteMusician: (organizationId: string, musicianId: string) =>
       deleteMusician(deps.musicianRepo, organizationId, musicianId),
 

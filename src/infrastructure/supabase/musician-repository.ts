@@ -257,6 +257,28 @@ export function createMusicianRepository(): MusicianRepository {
       return mapMusician(data);
     },
 
+    async create(organizationId, input: MusicianInput) {
+      const { data, error } = await supabase.rpc('create_musician', {
+        p_organization_id: organizationId,
+        p_full_name: input.fullName,
+        p_phone: input.phone ?? null,
+        p_email: input.email ?? null,
+        p_birth_date: input.birthDate ?? null,
+        p_notes: null,
+      });
+
+      if (error || !data || data.length === 0) {
+        throw new Error(error?.message ?? 'create_failed');
+      }
+
+      const musician = await this.getById(organizationId, data[0].musician_id);
+      if (!musician) {
+        throw new Error('create_failed');
+      }
+
+      return musician;
+    },
+
     async update(organizationId, musicianId, input: MusicianInput) {
       const { data, error } = await supabase
         .from('musicians')
@@ -276,6 +298,23 @@ export function createMusicianRepository(): MusicianRepository {
       }
 
       return mapMusician(data);
+    },
+
+    async merge(organizationId, sourceId, targetId) {
+      const source = await this.getById(organizationId, sourceId);
+      const target = await this.getById(organizationId, targetId);
+      if (!source || !target) {
+        throw new Error('not_found');
+      }
+
+      const { error } = await supabase.rpc('merge_musicians', {
+        p_source_id: sourceId,
+        p_target_id: targetId,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
     },
 
     async delete(organizationId, musicianId) {

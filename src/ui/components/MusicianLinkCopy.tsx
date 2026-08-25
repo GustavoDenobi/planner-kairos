@@ -1,0 +1,34 @@
+import { useState } from 'react';
+
+type MusicianLinkCopyProps = {
+  musicianId: string;
+};
+
+export function MusicianLinkCopy({ musicianId }: MusicianLinkCopyProps) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/musico/${musicianId}`;
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <input
+        type="text"
+        readOnly
+        value={url}
+        className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text"
+      />
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text hover:bg-surface"
+      >
+        {copied ? 'Copiado!' : 'Copiar link'}
+      </button>
+    </div>
+  );
+}

@@ -10,12 +10,15 @@ import type {
   Section,
 } from '@/domain/ensemble';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
+import type { MusicianName } from '@/application/ports/musician-repository';
 import type { AccessRole } from '@/domain/identity';
+import { canMergeMusicians } from '@/domain/ensemble';
 import { useEnsemble, useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import { MusicianLinkCopy } from '@/ui/components/MusicianLinkCopy';
 import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil } from '@/ui/components/icons';
@@ -98,6 +101,11 @@ export function MusicianDetailPage() {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [musicianNames, setMusicianNames] = useState<MusicianName[]>([]);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -187,6 +195,25 @@ export function MusicianDetailPage() {
       active = false;
     };
   }, [identity, isOfflineReadOnly, org, musician?.userId, isAdmin]);
+
+  useEffect(() => {
+    if (!org || !isAdmin || isOfflineReadOnly) {
+      setMusicianNames([]);
+      return;
+    }
+
+    void ensemble.listMusicians(org.id, { limit: 1000, offset: 0 }).then((result) => {
+      if (result.ok) {
+        setMusicianNames(
+          result.value.items.map((item) => ({
+            id: item.id,
+            fullName: item.fullName,
+            userId: item.userId,
+          })),
+        );
+      }
+    });
+  }, [ensemble, isAdmin, isOfflineReadOnly, org]);
 
   async function loadSectionsForGroup(groupId: string) {
     if (!org || sectionsByGroup.has(groupId)) {
@@ -435,6 +462,61 @@ export function MusicianDetailPage() {
     navigate(`/${orgSlug}/musicos`);
   }
 
+  function openMergeModal() {
+    setMergeTargetId('');
+    setMergeError(null);
+    setMergeModalOpen(true);
+  }
+
+  async function handleMergeMusicians() {
+    if (!musician || !mergeTargetId) {
+      setMergeError('Selecione o músico que permanecerá.');
+      return;
+    }
+
+    const target = musicianNames.find((item) => item.id === mergeTargetId);
+    if (!target) {
+      setMergeError('Músico de destino não encontrado.');
+      return;
+    }
+
+    const validationError = canMergeMusicians({
+      sourceId: musician.id,
+      targetId: mergeTargetId,
+      sourceUserId: musician.userId,
+      targetUserId: target.userId,
+    });
+
+    if (validationError === 'same_musician') {
+      setMergeError('Selecione um músico diferente.');
+      return;
+    }
+
+    if (validationError === 'both_have_accounts') {
+      setMergeError('Não é possível mesclar dois cadastros que já possuem conta vinculada.');
+      return;
+    }
+
+    setMergeError(null);
+    setIsMerging(true);
+
+    const result = await ensemble.mergeMusicians(org!.id, musician.id, mergeTargetId);
+
+    setIsMerging(false);
+
+    if (!result.ok) {
+      if (result.error === 'both_have_accounts') {
+        setMergeError('Não é possível mesclar dois cadastros que já possuem conta vinculada.');
+      } else {
+        setMergeError('Não foi possível mesclar os cadastros.');
+      }
+      return;
+    }
+
+    setMergeModalOpen(false);
+    navigate(`/${orgSlug}/musicos/${mergeTargetId}`);
+  }
+
   const sectionsForSelectedGroup = assignmentForm.groupId
     ? sectionsByGroup.get(assignmentForm.groupId) ?? []
     : [];
@@ -464,7 +546,18 @@ export function MusicianDetailPage() {
       <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/musicos`} />
         <div>
-          <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-text">{musician.fullName}</h1>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                musician.userId
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted/20 text-muted'
+              }`}
+            >
+              {musician.userId ? 'Conta vinculada' : 'Sem conta'}
+            </span>
+          </div>
           {isOfflineReadOnly && (
             <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
           )}
@@ -534,6 +627,35 @@ export function MusicianDetailPage() {
                       </button>
                     )}
                   </div>
+                  {!musician.userId && canEdit && (
+                    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-text">Link para cadastro</h2>
+                        <p className="mt-1 text-sm text-muted">
+                          Envie este link para o músico criar conta e vincular este cadastro.
+                        </p>
+                      </div>
+                      <MusicianLinkCopy musicianId={musician.id} />
+                    </div>
+                  )}
+                  {canEdit && musicianNames.length > 1 && (
+                    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-text">Mesclar músico</h2>
+                        <p className="mt-1 text-sm text-muted">
+                          Unir este cadastro a outro da organização. As atribuições serão somadas e
+                          este registro será removido.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={openMergeModal}
+                        className="w-full rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg md:w-auto"
+                      >
+                        Mesclar com outro músico
+                      </button>
+                    </div>
+                  )}
                   {showAccessRoleSection && !isOfflineReadOnly && (
                     <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
                       <div>
@@ -782,6 +904,64 @@ export function MusicianDetailPage() {
               : adminAction === 'grant'
                 ? 'Confirmar'
                 : 'Remover administrador'}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={mergeModalOpen}
+        onClose={() => {
+          if (!isMerging) {
+            setMergeModalOpen(false);
+          }
+        }}
+        title="Mesclar músico"
+      >
+        <p className="text-sm text-muted">
+          O cadastro de <strong className="text-text">{musician.fullName}</strong> será unido ao
+          músico selecionado abaixo e removido em seguida.
+        </p>
+        {musician.userId && (
+          <p className="mt-2 text-sm text-amber-700">
+            Este cadastro possui conta vinculada. A conta será transferida para o destino, se
+            aplicável.
+          </p>
+        )}
+        <label className="mt-4 flex flex-col gap-1 text-sm">
+          <span className="font-medium text-text">Manter cadastro de</span>
+          <select
+            value={mergeTargetId}
+            onChange={(e) => setMergeTargetId(e.target.value)}
+            className="rounded-lg border border-border bg-bg px-3 py-2 text-text"
+          >
+            <option value="">Selecione…</option>
+            {musicianNames
+              .filter((item) => item.id !== musician.id)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.fullName}
+                  {item.userId ? ' (com conta)' : ' (sem conta)'}
+                </option>
+              ))}
+          </select>
+        </label>
+        {mergeError && <p className="mt-2 text-sm text-red-600">{mergeError}</p>}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            disabled={isMerging}
+            onClick={() => setMergeModalOpen(false)}
+            className="w-full rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50 sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isMerging || !mergeTargetId}
+            onClick={handleMergeMusicians}
+            className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 sm:w-auto"
+          >
+            {isMerging ? 'Mesclando…' : 'Confirmar mesclagem'}
           </button>
         </div>
       </Modal>

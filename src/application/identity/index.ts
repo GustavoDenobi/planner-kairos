@@ -10,11 +10,13 @@ import { grantOrgAdmin } from './grant-org-admin';
 import { revokeOrgAdmin } from './revoke-org-admin';
 import { getMembershipAccessRole } from './get-membership-access-role';
 import { acceptGroupInvite } from './accept-group-invite';
+import { claimMusician } from './claim-musician';
 import { confirmPasswordRecovery } from './confirm-password-recovery';
 import { createGroupInvite } from './create-group-invite';
 import { listGroupInvites } from './list-group-invites';
 import { listMyOrganizations } from './list-my-organizations';
 import { previewGroupInvite } from './preview-group-invite';
+import { previewMusicianClaim } from './preview-musician-claim';
 import { removeOrganizationImage } from './remove-organization-image';
 import { requestPasswordRecovery } from './request-password-recovery';
 import { revokeGroupInvite } from './revoke-group-invite';
@@ -28,6 +30,7 @@ import { updateGroupInviteExpires } from './update-group-invite-expires';
 import { updateGroupInviteMaxUses } from './update-group-invite-max-uses';
 
 import type { MembershipRepository } from '@/application/ports';
+import type { MusicianClaimRepository } from '@/application/ports/musician-claim-repository';
 
 export type IdentityDeps = {
   auth: AuthGateway;
@@ -35,6 +38,7 @@ export type IdentityDeps = {
   orgRepo: OrganizationRepository;
   membershipRepo: MembershipRepository;
   inviteRepo: GroupInviteRepository;
+  musicianClaimRepo: MusicianClaimRepository;
   recoveryGateway: PasswordRecoveryGateway;
   fileStorage: FileStorage;
 };
@@ -58,6 +62,10 @@ export function createIdentityUseCases(deps: IdentityDeps) {
     setOrganizationName: (organizationId: string, name: string) =>
       setOrganizationName(deps.orgRepo, organizationId, name),
     previewGroupInvite: (token: string) => previewGroupInvite(deps.inviteRepo, token),
+    previewMusicianClaim: (musicianId: string) =>
+      previewMusicianClaim(deps.musicianClaimRepo, musicianId),
+    claimMusician: (input: Parameters<typeof claimMusician>[3]) =>
+      claimMusician(deps.auth, deps.musicianClaimRepo, deps.profileRepo, input),
     createGroupInvite: (groupId: string, expiresAt: Date, maxUses = 0) =>
       createGroupInvite(deps.inviteRepo, groupId, expiresAt, maxUses),
     revokeGroupInvite: (inviteId: string) => revokeGroupInvite(deps.inviteRepo, inviteId),

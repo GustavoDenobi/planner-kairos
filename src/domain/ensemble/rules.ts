@@ -41,6 +41,23 @@ export function validateMusicianInput(input: MusicianInput): string | null {
   return null;
 }
 
+export type MergeMusiciansValidationInput = {
+  sourceId: string;
+  targetId: string;
+  sourceUserId: string | null;
+  targetUserId: string | null;
+};
+
+export function canMergeMusicians(input: MergeMusiciansValidationInput): string | null {
+  if (input.sourceId === input.targetId) {
+    return 'same_musician';
+  }
+  if (input.sourceUserId && input.targetUserId) {
+    return 'both_have_accounts';
+  }
+  return null;
+}
+
 export function isValidPartName(name: string): boolean {
   return name.trim().length > 0;
 }

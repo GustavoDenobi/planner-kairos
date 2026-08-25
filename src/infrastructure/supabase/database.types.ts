@@ -867,6 +867,82 @@ export type Database = {
           },
         ]
       }
+      piece_file_navigation_shortcuts: {
+        Row: {
+          anchor_page_number: number | null
+          anchor_x: number | null
+          anchor_y: number | null
+          author_user_id: string
+          color: string
+          created_at: string
+          id: string
+          label: string
+          organization_id: string
+          piece_file_id: string
+          sort_order: number
+          target_page_number: number
+          target_x: number | null
+          target_y: number | null
+          updated_at: string
+        }
+        Insert: {
+          anchor_page_number?: number | null
+          anchor_x?: number | null
+          anchor_y?: number | null
+          author_user_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          label: string
+          organization_id: string
+          piece_file_id: string
+          sort_order: number
+          target_page_number: number
+          target_x?: number | null
+          target_y?: number | null
+          updated_at?: string
+        }
+        Update: {
+          anchor_page_number?: number | null
+          anchor_x?: number | null
+          anchor_y?: number | null
+          author_user_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string
+          organization_id?: string
+          piece_file_id?: string
+          sort_order?: number
+          target_page_number?: number
+          target_x?: number | null
+          target_y?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_file_navigation_shortcuts_author_user_id_fkey"
+            columns: ["author_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_file_navigation_shortcuts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_file_navigation_shortcuts_piece_file_id_fkey"
+            columns: ["piece_file_id"]
+            isOneToOne: false
+            referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piece_file_part_links: {
         Row: {
           created_at: string
@@ -1533,14 +1609,42 @@ export type Database = {
         Args: { p_piece_file_id: string }
         Returns: boolean
       }
+      can_manage_piece_file_navigation_shortcuts: {
+        Args: { p_piece_file_id: string }
+        Returns: boolean
+      }
       can_see_event: { Args: { p_event_id: string }; Returns: boolean }
       can_see_piece: { Args: { p_piece_id: string }; Returns: boolean }
       can_write_event: { Args: { p_event_id: string }; Returns: boolean }
+      claim_musician: {
+        Args: {
+          p_birth_date?: string
+          p_display_name: string
+          p_musician_id: string
+          p_phone?: string
+        }
+        Returns: {
+          organization_slug: string
+        }[]
+      }
       create_group_invite: {
         Args: { p_expires_at: string; p_group_id: string; p_max_uses?: number }
         Returns: {
           invite_id: string
           token: string
+        }[]
+      }
+      create_musician: {
+        Args: {
+          p_birth_date?: string
+          p_email?: string
+          p_full_name: string
+          p_notes?: string
+          p_organization_id: string
+          p_phone?: string
+        }
+        Returns: {
+          musician_id: string
         }[]
       }
       current_musician_id: { Args: { p_org_id: string }; Returns: string }
@@ -1552,6 +1656,17 @@ export type Database = {
           group_name: string
           invite_id: string
           organization_id: string
+          organization_image_storage_key: string
+          organization_name: string
+          organization_slug: string
+        }[]
+      }
+      get_musician_claim_preview: {
+        Args: { p_musician_id: string }
+        Returns: {
+          already_claimed: boolean
+          assignments: Json
+          musician_full_name: string
           organization_image_storage_key: string
           organization_name: string
           organization_slug: string
@@ -1599,6 +1714,14 @@ export type Database = {
           token: string
           use_count: number
         }[]
+      }
+      merge_musicians: {
+        Args: { p_source_id: string; p_target_id: string }
+        Returns: undefined
+      }
+      merge_musicians_internal: {
+        Args: { p_source_id: string; p_target_id: string }
+        Returns: undefined
       }
       musician_in_teacher_groups: {
         Args: { p_musician_id: string; p_org_id: string }

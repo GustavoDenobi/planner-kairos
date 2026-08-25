@@ -32,6 +32,8 @@ export type MusicianRepository = {
   listNamesForOrg(organizationId: string): Promise<MusicianName[]>;
   getById(organizationId: string, musicianId: string): Promise<Musician | null>;
   getByUserId(organizationId: string, userId: string): Promise<Musician | null>;
+  create(organizationId: string, input: MusicianInput): Promise<Musician>;
   update(organizationId: string, musicianId: string, input: MusicianInput): Promise<Musician>;
+  merge(organizationId: string, sourceId: string, targetId: string): Promise<void>;
   delete(organizationId: string, musicianId: string): Promise<void>;
 };

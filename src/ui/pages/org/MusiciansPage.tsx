@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type {
   MusicianSortDirection,
@@ -18,6 +18,7 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import { MusicianClaimLinkCopyButton } from '@/ui/components/MusicianClaimLinkCopyButton';
 import { IconArrowUpDown, IconFilter, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -63,6 +64,7 @@ function musicianWhatsAppUrl(phone: string | null): string | null {
 
 export function MusiciansPage() {
   const { orgSlug } = useParams();
+  const navigate = useNavigate();
   const ensemble = useEnsemble();
   const offline = useOffline();
   const { userId } = useAuth();
@@ -93,6 +95,14 @@ export function MusiciansPage() {
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
   const [sections, setSections] = useState<SectionListItem[]>([]);
   const filtersPanelId = useId();
+
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createFullName, setCreateFullName] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createBirthDate, setCreateBirthDate] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const requestIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -296,6 +306,54 @@ export function MusiciansPage() {
     setOptionsModalOpen(false);
   }
 
+  function resetCreateForm() {
+    setCreateFullName('');
+    setCreatePhone('');
+    setCreateEmail('');
+    setCreateBirthDate('');
+    setCreateError(null);
+  }
+
+  function openCreateModal() {
+    resetCreateForm();
+    setCreateModalOpen(true);
+  }
+
+  async function handleCreateMusician(event: React.FormEvent) {
+    event.preventDefault();
+    if (!org) {
+      return;
+    }
+
+    setCreateError(null);
+    setIsCreating(true);
+
+    const result = await ensemble.createMusician(org.id, {
+      fullName: createFullName,
+      phone: createPhone || null,
+      email: createEmail || null,
+      birthDate: createBirthDate || null,
+    });
+
+    setIsCreating(false);
+
+    if (!result.ok) {
+      if (result.error === 'invalid_name') {
+        setCreateError('Informe o nome do músico.');
+      } else if (result.error === 'invalid_phone') {
+        setCreateError('Telefone inválido.');
+      } else if (result.error === 'invalid_email') {
+        setCreateError('E-mail inválido.');
+      } else {
+        setCreateError('Não foi possível cadastrar o músico.');
+      }
+      return;
+    }
+
+    setCreateModalOpen(false);
+    navigate(`/${orgSlug}/musicos/${result.value.id}`);
+  }
+
   if (!org) {
     return null;
   }
@@ -323,20 +381,31 @@ export function MusiciansPage() {
     <OrgListPageLayout
       scrollRef={scrollRef}
       header={
-        <div>
-          <h1 className="text-2xl font-semibold text-text">Músicos</h1>
-          {isOfflineReadOnly && (
-            <p className="mt-1 text-sm text-muted">
-              Modo offline — somente leitura
-              {offlineCachedAt
-                ? ` · dados de ${new Intl.DateTimeFormat('pt-BR', {
-                    day: 'numeric',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }).format(new Date(offlineCachedAt))}`
-                : ''}
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-text">Músicos</h1>
+            {isOfflineReadOnly && (
+              <p className="mt-1 text-sm text-muted">
+                Modo offline — somente leitura
+                {offlineCachedAt
+                  ? ` · dados de ${new Intl.DateTimeFormat('pt-BR', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }).format(new Date(offlineCachedAt))}`
+                  : ''}
+              </p>
+            )}
+          </div>
+          {isAdmin && online && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              + Músico
+            </button>
           )}
         </div>
       }
@@ -491,6 +560,12 @@ export function MusiciansPage() {
                         </p>
                       )}
                     </Link>
+                    {!musician.userId && (
+                      <MusicianClaimLinkCopyButton
+                        musicianId={musician.id}
+                        musicianName={musician.fullName}
+                      />
+                    )}
                     {whatsappUrl && (
                       <a
                         href={whatsappUrl}
@@ -551,6 +626,64 @@ export function MusiciansPage() {
             );
           })}
         </fieldset>
+      </Modal>
+
+      <Modal
+        open={createModalOpen}
+        onClose={() => {
+          if (!isCreating) {
+            setCreateModalOpen(false);
+          }
+        }}
+        title="Adicionar músico"
+      >
+        <form className="flex flex-col gap-4" onSubmit={handleCreateMusician}>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Nome completo</span>
+            <input
+              type="text"
+              value={createFullName}
+              onChange={(e) => setCreateFullName(e.target.value)}
+              required
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Telefone (opcional)</span>
+            <input
+              type="tel"
+              value={createPhone}
+              onChange={(e) => setCreatePhone(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">E-mail (opcional)</span>
+            <input
+              type="email"
+              value={createEmail}
+              onChange={(e) => setCreateEmail(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Data de nascimento (opcional)</span>
+            <input
+              type="date"
+              value={createBirthDate}
+              onChange={(e) => setCreateBirthDate(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+            />
+          </label>
+          {createError && <p className="text-sm text-red-600">{createError}</p>}
+          <button
+            type="submit"
+            disabled={isCreating}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {isCreating ? 'Cadastrando…' : 'Cadastrar'}
+          </button>
+        </form>
       </Modal>
     </>
   );
