@@ -9,6 +9,7 @@ import { MusicianClaimPage } from '@/ui/pages/MusicianClaimPage';
 import { LoginPage } from '@/ui/pages/LoginPage';
 import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
 import { PasswordRecoveryPage } from '@/ui/pages/PasswordRecoveryPage';
+import { PrivacyPolicyPage } from '@/ui/pages/PrivacyPolicyPage';
 import { AgendaPage } from '@/ui/pages/org/AgendaPage';
 import { EventDetailPage } from '@/ui/pages/org/EventDetailPage';
 import { GroupDetailPage } from '@/ui/pages/org/GroupDetailPage';
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/login', element: <LoginPage /> },
           { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
+          { path: '/privacidade', element: <PrivacyPolicyPage /> },
           { path: '/convite/:token', element: <InvitePage /> },
           { path: '/musico/:musicianId', element: <MusicianClaimPage /> },
         ],
