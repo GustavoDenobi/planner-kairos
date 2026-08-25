@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { EventKind, EventListItem, EventType } from '@/domain/agenda';
-import { eventHasNoAudience, extraAudienceMusicianIds } from '@/domain/agenda';
+import type { EventKind, EventListItem, EventType, MusicianBirthdayItem } from '@/domain/agenda';
+import { eventHasNoAudience, extraAudienceMusicianIds, listMusicianBirthdaysInRange } from '@/domain/agenda';
 import type { AssociableAudience } from '@/application/agenda';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
@@ -24,6 +24,10 @@ import {
   toIsoRange,
 } from '@/ui/features/agenda/agenda-date';
 import { loadAgendaFilters, saveAgendaFilters } from '@/ui/features/agenda/agenda-filters-storage';
+import {
+  loadAgendaBirthdaysVisibility,
+  saveAgendaBirthdaysVisibility,
+} from '@/ui/features/agenda/agenda-birthdays-storage';
 import { loadAgendaRange, saveAgendaRange } from '@/ui/features/agenda/agenda-range-storage';
 import { agendaErrorMessage, eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import {
@@ -83,9 +87,12 @@ export function AgendaPage() {
   const [filterKind, setFilterKind] = useState<EventKind | ''>('');
   const [filterTypeId, setFilterTypeId] = useState('');
   const [filterGroupId, setFilterGroupId] = useState('');
+  const [showBirthdays, setShowBirthdays] = useState(true);
+  const [birthdaysReady, setBirthdaysReady] = useState(false);
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
+  const [birthdays, setBirthdays] = useState<MusicianBirthdayItem[]>([]);
   const [audience, setAudience] = useState<AssociableAudience | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
@@ -133,6 +140,7 @@ export function AgendaPage() {
     if (!userId) {
       setRangeReady(true);
       setFiltersReady(true);
+      setBirthdaysReady(true);
       return;
     }
     const storedRange = loadAgendaRange(userId);
@@ -146,8 +154,10 @@ export function AgendaPage() {
       setFilterTypeId(storedFilters.typeId);
       setFilterGroupId(storedFilters.groupId);
     }
+    setShowBirthdays(loadAgendaBirthdaysVisibility(userId));
     setRangeReady(true);
     setFiltersReady(true);
+    setBirthdaysReady(true);
   }, [userId]);
 
   useEffect(() => {
@@ -168,6 +178,65 @@ export function AgendaPage() {
       groupId: filterGroupId,
     });
   }, [userId, filtersReady, scope, filterKind, filterTypeId, filterGroupId]);
+
+  useEffect(() => {
+    if (!userId || !birthdaysReady) {
+      return;
+    }
+    saveAgendaBirthdaysVisibility(userId, showBirthdays);
+  }, [userId, birthdaysReady, showBirthdays]);
+
+  const loadBirthdays = useCallback(
+    async (range: { from: string; to: string }) => {
+      if (!org || !userId || !isAdmin || !showBirthdays) {
+        setBirthdays([]);
+        return;
+      }
+
+      if (!isBrowserOnline()) {
+        const cached = await offline.listCachedMusicians(org.id, userId, {
+          groupId: filterGroupId || undefined,
+          limit: 10000,
+          offset: 0,
+        });
+        const sources = await Promise.all(
+          cached.items
+            .filter((musician) => musician.birthDate)
+            .map(async (musician) => ({
+              id: musician.id,
+              fullName: musician.fullName,
+              birthDate: musician.birthDate as string,
+              assignments: (
+                await offline.listCachedAssignmentsForMusician(org.id, userId, musician.id)
+              ).map((assignment) => ({
+                groupId: assignment.groupId,
+                groupName: assignment.groupName,
+                ensembleRole: assignment.ensembleRole,
+                sectionName: assignment.sectionName,
+                partName: assignment.partName,
+              })),
+            })),
+        );
+        setBirthdays(
+          listMusicianBirthdaysInRange(sources, range.from, range.to, {
+            groupId: filterGroupId || null,
+          }),
+        );
+        return;
+      }
+
+      const birthdaysResult = await agenda.listMusicianBirthdaysInRange(org.id, userId, {
+        ...range,
+        groupId: filterGroupId || null,
+      });
+      if (birthdaysResult.ok) {
+        setBirthdays(birthdaysResult.value);
+      } else {
+        setBirthdays([]);
+      }
+    },
+    [agenda, offline, org, userId, isAdmin, showBirthdays, filterGroupId],
+  );
 
   const loadData = useCallback(async () => {
     if (!org || !userId) {
@@ -201,9 +270,11 @@ export function AgendaPage() {
       if (!cached.withinCachedRange) {
         setOfflineRangeError(true);
         setEvents([]);
+        setBirthdays([]);
       } else {
         setOfflineRangeError(false);
         setEvents(cached.events);
+        await loadBirthdays(range);
       }
 
       setOfflineCachedAt(cached.cachedAt);
@@ -235,6 +306,8 @@ export function AgendaPage() {
       agenda.listAssociableAudience(org.id, userId),
     ]);
 
+    await loadBirthdays(range);
+
     if (typesResult.ok) {
       setEventTypes(typesResult.value);
     }
@@ -263,6 +336,8 @@ export function AgendaPage() {
     filterTypeId,
     filterKind,
     filterGroupId,
+    loadBirthdays,
+    showBirthdays,
   ]);
 
   useEffect(() => {
@@ -275,11 +350,11 @@ export function AgendaPage() {
   }, [eventTypes, typeId]);
 
   useEffect(() => {
-    if (!org || !rangeReady || !filtersReady) {
+    if (!org || !rangeReady || !filtersReady || !birthdaysReady) {
       return;
     }
     void loadData();
-  }, [org, rangeReady, filtersReady, loadData]);
+  }, [org, rangeReady, filtersReady, birthdaysReady, loadData]);
 
   function openCreateTypeModal() {
     setTypeModal({
@@ -500,6 +575,9 @@ export function AgendaPage() {
                 onGroupIdChange={setFilterGroupId}
                 types={eventTypes}
                 groups={audience?.filterGroups ?? []}
+                showBirthdaysToggle={isAdmin}
+                showBirthdays={showBirthdays}
+                onShowBirthdaysChange={setShowBirthdays}
                 rangeControls={
                   <AgendaRangeControls
                     anchor={anchor}
@@ -534,7 +612,12 @@ export function AgendaPage() {
               frente).
             </p>
           ) : (
-            <AgendaEventsSection orgSlug={orgSlug ?? ''} events={events} isLoading={isLoading} />
+            <AgendaEventsSection
+              orgSlug={orgSlug ?? ''}
+              events={events}
+              birthdays={birthdays}
+              isLoading={isLoading}
+            />
           )}
         </div>
       </div>

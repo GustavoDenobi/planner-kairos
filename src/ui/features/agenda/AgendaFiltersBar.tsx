@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { EventKind, EventType } from '@/domain/agenda';
-import { IconFilter } from '@/ui/components/icons';
+import { IconFilter, IconCake } from '@/ui/components/icons';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 
 export type AgendaFilterScope = 'mine' | 'all';
@@ -23,6 +23,9 @@ type AgendaFiltersBarProps = {
   types: EventType[];
   groups: AudienceOption[];
   rangeControls?: ReactNode;
+  showBirthdaysToggle?: boolean;
+  showBirthdays?: boolean;
+  onShowBirthdaysChange?: (show: boolean) => void;
 };
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
@@ -43,6 +46,9 @@ export function AgendaFiltersBar({
   types,
   groups,
   rangeControls,
+  showBirthdaysToggle = false,
+  showBirthdays = true,
+  onShowBirthdaysChange,
 }: AgendaFiltersBarProps) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
@@ -61,6 +67,21 @@ export function AgendaFiltersBar({
               className="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text transition-colors hover:bg-bg"
             >
               {scope === 'mine' ? 'Ver todos' : 'Ver meus'}
+            </button>
+          )}
+          {showBirthdaysToggle && onShowBirthdaysChange && (
+            <button
+              type="button"
+              onClick={() => onShowBirthdaysChange(!showBirthdays)}
+              className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors ${
+                showBirthdays
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-surface text-muted hover:bg-bg hover:text-text'
+              }`}
+              aria-label={showBirthdays ? 'Ocultar aniversários' : 'Mostrar aniversários'}
+              aria-pressed={showBirthdays}
+            >
+              <IconCake className="h-4 w-4" />
             </button>
           )}
           <button

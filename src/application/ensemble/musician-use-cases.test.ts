@@ -5,6 +5,7 @@ import { createMusician, mergeMusicians } from './musician-use-cases';
 function createRepo(overrides: Partial<MusicianRepository> = {}): MusicianRepository {
   return {
     listForOrg: vi.fn(),
+    listBirthdaysForOrg: vi.fn(),
     listNamesForOrg: vi.fn(),
     getById: vi.fn(),
     getByUserId: vi.fn(),

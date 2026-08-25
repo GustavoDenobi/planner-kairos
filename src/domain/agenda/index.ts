@@ -14,6 +14,13 @@ export type {
 } from './program-item';
 export type { EventDetail } from './event-detail';
 export type { EventParticipant, EventAbsence } from './event-absence';
+export type {
+  MusicianBirthdayItem,
+  MusicianBirthdaySource,
+  MusicianBirthdayAssignment,
+  ListMusicianBirthdaysOptions,
+} from './birthday';
+export { listMusicianBirthdaysInRange } from './birthday';
 export {
   canWriteEvent,
   eventDisplayTitle,

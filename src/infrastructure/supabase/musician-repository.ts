@@ -3,6 +3,7 @@ import type {
   MusicianRepository,
 } from '@/application/ports/musician-repository';
 import type { EnsembleRole, Musician, MusicianInput, MusicianListItem } from '@/domain/ensemble';
+import type { MusicianBirthdayAssignment } from '@/domain/agenda';
 import { normalizePhone } from '@/domain/ensemble';
 import { supabase } from './client';
 
@@ -67,6 +68,43 @@ async function loadAssignmentStats(
       entry.groups.add(groupName);
     }
     byMusician.set(musicianId, entry);
+  }
+
+  return byMusician;
+}
+
+async function loadBirthdayAssignments(
+  organizationId: string,
+  musicianIds: string[],
+): Promise<Map<string, MusicianBirthdayAssignment[]>> {
+  const byMusician = new Map<string, MusicianBirthdayAssignment[]>();
+
+  if (musicianIds.length === 0) {
+    return byMusician;
+  }
+
+  const { data: assignments, error } = await supabase
+    .from('assignments')
+    .select('musician_id, group_id, ensemble_role, groups(name), sections(name), parts(name)')
+    .eq('organization_id', organizationId)
+    .in('musician_id', musicianIds)
+    .order('created_at');
+
+  if (error || !assignments) {
+    return byMusician;
+  }
+
+  for (const row of assignments) {
+    const musicianId = row.musician_id as string;
+    const current = byMusician.get(musicianId) ?? [];
+    current.push({
+      groupId: row.group_id as string,
+      groupName: (row.groups as unknown as { name: string } | null)?.name ?? '',
+      ensembleRole: row.ensemble_role as EnsembleRole,
+      sectionName: (row.sections as unknown as { name: string } | null)?.name ?? null,
+      partName: (row.parts as unknown as { name: string } | null)?.name ?? null,
+    });
+    byMusician.set(musicianId, current);
   }
 
   return byMusician;
@@ -207,6 +245,45 @@ export function createMusicianRepository(): MusicianRepository {
         totalCount,
         hasMore: offset + musicians.length < totalCount,
       };
+    },
+
+    async listBirthdaysForOrg(organizationId, options = {}) {
+      const assignmentMusicianIds = await findMusicianIdsMatchingAssignmentFilters(
+        organizationId,
+        { groupId: options.groupId },
+      );
+      if (assignmentMusicianIds && assignmentMusicianIds.length === 0) {
+        return [];
+      }
+
+      let query = supabase
+        .from('musicians')
+        .select('id, full_name, birth_date')
+        .eq('organization_id', organizationId)
+        .not('birth_date', 'is', null)
+        .order('full_name');
+
+      if (assignmentMusicianIds) {
+        query = query.in('id', assignmentMusicianIds);
+      }
+
+      const { data, error } = await query;
+
+      if (error || !data) {
+        return [];
+      }
+
+      const musicianIds = data.map((row) => row.id);
+      const assignmentsByMusician = await loadBirthdayAssignments(organizationId, musicianIds);
+
+      return data
+        .filter((row) => row.birth_date)
+        .map((row) => ({
+          id: row.id,
+          fullName: row.full_name,
+          birthDate: row.birth_date as string,
+          assignments: assignmentsByMusician.get(row.id) ?? [],
+        }));
     },
 
     async listNamesForOrg(organizationId) {

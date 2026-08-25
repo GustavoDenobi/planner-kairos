@@ -1,4 +1,5 @@
 import type { EnsembleRole, Musician, MusicianInput, MusicianListItem } from '@/domain/ensemble';
+import type { MusicianBirthdaySource } from '@/domain/agenda';
 
 export type MusicianSortField = 'name' | 'created_at';
 export type MusicianSortDirection = 'asc' | 'desc';
@@ -29,6 +30,10 @@ export type MusicianName = {
 
 export type MusicianRepository = {
   listForOrg(organizationId: string, options?: ListMusiciansOptions): Promise<PaginatedMusicians>;
+  listBirthdaysForOrg(
+    organizationId: string,
+    options?: { groupId?: string },
+  ): Promise<MusicianBirthdaySource[]>;
   listNamesForOrg(organizationId: string): Promise<MusicianName[]>;
   getById(organizationId: string, musicianId: string): Promise<Musician | null>;
   getByUserId(organizationId: string, userId: string): Promise<Musician | null>;

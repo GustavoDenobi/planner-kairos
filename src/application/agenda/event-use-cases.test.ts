@@ -58,6 +58,7 @@ function createRepos(options?: {
 
   const musicianRepo: MusicianRepository = {
     listForOrg: async () => ({ items: [], totalCount: 0, hasMore: false }),
+    listBirthdaysForOrg: async () => [],
     listNamesForOrg: async () => [],
     getById: async () => null,
     getByUserId: async () =>

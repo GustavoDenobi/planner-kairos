@@ -26,6 +26,7 @@ import {
 import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases';
 import { listAssociableAudience } from './list-associable-audience';
 import { setEventProgram } from './program-use-cases';
+import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
 
 export type AgendaDeps = {
   eventTypeRepo: EventTypeRepository;
@@ -141,6 +142,18 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         userId,
         eventId,
         musicianId,
+      ),
+    listMusicianBirthdaysInRange: (
+      organizationId: string,
+      userId: string,
+      options: import('./birthday-use-cases').ListMusicianBirthdaysInRangeOptions,
+    ) =>
+      listMusicianBirthdaysInRangeForAdmin(
+        deps.membershipRepo,
+        deps.musicianRepo,
+        organizationId,
+        userId,
+        options,
       ),
   };
 }

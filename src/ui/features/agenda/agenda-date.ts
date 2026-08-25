@@ -1,3 +1,5 @@
+import type { EventListItem, MusicianBirthdayItem } from '@/domain/agenda';
+
 export type AgendaRangeMode = 'week' | 'month';
 
 export function startOfDay(date: Date): Date {
@@ -105,4 +107,43 @@ export function shiftAnchor(mode: AgendaRangeMode, anchor: Date, delta: number):
     return addDays(anchor, delta * 7);
   }
   return new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1);
+}
+
+export type AgendaDayGroup = {
+  date: Date;
+  birthdays: MusicianBirthdayItem[];
+  events: EventListItem[];
+};
+
+export function groupAgendaItemsByDay(
+  events: EventListItem[],
+  birthdays: MusicianBirthdayItem[] = [],
+): AgendaDayGroup[] {
+  const dayMap = new Map<string, AgendaDayGroup>();
+
+  for (const event of events) {
+    const day = startOfDay(new Date(event.startsAt));
+    const key = day.toISOString();
+    const group = dayMap.get(key) ?? { date: day, birthdays: [], events: [] };
+    group.events.push(event);
+    dayMap.set(key, group);
+  }
+
+  for (const birthday of birthdays) {
+    const day = startOfDay(new Date(birthday.date));
+    const key = day.toISOString();
+    const group = dayMap.get(key) ?? { date: day, birthdays: [], events: [] };
+    group.birthdays.push(birthday);
+    dayMap.set(key, group);
+  }
+
+  return [...dayMap.values()]
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((group) => ({
+      ...group,
+      birthdays: group.birthdays.sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR')),
+      events: group.events.sort(
+        (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+      ),
+    }));
 }
