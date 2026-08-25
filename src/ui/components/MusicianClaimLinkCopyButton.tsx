@@ -36,7 +36,7 @@ export function MusicianClaimLinkCopyButton({
         'mr-2 inline-flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-muted transition-colors hover:bg-bg hover:text-text'
       }
     >
-      {copied ? <IconCheck className="h-4 w-4" /> : <IconLink className="h-4 w-4" />}
+      {copied ? <IconCheck className="h-5 w-5" /> : <IconLink className="h-5 w-5" />}
     </button>
   );
 }

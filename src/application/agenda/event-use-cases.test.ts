@@ -75,6 +75,8 @@ function createRepos(options?: {
         : null,
     update: vi.fn(),
     delete: vi.fn(),
+    create: vi.fn(),
+    merge: vi.fn(),
   };
 
   const assignmentRepo: AssignmentRepository = {

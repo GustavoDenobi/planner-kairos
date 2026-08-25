@@ -61,10 +61,11 @@ export async function claimMusician(
     await profileRepo.updateDisplayName(session.user.id, input.displayName);
 
     try {
+      const normalizedBirthDate = normalizeInviteBirthDate(input.birthDate ?? '');
       const orgSlug = await claimRepo.claim(input.musicianId, {
         displayName: input.displayName.trim(),
         phone: normalizePhone(input.phone ?? ''),
-        birthDate: normalizeInviteBirthDate(input.birthDate ?? ''),
+        birthDate: normalizedBirthDate ?? undefined,
       });
       return Result.ok({ organizationSlug: orgSlug });
     } catch (error) {
@@ -82,10 +83,13 @@ export async function claimMusician(
   }
 
   try {
+    const normalizedBirthDate = input.birthDate
+      ? normalizeInviteBirthDate(input.birthDate)
+      : undefined;
     const orgSlug = await claimRepo.claim(input.musicianId, {
       displayName: input.displayName.trim(),
       phone: input.phone ? normalizePhone(input.phone) : undefined,
-      birthDate: input.birthDate ? normalizeInviteBirthDate(input.birthDate) : undefined,
+      birthDate: normalizedBirthDate ?? undefined,
     });
     await profileRepo.updateDisplayName(input.userId, input.displayName.trim());
     return Result.ok({ organizationSlug: orgSlug });

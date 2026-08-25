@@ -8,6 +8,7 @@ export type { FileStorage } from './file-storage';
 export type { Clock } from './clock';
 export type { GroupRepository, GroupInput } from './group-repository';
 export type { MusicianRepository, MusicianName } from './musician-repository';
+export type { MusicianClaimRepository } from './musician-claim-repository';
 export type { PartRepository, PartWithDivisions } from './part-repository';
 export type { SectionRepository } from './section-repository';
 export type { AssignmentRepository, AssignmentAudienceRow } from './assignment-repository';

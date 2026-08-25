@@ -564,6 +564,9 @@ export function MusiciansPage() {
                       <MusicianClaimLinkCopyButton
                         musicianId={musician.id}
                         musicianName={musician.fullName}
+                        className={`inline-flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-muted transition-colors hover:bg-bg hover:text-text ${
+                          whatsappUrl ? 'mr-2' : 'mr-3'
+                        }`}
                       />
                     )}
                     {whatsappUrl && (
