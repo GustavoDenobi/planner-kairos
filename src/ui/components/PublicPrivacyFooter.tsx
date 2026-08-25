@@ -11,6 +11,10 @@ export function PublicPrivacyFooter() {
       <Link to="/privacidade" className="text-primary hover:underline">
         Política de Privacidade
       </Link>
+      <span className="mx-2 text-border">·</span>
+      <Link to="/termos" className="text-primary hover:underline">
+        Termos de Uso
+      </Link>
     </footer>
   );
 }

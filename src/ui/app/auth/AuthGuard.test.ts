@@ -13,6 +13,7 @@ describe('offline org guard membership', () => {
       name: 'Kairós',
       slug: 'kairos',
       imageStorageKey: null,
+      rules: null,
       accessRole: 'member',
     },
   ];

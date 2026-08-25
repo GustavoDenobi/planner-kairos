@@ -10,6 +10,7 @@ function createOrgRepo(orgs: import('@/application/ports/organization-repository
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateRules: vi.fn(),
   };
 }
 
@@ -20,6 +21,7 @@ describe('setCurrentOrganization', () => {
       name: 'Kairós',
       slug: 'kairos',
       imageStorageKey: null,
+      rules: null,
       accessRole: 'member' as const,
     },
   ];

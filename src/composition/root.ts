@@ -14,6 +14,7 @@ import { createGroupRepository } from '@/infrastructure/supabase/group-repositor
 import { createMusicianClaimRepository } from '@/infrastructure/supabase/musician-claim-repository';
 import { createMusicianRepository } from '@/infrastructure/supabase/musician-repository';
 import { createMembershipRepository } from '@/infrastructure/supabase/membership-repository';
+import { createLegalAcceptanceRepository } from '@/infrastructure/supabase/legal-acceptance-repository';
 import { createOrganizationRepository } from '@/infrastructure/supabase/organization-repository';
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
@@ -34,6 +35,7 @@ export function createAppServices() {
   const profileRepo = createProfileRepository();
   const orgRepo = createOrganizationRepository();
   const membershipRepo = createMembershipRepository();
+  const legalRepo = createLegalAcceptanceRepository();
   const inviteRepo = createGroupInviteRepository();
   const musicianClaimRepo = createMusicianClaimRepository();
   const recoveryGateway = createPasswordRecoveryGateway();
@@ -64,6 +66,7 @@ export function createAppServices() {
     musicianClaimRepo,
     recoveryGateway,
     fileStorage,
+    legalRepo,
   });
 
   const ensemble = createEnsembleUseCases({

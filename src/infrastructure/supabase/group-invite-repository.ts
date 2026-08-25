@@ -1,5 +1,6 @@
 import type { GroupInviteRepository } from '@/application/ports';
 import type { GroupInviteListItem, GroupInvitePreview } from '@/domain/identity';
+import { mapOrganizationRules } from './map-organization-rules';
 import { supabase } from './client';
 
 export function createGroupInviteRepository(): GroupInviteRepository {
@@ -23,6 +24,12 @@ export function createGroupInviteRepository(): GroupInviteRepository {
         groupId: row.group_id,
         groupName: row.group_name,
         expiresAt: new Date(row.expires_at),
+        organizationRules: mapOrganizationRules({
+          rules_title: row.rules_title ?? null,
+          rules_markdown: row.rules_markdown ?? null,
+          rules_version: row.rules_version ?? null,
+          requires_rules_acceptance: row.requires_rules_acceptance ?? null,
+        }),
       } satisfies GroupInvitePreview;
     },
 

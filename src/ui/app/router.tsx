@@ -10,6 +10,8 @@ import { LoginPage } from '@/ui/pages/LoginPage';
 import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
 import { PasswordRecoveryPage } from '@/ui/pages/PasswordRecoveryPage';
 import { PrivacyPolicyPage } from '@/ui/pages/PrivacyPolicyPage';
+import { TermsOfUsePage } from '@/ui/pages/TermsOfUsePage';
+import { LegalReacceptancePage } from '@/ui/pages/LegalReacceptancePage';
 import { AgendaPage } from '@/ui/pages/org/AgendaPage';
 import { EventDetailPage } from '@/ui/pages/org/EventDetailPage';
 import { GroupDetailPage } from '@/ui/pages/org/GroupDetailPage';
@@ -23,6 +25,7 @@ import { PrepareReadingPlaylistPage } from '@/ui/pages/org/PrepareReadingPlaylis
 import { ReadingPlaylistEditPage } from '@/ui/pages/org/ReadingPlaylistEditPage';
 import { ReadingPlaylistNewPage } from '@/ui/pages/org/ReadingPlaylistNewPage';
 import { ReadingPlaylistReaderPage } from '@/ui/pages/org/ReadingPlaylistReaderPage';
+import { OrganizationSettingsPage } from '@/ui/pages/org/OrganizationSettingsPage';
 import { ReadingPlaylistsPage } from '@/ui/pages/org/ReadingPlaylistsPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
 
@@ -42,6 +45,7 @@ export const router = createBrowserRouter([
           { path: '/login', element: <LoginPage /> },
           { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
           { path: '/privacidade', element: <PrivacyPolicyPage /> },
+          { path: '/termos', element: <TermsOfUsePage /> },
           { path: '/convite/:token', element: <InvitePage /> },
           { path: '/musico/:musicianId', element: <MusicianClaimPage /> },
         ],
@@ -49,6 +53,7 @@ export const router = createBrowserRouter([
       {
         element: <AuthGuard />,
         children: [
+          { path: '/reaceitar-termos', element: <LegalReacceptancePage /> },
           { path: '/orgs', element: <OrgSelectorPage /> },
           {
             path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
@@ -76,6 +81,7 @@ export const router = createBrowserRouter([
               { path: 'grupos', element: <GroupsPage /> },
               { path: 'grupos/:groupId', element: <GroupDetailPage /> },
               { path: 'partes', element: <PartsPage /> },
+              { path: 'configuracao', element: <OrganizationSettingsPage /> },
             ],
           },
         ],

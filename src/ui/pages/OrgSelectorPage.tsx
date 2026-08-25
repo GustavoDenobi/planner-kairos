@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { OrganizationWithRole } from '@/application/ports';
 import { IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
-import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { withReturnTo } from '@/ui/navigation/return-to';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function OrgSelectorPage() {
@@ -13,7 +12,6 @@ export function OrgSelectorPage() {
     useOrg();
   const navigate = useNavigate();
   const online = useOnlineStatus();
-  const [editingOrg, setEditingOrg] = useState<OrganizationWithRole | null>(null);
 
   useEffect(() => {
     refreshOrganizations();
@@ -97,7 +95,11 @@ export function OrgSelectorPage() {
                 {isAdmin && online && !isOfflineData && (
                   <button
                     type="button"
-                    onClick={() => setEditingOrg(org)}
+                    onClick={() =>
+                      navigate(`/${org.slug}/configuracao`, {
+                        state: withReturnTo({}, '/orgs'),
+                      })
+                    }
                     className="rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text"
                     aria-label="Editar organização"
                   >
@@ -116,18 +118,6 @@ export function OrgSelectorPage() {
           );
         })}
       </ul>
-
-      {editingOrg && (
-        <OrganizationEditModal
-          organization={editingOrg}
-          open={true}
-          onClose={() => setEditingOrg(null)}
-          onUpdated={() => {
-            refreshOrganizations();
-            setEditingOrg(null);
-          }}
-        />
-      )}
     </div>
   );
 }

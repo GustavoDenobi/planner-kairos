@@ -5,7 +5,7 @@ export type { MembershipRepository } from './membership-repository';
 export type { GroupInviteRepository } from './group-invite-repository';
 export type { PasswordRecoveryGateway } from './password-recovery-gateway';
 export type { FileStorage } from './file-storage';
-export type { Clock } from './clock';
+export type { LegalAcceptanceRepository } from './legal-acceptance-repository';
 export type { GroupRepository, GroupInput } from './group-repository';
 export type { MusicianRepository, MusicianName } from './musician-repository';
 export type { MusicianClaimRepository } from './musician-claim-repository';

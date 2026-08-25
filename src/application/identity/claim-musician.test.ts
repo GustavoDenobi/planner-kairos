@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthGateway } from '@/application/ports/auth-gateway';
+import type { LegalAcceptanceRepository } from '@/application/ports/legal-acceptance-repository';
 import type { MusicianClaimRepository } from '@/application/ports/musician-claim-repository';
 import type { ProfileRepository } from '@/application/ports/profile-repository';
 import { claimMusician } from './claim-musician';
@@ -34,6 +35,16 @@ function createProfileRepo(overrides: Partial<ProfileRepository> = {}): ProfileR
   };
 }
 
+function createLegalRepo(overrides: Partial<LegalAcceptanceRepository> = {}): LegalAcceptanceRepository {
+  return {
+    recordAcceptance: vi.fn(),
+    hasAcceptedVersion: vi.fn().mockResolvedValue(false),
+    listLatestByUser: vi.fn(),
+    listOrganizationRulesAcceptances: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('claimMusician', () => {
   it('signs up new user and claims musician', async () => {
     const auth = createAuth({
@@ -48,8 +59,20 @@ describe('claimMusician', () => {
     const profileRepo = createProfileRepo({
       updateDisplayName: vi.fn().mockResolvedValue(undefined),
     });
+    const legalRepo = createLegalRepo({
+      recordAcceptance: vi.fn().mockResolvedValue({
+        id: 'acceptance-1',
+        userId: 'user-1',
+        scope: 'platform',
+        organizationId: null,
+        documentType: 'terms_of_use',
+        documentVersion: '2026-08-25',
+        context: 'musician_claim',
+        acceptedAt: new Date(),
+      }),
+    });
 
-    const result = await claimMusician(auth, claimRepo, profileRepo, {
+    const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
       musicianId: 'musician-1',
       email: 'joao@example.com',
       password: 'secret1',
@@ -57,12 +80,14 @@ describe('claimMusician', () => {
       phone: '(11) 98765-4321',
       birthDate: '01/01/1990',
       isNewUser: true,
+      platformLegalAccepted: true,
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.organizationSlug).toBe('kairos');
     }
+    expect(legalRepo.recordAcceptance).toHaveBeenCalledTimes(2);
     expect(claimRepo.claim).toHaveBeenCalledWith('musician-1', {
       displayName: 'João Silva',
       phone: '11987654321',
@@ -78,8 +103,9 @@ describe('claimMusician', () => {
     const profileRepo = createProfileRepo({
       updateDisplayName: vi.fn().mockResolvedValue(undefined),
     });
+    const legalRepo = createLegalRepo();
 
-    const result = await claimMusician(auth, claimRepo, profileRepo, {
+    const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
       musicianId: 'musician-1',
       email: 'joao@example.com',
       password: '',
@@ -95,5 +121,28 @@ describe('claimMusician', () => {
       birthDate: undefined,
     });
     expect(profileRepo.updateDisplayName).toHaveBeenCalledWith('user-1', 'João Atualizado');
+  });
+
+  it('rejects signup without platform legal acceptance', async () => {
+    const auth = createAuth();
+    const claimRepo = createClaimRepo();
+    const profileRepo = createProfileRepo();
+    const legalRepo = createLegalRepo();
+
+    const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
+      musicianId: 'musician-1',
+      email: 'joao@example.com',
+      password: 'secret1',
+      displayName: 'João Silva',
+      phone: '(11) 98765-4321',
+      birthDate: '01/01/1990',
+      isNewUser: true,
+      platformLegalAccepted: false,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('platform_legal_not_accepted');
+    }
   });
 });

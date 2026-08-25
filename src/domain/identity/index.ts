@@ -24,6 +24,8 @@ export {
   isPasswordRecoveryCodeValid,
   getInviteSignupFieldErrors,
   hasInviteSignupFieldErrors,
+  isPlatformLegalAccepted,
+  isOrganizationRulesAccepted,
   isValidInviteBirthDate,
   isValidInviteSignupPassword,
   normalizeInviteBirthDate,
@@ -33,6 +35,19 @@ export {
   validateOrganizationImageDimensions,
   validateOrganizationImageMime,
 } from './rules';
+export {
+  PLATFORM_LEGAL_VERSIONS,
+  organizationRulesRequireAcceptance,
+} from './legal-documents';
+export type {
+  LegalAcceptance,
+  LegalAcceptanceContext,
+  LegalAcceptanceScope,
+  LegalDocumentType,
+  OrganizationRules,
+  PendingLegalAcceptance,
+  PlatformLegalDocumentType,
+} from './legal-documents';
 export type {
   InviteSignupField,
   InviteSignupFieldErrorCode,

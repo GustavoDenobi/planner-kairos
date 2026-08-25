@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 import { shouldPromptOfflineOrgSync } from '@/application/offline/identity-snapshot-use-cases';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
+import { LegalAcceptanceGuard } from '@/ui/app/auth/LegalAcceptanceGuard';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function AuthGuard() {
   const { session, isLoading } = useAuth();
+  const location = useLocation();
+  const isReacceptanceRoute = location.pathname === '/reaceitar-termos';
 
   if (isLoading) {
     return (
@@ -20,10 +23,16 @@ export function AuthGuard() {
     return <Navigate to="/login" replace />;
   }
 
+  if (isReacceptanceRoute) {
+    return <Outlet />;
+  }
+
   return (
-    <OrgGuard>
-      <Outlet />
-    </OrgGuard>
+    <LegalAcceptanceGuard>
+      <OrgGuard>
+        <Outlet />
+      </OrgGuard>
+    </LegalAcceptanceGuard>
   );
 }
 

@@ -43,6 +43,14 @@ export function musicianClaimSubmitErrorMessage(error: string): string {
     return 'Suas atribuições do maestro foram unidas ao seu perfil.';
   }
 
+  if (error === 'platform_legal_not_accepted') {
+    return 'Aceite os Termos de Uso e a Política de Privacidade para continuar.';
+  }
+
+  if (error === 'organization_rules_not_accepted') {
+    return 'Aceite o regulamento da organização para continuar.';
+  }
+
   return 'Não foi possível vincular sua conta. Verifique os dados e tente novamente.';
 }
 

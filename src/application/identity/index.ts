@@ -4,6 +4,7 @@ import type { OrganizationRepository } from '@/application/ports';
 import type { GroupInviteRepository } from '@/application/ports';
 import type { PasswordRecoveryGateway } from '@/application/ports';
 import type { FileStorage } from '@/application/ports';
+import type { LegalAcceptanceRepository } from '@/application/ports/legal-acceptance-repository';
 
 import type { AccessRole } from '@/domain/identity';
 import { grantOrgAdmin } from './grant-org-admin';
@@ -13,16 +14,20 @@ import { acceptGroupInvite } from './accept-group-invite';
 import { claimMusician } from './claim-musician';
 import { confirmPasswordRecovery } from './confirm-password-recovery';
 import { createGroupInvite } from './create-group-invite';
+import { getPendingLegalAcceptances } from './get-pending-legal-acceptances';
 import { listGroupInvites } from './list-group-invites';
 import { listMyOrganizations } from './list-my-organizations';
+import { listOrganizationRulesAcceptances } from './list-organization-rules-acceptances';
 import { previewGroupInvite } from './preview-group-invite';
 import { previewMusicianClaim } from './preview-musician-claim';
+import { recordPendingLegalAcceptances } from './record-pending-legal-acceptances';
 import { removeOrganizationImage } from './remove-organization-image';
 import { requestPasswordRecovery } from './request-password-recovery';
 import { revokeGroupInvite } from './revoke-group-invite';
 import { setCurrentOrganization } from './set-current-organization';
 import { setOrganizationImage } from './set-organization-image';
 import { setOrganizationName } from './set-organization-name';
+import { getOrganizationRules, setOrganizationRules } from './set-organization-rules';
 import { setThemePreference } from './set-theme-preference';
 import { signIn } from './sign-in';
 import { signOut } from './sign-out';
@@ -41,6 +46,7 @@ export type IdentityDeps = {
   musicianClaimRepo: MusicianClaimRepository;
   recoveryGateway: PasswordRecoveryGateway;
   fileStorage: FileStorage;
+  legalRepo: LegalAcceptanceRepository;
 };
 
 export function createIdentityUseCases(deps: IdentityDeps) {
@@ -61,11 +67,15 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       removeOrganizationImage(deps.orgRepo, deps.fileStorage, organizationId, currentImageKey),
     setOrganizationName: (organizationId: string, name: string) =>
       setOrganizationName(deps.orgRepo, organizationId, name),
+    getOrganizationRules: (organizationId: string) =>
+      getOrganizationRules(deps.orgRepo, organizationId),
+    setOrganizationRules: (input: Parameters<typeof setOrganizationRules>[1]) =>
+      setOrganizationRules(deps.orgRepo, input),
     previewGroupInvite: (token: string) => previewGroupInvite(deps.inviteRepo, token),
     previewMusicianClaim: (musicianId: string) =>
       previewMusicianClaim(deps.musicianClaimRepo, musicianId),
-    claimMusician: (input: Parameters<typeof claimMusician>[3]) =>
-      claimMusician(deps.auth, deps.musicianClaimRepo, deps.profileRepo, input),
+    claimMusician: (input: Parameters<typeof claimMusician>[4]) =>
+      claimMusician(deps.auth, deps.musicianClaimRepo, deps.profileRepo, deps.legalRepo, input),
     createGroupInvite: (groupId: string, expiresAt: Date, maxUses = 0) =>
       createGroupInvite(deps.inviteRepo, groupId, expiresAt, maxUses),
     revokeGroupInvite: (inviteId: string) => revokeGroupInvite(deps.inviteRepo, inviteId),
@@ -75,8 +85,20 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       updateGroupInviteMaxUses(deps.inviteRepo, inviteId, maxUses),
     listGroupInvites: (organizationId: string) =>
       listGroupInvites(deps.inviteRepo, organizationId),
-    acceptGroupInvite: (input: Parameters<typeof acceptGroupInvite>[3]) =>
-      acceptGroupInvite(deps.auth, deps.inviteRepo, deps.profileRepo, input),
+    acceptGroupInvite: (input: Parameters<typeof acceptGroupInvite>[4]) =>
+      acceptGroupInvite(
+        deps.auth,
+        deps.inviteRepo,
+        deps.profileRepo,
+        deps.legalRepo,
+        input,
+      ),
+    getPendingLegalAcceptances: (userId: string, orgSlug?: string | null) =>
+      getPendingLegalAcceptances(deps.legalRepo, deps.orgRepo, userId, orgSlug),
+    recordPendingLegalAcceptances: (userId: string, pending: Parameters<typeof recordPendingLegalAcceptances>[2]) =>
+      recordPendingLegalAcceptances(deps.legalRepo, userId, pending),
+    listOrganizationRulesAcceptances: (organizationId: string) =>
+      listOrganizationRulesAcceptances(deps.legalRepo, deps.orgRepo, organizationId),
     requestPasswordRecovery: (email: string) =>
       requestPasswordRecovery(deps.recoveryGateway, email),
     confirmPasswordRecovery: (email: string, code: string, newPassword: string) =>

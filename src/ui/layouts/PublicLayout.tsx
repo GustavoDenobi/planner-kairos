@@ -4,7 +4,7 @@ import { PublicPrivacyFooter } from '@/ui/components/PublicPrivacyFooter';
 
 export function PublicLayout() {
   const { pathname } = useLocation();
-  const isPrivacyPage = pathname === '/privacidade';
+  const isLegalDocumentPage = pathname === '/privacidade' || pathname === '/termos';
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg">
@@ -19,12 +19,12 @@ export function PublicLayout() {
       </div>
       <main
         className={
-          isPrivacyPage
+          isLegalDocumentPage
             ? 'flex flex-1 flex-col items-stretch justify-start p-4 pt-8'
             : 'flex flex-1 items-center justify-center p-4'
         }
       >
-        <div className={isPrivacyPage ? 'mx-auto w-full max-w-3xl' : 'w-full max-w-md'}>
+        <div className={isLegalDocumentPage ? 'mx-auto w-full max-w-3xl' : 'w-full max-w-md'}>
           <Outlet />
         </div>
       </main>

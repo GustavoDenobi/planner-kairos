@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useOrg } from '@/ui/app/OrgProvider';
-import { IconChevronDown } from '@/ui/components/icons';
+import { IconChevronDown, IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 type OrgPickerDropdownProps = {
   orgSlug: string;
 };
 
 export function OrgPickerDropdown({ orgSlug }: OrgPickerDropdownProps) {
-  const { organizations, setCurrentOrgBySlug } = useOrg();
+  const { organizations, setCurrentOrgBySlug, isOfflineData } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const online = useOnlineStatus();
 
   useEffect(() => {
     if (!open) {
@@ -52,6 +54,19 @@ export function OrgPickerDropdown({ orgSlug }: OrgPickerDropdownProps) {
     navigate('/orgs');
   }
 
+  async function handleOpenSettings(slug: string) {
+    setOpen(false);
+
+    if (slug !== orgSlug) {
+      const ok = await setCurrentOrgBySlug(slug);
+      if (!ok) {
+        return;
+      }
+    }
+
+    navigate(`/${slug}/configuracao`);
+  }
+
   const label = org?.name ?? orgSlug;
 
   return (
@@ -81,21 +96,42 @@ export function OrgPickerDropdown({ orgSlug }: OrgPickerDropdownProps) {
           <div className="flex flex-col gap-1">
             {organizations.map((item) => {
               const isSelected = item.slug === orgSlug;
+              const itemIsAdmin =
+                item.accessRole === 'admin' || item.accessRole === 'owner';
+              const itemCanManage = itemIsAdmin && online && !isOfflineData;
+
               return (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={() => void handleSelect(item.slug)}
                   className={[
-                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
-                    isSelected ? 'bg-primary/10 text-primary' : 'text-text hover:bg-bg',
+                    'flex items-center gap-1 rounded-lg pr-1',
+                    isSelected ? 'bg-primary/10' : '',
                   ].join(' ')}
                 >
-                  <OrgAvatar organization={item} size="sm" variant="square" />
-                  <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => void handleSelect(item.slug)}
+                    className={[
+                      'flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      isSelected ? 'text-primary' : 'text-text hover:bg-bg',
+                    ].join(' ')}
+                  >
+                    <OrgAvatar organization={item} size="sm" variant="square" />
+                    <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+                  </button>
+                  {itemCanManage && (
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenSettings(item.slug)}
+                      className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-bg hover:text-text"
+                      aria-label={`Configurações de ${item.name}`}
+                    >
+                      <IconSettings className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

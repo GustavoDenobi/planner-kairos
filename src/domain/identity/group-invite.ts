@@ -10,6 +10,8 @@ export type GroupInvite = {
   createdByUserId: string;
 };
 
+import type { OrganizationRules } from './legal-documents';
+
 export type GroupInvitePreview = {
   inviteId: string;
   organizationId: string;
@@ -19,6 +21,7 @@ export type GroupInvitePreview = {
   groupId: string;
   groupName: string;
   expiresAt: Date;
+  organizationRules: OrganizationRules | null;
 };
 
 export type GroupInviteRedeemedMusician = {

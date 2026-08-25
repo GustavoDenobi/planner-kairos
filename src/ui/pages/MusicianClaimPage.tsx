@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { InviteSignupFieldErrors, MusicianClaimPreview } from '@/domain/identity';
-import { getInviteSignupFieldErrors } from '@/domain/identity';
+import { getInviteSignupFieldErrors, organizationRulesRequireAcceptance } from '@/domain/identity';
 import { useIdentity } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { LegalAcceptanceCheckboxes } from '@/ui/components/LegalAcceptanceCheckboxes';
+import { OrganizationRulesAcceptance } from '@/ui/components/OrganizationRulesAcceptance';
 import { ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { formatBirthDateInput } from '@/ui/utils/birthDateInput';
 import {
@@ -48,6 +50,8 @@ export function MusicianClaimPage() {
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [password, setPassword] = useState('');
+  const [platformLegalAccepted, setPlatformLegalAccepted] = useState(false);
+  const [organizationRulesAccepted, setOrganizationRulesAccepted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<InviteSignupFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +71,8 @@ export function MusicianClaimPage() {
       }
     });
   }, [identity, musicianId]);
+
+  const requiresOrgRules = organizationRulesRequireAcceptance(preview?.organizationRules);
 
   function clearFieldError(field: keyof InviteSignupFieldErrors) {
     setFieldErrors((current) => {
@@ -97,8 +103,25 @@ export function MusicianClaimPage() {
     return code ? musicianClaimFieldErrorMessage(field, code) : undefined;
   }
 
+  function buildClaimInput(isNewUser: boolean) {
+    return {
+      musicianId: musicianId!,
+      email: isNewUser ? email : (session?.user.email ?? ''),
+      password: isNewUser ? password : '',
+      displayName,
+      phone,
+      birthDate,
+      isNewUser,
+      userId: isNewUser ? undefined : session?.user.id,
+      platformLegalAccepted: isNewUser ? platformLegalAccepted : undefined,
+      organizationRulesAccepted: requiresOrgRules ? organizationRulesAccepted : undefined,
+      organizationId: preview?.organizationId,
+      organizationRules: preview?.organizationRules,
+    };
+  }
+
   async function handleClaimExistingUser() {
-    if (!musicianId || !session) {
+    if (!musicianId || !session || !preview) {
       return;
     }
 
@@ -107,19 +130,15 @@ export function MusicianClaimPage() {
       return;
     }
 
+    if (requiresOrgRules && !organizationRulesAccepted) {
+      setSubmitError(musicianClaimSubmitErrorMessage('organization_rules_not_accepted'));
+      return;
+    }
+
     setSubmitError(null);
     setIsSubmitting(true);
 
-    const result = await identity.claimMusician({
-      musicianId,
-      email: session.user.email ?? '',
-      password: '',
-      displayName,
-      phone,
-      birthDate,
-      isNewUser: false,
-      userId: session.user.id,
-    });
+    const result = await identity.claimMusician(buildClaimInput(false));
 
     setIsSubmitting(false);
 
@@ -139,7 +158,7 @@ export function MusicianClaimPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!musicianId) {
+    if (!musicianId || !preview) {
       return;
     }
 
@@ -155,17 +174,19 @@ export function MusicianClaimPage() {
       return;
     }
 
+    if (!platformLegalAccepted) {
+      setSubmitError(musicianClaimSubmitErrorMessage('platform_legal_not_accepted'));
+      return;
+    }
+
+    if (requiresOrgRules && !organizationRulesAccepted) {
+      setSubmitError(musicianClaimSubmitErrorMessage('organization_rules_not_accepted'));
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const result = await identity.claimMusician({
-      musicianId,
-      email,
-      password,
-      displayName,
-      phone,
-      birthDate,
-      isNewUser: true,
-    });
+    const result = await identity.claimMusician(buildClaimInput(true));
 
     setIsSubmitting(false);
 
@@ -203,6 +224,11 @@ export function MusicianClaimPage() {
 
   const inputClassName =
     'rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary';
+  const submitDisabled =
+    isSubmitting ||
+    (session
+      ? requiresOrgRules && !organizationRulesAccepted
+      : !platformLegalAccepted || (requiresOrgRules && !organizationRulesAccepted));
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
@@ -243,9 +269,7 @@ export function MusicianClaimPage() {
               ))}
             </ul>
           </div>
-        ) : (
-          null
-        )}
+        ) : null}
       </div>
 
       {preview.alreadyClaimed ? (
@@ -273,11 +297,22 @@ export function MusicianClaimPage() {
             Logado como {session.user.email}. Vincule este cadastro à sua conta.
           </p>
 
+          {requiresOrgRules && preview.organizationRules && (
+            <OrganizationRulesAcceptance
+              organizationName={preview.organizationName}
+              title={preview.organizationRules.title}
+              markdown={preview.organizationRules.markdown}
+              accepted={organizationRulesAccepted}
+              onChange={setOrganizationRulesAccepted}
+              disabled={isSubmitting}
+            />
+          )}
+
           {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={submitDisabled}
             onClick={handleClaimExistingUser}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
@@ -353,11 +388,28 @@ export function MusicianClaimPage() {
             />
           </ClaimFormField>
 
+          <LegalAcceptanceCheckboxes
+            accepted={platformLegalAccepted}
+            onChange={setPlatformLegalAccepted}
+            disabled={isSubmitting}
+          />
+
+          {requiresOrgRules && preview.organizationRules && (
+            <OrganizationRulesAcceptance
+              organizationName={preview.organizationName}
+              title={preview.organizationRules.title}
+              markdown={preview.organizationRules.markdown}
+              accepted={organizationRulesAccepted}
+              onChange={setOrganizationRulesAccepted}
+              disabled={isSubmitting}
+            />
+          )}
+
           {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={submitDisabled}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {isSubmitting ? 'Criando conta…' : 'Criar conta e vincular'}

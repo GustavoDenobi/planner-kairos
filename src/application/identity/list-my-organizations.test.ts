@@ -12,6 +12,7 @@ function createOrgRepo(
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateRules: vi.fn(),
   };
 }
 
@@ -22,6 +23,7 @@ describe('listMyOrganizations', () => {
       name: 'Kairós',
       slug: 'kairos',
       imageStorageKey: null,
+      rules: null,
       accessRole: 'member' as const,
     },
   ];

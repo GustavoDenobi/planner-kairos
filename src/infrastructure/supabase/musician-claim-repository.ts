@@ -1,6 +1,7 @@
 import type { MusicianClaimRepository } from '@/application/ports/musician-claim-repository';
 import type { EnsembleRole } from '@/domain/ensemble';
 import type { MusicianClaimPreview } from '@/domain/identity';
+import { mapOrganizationRules } from './map-organization-rules';
 import { supabase } from './client';
 
 function mapAssignmentPreview(row: {
@@ -44,12 +45,19 @@ export function createMusicianClaimRepository(): MusicianClaimRepository {
         : [];
 
       return {
+        organizationId: row.organization_id,
         organizationName: row.organization_name,
         organizationSlug: row.organization_slug,
         organizationImageStorageKey: row.organization_image_storage_key ?? null,
         musicianFullName: row.musician_full_name,
         alreadyClaimed: row.already_claimed,
         assignments,
+        organizationRules: mapOrganizationRules({
+          rules_title: row.rules_title ?? null,
+          rules_markdown: row.rules_markdown ?? null,
+          rules_version: row.rules_version ?? null,
+          requires_rules_acceptance: row.requires_rules_acceptance ?? null,
+        }),
       } satisfies MusicianClaimPreview;
     },
 

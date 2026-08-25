@@ -116,6 +116,14 @@ export function hasInviteSignupFieldErrors(errors: InviteSignupFieldErrors): boo
   return Object.keys(errors).length > 0;
 }
 
+export function isPlatformLegalAccepted(accepted: boolean): boolean {
+  return accepted;
+}
+
+export function isOrganizationRulesAccepted(accepted: boolean): boolean {
+  return accepted;
+}
+
 export function isValidInviteSignupPassword(password: string): boolean {
   return password.length >= INVITE_SIGNUP_MIN_PASSWORD_LENGTH;
 }

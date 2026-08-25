@@ -23,6 +23,7 @@ import { IconArrowUpDown, IconFilter, IconWhatsApp } from '@/ui/components/icons
 import { ENSEMBLE_ROLE_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
+import { OrganizationRulesAcceptancesPanel } from '@/ui/features/identity/OrganizationRulesAcceptancesPanel';
 import { normalizeSearchText } from '@/ui/utils/normalize-search-text';
 
 const PAGE_SIZE = 30;
@@ -594,6 +595,18 @@ export function MusiciansPage() {
         </>
       )}
     </OrgListPageLayout>
+
+    {isAdmin && org && (
+      <section className="mx-auto mt-8 max-w-5xl px-4 pb-8">
+        <h2 className="text-lg font-semibold text-text">Aceites do regulamento</h2>
+        <p className="mt-1 text-sm text-muted">
+          Histórico de aceite do regulamento da organização por usuários vinculados.
+        </p>
+        <div className="mt-4">
+          <OrganizationRulesAcceptancesPanel organizationId={org.id} />
+        </div>
+      </section>
+    )}
 
     <Modal
         open={optionsModalOpen}

@@ -6,23 +6,20 @@ import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
 import { PwaInstallSidebarButton } from '@/ui/features/pwa/PwaInstallSidebarButton';
 import { UserAvatar } from '@/ui/components/UserAvatar';
-import { OrganizationEditModal } from '@/ui/features/identity/OrganizationEditModal';
 import { useUserProfile } from '@/ui/hooks/useUserProfile';
 import { getNavItemsForOrg } from '@/ui/layouts/nav-config';
 import { spacing } from '@/ui/theme/tokens';
-import { useState } from 'react';
 
 type SidebarProps = {
   orgSlug: string;
 };
 
 export function Sidebar({ orgSlug }: SidebarProps) {
-  const { organizations, refreshOrganizations } = useOrg();
+  const { organizations } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
   const profile = useUserProfile();
   const signOut = useSignOut();
   const navigate = useNavigate();
-  const [editOpen, setEditOpen] = useState(false);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
   const navItems = getNavItemsForOrg(org);
@@ -45,14 +42,13 @@ export function Sidebar({ orgSlug }: SidebarProps) {
               <div className="flex items-center gap-1">
                 <p className="truncate font-semibold text-text">{org.name}</p>
                 {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(true)}
+                  <Link
+                    to={`/${orgSlug}/configuracao`}
                     className="shrink-0 rounded-lg p-1 text-muted hover:bg-bg hover:text-text"
                     aria-label="Editar organização"
                   >
                     <IconSettings className="h-4 w-4" />
-                  </button>
+                  </Link>
                 )}
               </div>
               <Link
@@ -110,14 +106,6 @@ export function Sidebar({ orgSlug }: SidebarProps) {
         <PwaInstallSidebarButton />
       </div>
 
-      {org && isAdmin && (
-        <OrganizationEditModal
-          organization={org}
-          open={editOpen}
-          onClose={() => setEditOpen(false)}
-          onUpdated={() => refreshOrganizations()}
-        />
-      )}
     </aside>
   );
 }
