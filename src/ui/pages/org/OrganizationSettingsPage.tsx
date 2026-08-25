@@ -5,6 +5,7 @@ import { useOrg } from '@/ui/app/OrgProvider';
 import { BackButton } from '@/ui/components/BackButton';
 import { MarkdownContent } from '@/ui/components/MarkdownContent';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 import { organizationImageErrorMessage } from '@/ui/utils/organizationImageValidation';
 
 export function OrganizationSettingsPage() {
@@ -129,15 +130,13 @@ export function OrganizationSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-3xl">
-      <div className="mb-6 flex min-w-0 items-center gap-3">
+    <div className={orgPageContentClass}>
+      <div className="flex items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/agenda`} />
-        <h1 className="min-w-0 truncate font-brand text-xl font-bold text-text sm:text-2xl">
-          Editar organização
-        </h1>
+        <h1 className="text-2xl font-semibold text-text">Editar organização</h1>
       </div>
 
-      <article className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+      <article className="mt-6 min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
             <OrgAvatar organization={organization} size="lg" variant="square" />
