@@ -40,7 +40,7 @@ function createLegalRepo(overrides: Partial<LegalAcceptanceRepository> = {}): Le
     recordAcceptance: vi.fn(),
     hasAcceptedVersion: vi.fn().mockResolvedValue(false),
     listLatestByUser: vi.fn(),
-    listOrganizationRulesAcceptances: vi.fn(),
+    getLatestOrganizationRulesAcceptance: vi.fn(),
     ...overrides,
   };
 }

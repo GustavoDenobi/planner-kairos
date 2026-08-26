@@ -17,7 +17,7 @@ import { createGroupInvite } from './create-group-invite';
 import { getPendingLegalAcceptances } from './get-pending-legal-acceptances';
 import { listGroupInvites } from './list-group-invites';
 import { listMyOrganizations } from './list-my-organizations';
-import { listOrganizationRulesAcceptances } from './list-organization-rules-acceptances';
+import { getUserOrganizationRulesAcceptance } from './get-user-organization-rules-acceptance';
 import { previewGroupInvite } from './preview-group-invite';
 import { previewMusicianClaim } from './preview-musician-claim';
 import { recordPendingLegalAcceptances } from './record-pending-legal-acceptances';
@@ -97,8 +97,8 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       getPendingLegalAcceptances(deps.legalRepo, deps.orgRepo, userId, orgSlug),
     recordPendingLegalAcceptances: (userId: string, pending: Parameters<typeof recordPendingLegalAcceptances>[2]) =>
       recordPendingLegalAcceptances(deps.legalRepo, userId, pending),
-    listOrganizationRulesAcceptances: (organizationId: string) =>
-      listOrganizationRulesAcceptances(deps.legalRepo, deps.orgRepo, organizationId),
+    getUserOrganizationRulesAcceptance: (organizationId: string, targetUserId: string | null) =>
+      getUserOrganizationRulesAcceptance(deps.legalRepo, deps.orgRepo, organizationId, targetUserId),
     requestPasswordRecovery: (email: string) =>
       requestPasswordRecovery(deps.recoveryGateway, email),
     confirmPasswordRecovery: (email: string, code: string, newPassword: string) =>

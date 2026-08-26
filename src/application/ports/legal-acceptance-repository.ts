@@ -14,10 +14,7 @@ export type RecordLegalAcceptanceInput = {
   context: LegalAcceptanceContext;
 };
 
-export type OrganizationRulesAcceptanceListItem = {
-  userId: string;
-  displayName: string;
-  email: string;
+export type UserOrganizationRulesAcceptance = {
   documentVersion: string;
   acceptedAt: Date;
   isCurrentVersion: boolean;
@@ -33,8 +30,9 @@ export type LegalAcceptanceRepository = {
     organizationId?: string | null,
   ): Promise<boolean>;
   listLatestByUser(userId: string): Promise<LegalAcceptance[]>;
-  listOrganizationRulesAcceptances(
+  getLatestOrganizationRulesAcceptance(
     organizationId: string,
+    userId: string,
     currentRulesVersion: number,
-  ): Promise<OrganizationRulesAcceptanceListItem[]>;
+  ): Promise<UserOrganizationRulesAcceptance | null>;
 };

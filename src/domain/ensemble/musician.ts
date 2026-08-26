@@ -1,3 +1,5 @@
+import type { MusicianAssignmentSummary } from './assignment';
+
 export type Musician = {
   id: string;
   organizationId: string;
@@ -13,6 +15,7 @@ export type MusicianListItem = Musician & {
   createdAt: string;
   assignmentCount: number;
   groupNames: string[];
+  assignments: MusicianAssignmentSummary[];
 };
 
 export type MusicianInput = {

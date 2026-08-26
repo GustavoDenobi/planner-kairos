@@ -62,15 +62,15 @@ const COPY_BY_KIND: Record<Exclude<PwaInstallContextKind, 'installed' | 'unsuppo
     secondaryCta: SHARED_SECONDARY,
   },
   'samsung-internet': {
-    title: 'Instalação recomendada no Chrome',
+    title: 'Instalar o app',
     description:
-      'O Samsung Internet é conhecido por não instalar corretamente o app. Use o Chrome para instalar com segurança.',
+      'No Samsung Internet, a instalação pode mostrar o aviso "App de risco bloqueado". O app é seguro! A mensagem é uma limitação deste navegador.',
     steps: [
-      'Abra o Chrome neste aparelho.',
-      'Acesse o Planner Musical.',
-      'Instale o app pelo Chrome.',
+      'Toque em "Instalar agora" e confirme no navegador.',
+      'Se aparecer "App de risco bloqueado", toque em "Mais detalhes" e depois em "Instalar assim mesmo".',
+      'Alternativa: abra planner.d9digital.com no Google Chrome e instale o app por lá.',
     ],
-    primaryCta: 'Entendi',
+    primaryCta: 'Instalar agora',
     secondaryCta: SHARED_SECONDARY,
   },
   'in-app-browser': {
@@ -96,10 +96,8 @@ export function getPwaInstallCopy(kind: PwaInstallContextKind): PwaInstallCopy |
 
 export const PWA_INSTALL_BANNER_LABEL = 'Instalar o app';
 export const PWA_INSTALL_BANNER_HINT = 'Acesso rápido e offline';
-export const PWA_INSTALL_BANNER_HINT_NOT_RECOMMENDED = 'Não recomendado neste navegador';
+export const PWA_INSTALL_BANNER_HINT_SAMSUNG = 'Pode aparecer aviso de segurança do navegador';
 
 export function getPwaInstallBannerHint(kind: PwaInstallContextKind): string {
-  return kind === 'samsung-internet'
-    ? PWA_INSTALL_BANNER_HINT_NOT_RECOMMENDED
-    : PWA_INSTALL_BANNER_HINT;
+  return kind === 'samsung-internet' ? PWA_INSTALL_BANNER_HINT_SAMSUNG : PWA_INSTALL_BANNER_HINT;
 }

@@ -1,12 +1,6 @@
-import type { EnsembleRole } from '@/domain/ensemble';
+import type { MusicianAssignmentSummary } from '@/domain/ensemble';
 
-export type MusicianBirthdayAssignment = {
-  groupId: string;
-  groupName: string;
-  ensembleRole: EnsembleRole;
-  sectionName: string | null;
-  partName: string | null;
-};
+export type MusicianBirthdayAssignment = MusicianAssignmentSummary;
 
 export type MusicianBirthdaySource = {
   id: string;

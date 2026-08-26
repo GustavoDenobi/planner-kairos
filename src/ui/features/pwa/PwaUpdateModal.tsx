@@ -30,7 +30,7 @@ export function PwaUpdateModal({ updating, onUpdate }: PwaUpdateModalProps) {
           Nova versão disponível
         </h2>
         <p id="pwa-update-description" className="mt-2 text-sm text-muted">
-          Uma atualização do app foi instalada. Atualize agora para continuar com a versão mais
+          Uma atualização da plataforma está disponível. Atualize agora para continuar com a versão mais
           recente.
         </p>
         <button

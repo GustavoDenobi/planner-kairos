@@ -17,7 +17,10 @@ import type {
   MusicianListItem,
   SectionListItem,
 } from '@/domain/ensemble';
-import { normalizePhone } from '@/domain/ensemble';
+import {
+  normalizePhone,
+  toMusicianAssignmentSummary,
+} from '@/domain/ensemble';
 import { Result } from '@/domain/shared';
 import {
   listAssignmentsForGroup,
@@ -121,6 +124,29 @@ function parseSnapshot(snapshot: {
     >,
     cachedAt: snapshot.cachedAt,
   };
+}
+
+function enrichMusicianListItem(
+  musician: MusicianListItem,
+  assignments: AssignmentWithDetails[],
+): MusicianListItem {
+  const summaries = assignments.map(toMusicianAssignmentSummary);
+
+  return {
+    ...musician,
+    assignments: summaries,
+    assignmentCount: summaries.length,
+    groupNames: [...new Set(summaries.map((assignment) => assignment.groupName).filter(Boolean))].sort(),
+  };
+}
+
+function enrichMusicianListItems(
+  musicians: MusicianListItem[],
+  assignmentsByMusician: Record<string, AssignmentWithDetails[]>,
+): MusicianListItem[] {
+  return musicians.map((musician) =>
+    enrichMusicianListItem(musician, assignmentsByMusician[musician.id] ?? []),
+  );
 }
 
 function matchesAssignmentFilters(
@@ -309,8 +335,12 @@ export async function listCachedMusicians(
   }
 
   const parsed = parseSnapshot(snapshot);
-  const filtered = filterCachedMusicians(
+  const enrichedMusicians = enrichMusicianListItems(
     parsed.musicians,
+    parsed.assignmentsByMusician,
+  );
+  const filtered = filterCachedMusicians(
+    enrichedMusicians,
     parsed.assignmentsByMusician,
     options,
   );
@@ -344,7 +374,7 @@ export async function getCachedMusician(
     return null;
   }
 
-  const { createdAt: _createdAt, assignmentCount: _count, groupNames: _groups, ...musician } =
+  const { createdAt: _createdAt, assignmentCount: _count, groupNames: _groups, assignments: _assignments, ...musician } =
     listItem;
   return musician;
 }

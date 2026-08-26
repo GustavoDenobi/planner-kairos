@@ -1,5 +1,5 @@
-import type { EventKind, ProgramItemStatus, MusicianBirthdayAssignment } from '@/domain/agenda';
-import { ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
+import type { EventKind, ProgramItemStatus } from '@/domain/agenda';
+import { formatAssignmentSummaryLabel } from '@/ui/features/ensemble/ensemble-labels';
 
 export const EVENT_KIND_LABELS: Record<EventKind, string> = {
   rehearsal: 'Ensaio',
@@ -60,16 +60,10 @@ export function birthdayCardTitle(fullName: string, ageTurning: number | null): 
   return `${fullName} – ${ageTurning} anos`;
 }
 
-export function formatBirthdayAssignmentLabel(assignment: MusicianBirthdayAssignment): string {
-  const details = [
-    ensembleRoleLabel(assignment.ensembleRole),
-    assignment.sectionName,
-    assignment.partName,
-  ]
-    .filter(Boolean)
-    .join(' > ');
-
-  return details ? `${assignment.groupName} > ${details}` : assignment.groupName;
+export function formatBirthdayAssignmentLabel(
+  assignment: Parameters<typeof formatAssignmentSummaryLabel>[0],
+): string {
+  return formatAssignmentSummaryLabel(assignment);
 }
 
 export function birthdayAgeLabel(ageTurning: number | null): string {

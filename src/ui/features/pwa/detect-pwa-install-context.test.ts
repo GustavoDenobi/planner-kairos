@@ -73,7 +73,7 @@ describe('detectPwaInstallContext', () => {
     expect(detectPwaInstallContext(input(USER_AGENTS.chromeAndroid))).toBe('android-manual');
   });
 
-  it('marks Samsung Internet as not recommended', () => {
+  it('detects Samsung Internet with install warning flow', () => {
     expect(detectPwaInstallContext(input(USER_AGENTS.samsungInternet))).toBe('samsung-internet');
   });
 

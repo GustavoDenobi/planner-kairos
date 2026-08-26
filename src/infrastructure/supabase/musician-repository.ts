@@ -2,8 +2,7 @@ import type {
   ListMusiciansOptions,
   MusicianRepository,
 } from '@/application/ports/musician-repository';
-import type { EnsembleRole, Musician, MusicianInput, MusicianListItem } from '@/domain/ensemble';
-import type { MusicianBirthdayAssignment } from '@/domain/agenda';
+import type { EnsembleRole, Musician, MusicianInput, MusicianListItem, MusicianAssignmentSummary } from '@/domain/ensemble';
 import { normalizePhone } from '@/domain/ensemble';
 import { supabase } from './client';
 
@@ -39,45 +38,11 @@ function mapMusician(row: {
   };
 }
 
-async function loadAssignmentStats(
+async function loadAssignmentSummaries(
   organizationId: string,
   musicianIds: string[],
-): Promise<Map<string, { count: number; groups: Set<string> }>> {
-  const byMusician = new Map<string, { count: number; groups: Set<string> }>();
-
-  if (musicianIds.length === 0) {
-    return byMusician;
-  }
-
-  const { data: assignments, error } = await supabase
-    .from('assignments')
-    .select('musician_id, groups(name)')
-    .eq('organization_id', organizationId)
-    .in('musician_id', musicianIds);
-
-  if (error || !assignments) {
-    return byMusician;
-  }
-
-  for (const row of assignments) {
-    const musicianId = row.musician_id as string;
-    const groupName = (row.groups as unknown as { name: string } | null)?.name;
-    const entry = byMusician.get(musicianId) ?? { count: 0, groups: new Set<string>() };
-    entry.count += 1;
-    if (groupName) {
-      entry.groups.add(groupName);
-    }
-    byMusician.set(musicianId, entry);
-  }
-
-  return byMusician;
-}
-
-async function loadBirthdayAssignments(
-  organizationId: string,
-  musicianIds: string[],
-): Promise<Map<string, MusicianBirthdayAssignment[]>> {
-  const byMusician = new Map<string, MusicianBirthdayAssignment[]>();
+): Promise<Map<string, MusicianAssignmentSummary[]>> {
+  const byMusician = new Map<string, MusicianAssignmentSummary[]>();
 
   if (musicianIds.length === 0) {
     return byMusician;
@@ -164,15 +129,16 @@ function mapMusicianListItems(
     notes: string | null;
     created_at: string;
   }>,
-  statsByMusician: Map<string, { count: number; groups: Set<string> }>,
+  statsByMusician: Map<string, MusicianAssignmentSummary[]>,
 ): MusicianListItem[] {
   return rows.map((row): MusicianListItem => {
-    const stats = statsByMusician.get(row.id);
+    const assignments = statsByMusician.get(row.id) ?? [];
     return {
       ...mapMusician(row),
       createdAt: row.created_at,
-      assignmentCount: stats?.count ?? 0,
-      groupNames: stats ? [...stats.groups].sort() : [],
+      assignmentCount: assignments.length,
+      groupNames: [...new Set(assignments.map((assignment) => assignment.groupName).filter(Boolean))].sort(),
+      assignments,
     };
   });
 }
@@ -235,13 +201,13 @@ export function createMusicianRepository(): MusicianRepository {
       }
 
       const totalCount = count ?? musicians.length;
-      const statsByMusician = await loadAssignmentStats(
+      const assignmentsByMusician = await loadAssignmentSummaries(
         organizationId,
         musicians.map((row) => row.id),
       );
 
       return {
-        items: mapMusicianListItems(musicians, statsByMusician),
+        items: mapMusicianListItems(musicians, assignmentsByMusician),
         totalCount,
         hasMore: offset + musicians.length < totalCount,
       };
@@ -274,7 +240,7 @@ export function createMusicianRepository(): MusicianRepository {
       }
 
       const musicianIds = data.map((row) => row.id);
-      const assignmentsByMusician = await loadBirthdayAssignments(organizationId, musicianIds);
+      const assignmentsByMusician = await loadAssignmentSummaries(organizationId, musicianIds);
 
       return data
         .filter((row) => row.birth_date)

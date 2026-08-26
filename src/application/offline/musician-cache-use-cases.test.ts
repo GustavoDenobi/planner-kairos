@@ -47,6 +47,15 @@ function sampleMusician(overrides: Partial<MusicianListItem> = {}): MusicianList
     createdAt: '2026-01-10T12:00:00.000Z',
     assignmentCount: 1,
     groupNames: ['Orquestra'],
+    assignments: [
+      {
+        groupId: 'group-1',
+        groupName: 'Orquestra',
+        ensembleRole: 'member',
+        sectionName: null,
+        partName: 'Violino',
+      },
+    ],
     ...overrides,
   };
 }

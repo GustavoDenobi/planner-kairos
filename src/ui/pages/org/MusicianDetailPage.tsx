@@ -12,6 +12,7 @@ import type {
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { MusicianName } from '@/application/ports/musician-repository';
 import type { AccessRole } from '@/domain/identity';
+import type { UserOrganizationRulesAcceptanceInfo } from '@/application/identity/get-user-organization-rules-acceptance';
 import { canMergeMusicians } from '@/domain/ensemble';
 import { useEnsemble, useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
@@ -116,6 +117,11 @@ export function MusicianDetailPage() {
   const [adminError, setAdminError] = useState<string | null>(null);
   const [isUpdatingAdmin, setIsUpdatingAdmin] = useState(false);
 
+  const [rulesAcceptance, setRulesAcceptance] = useState<UserOrganizationRulesAcceptanceInfo | null>(
+    null,
+  );
+  const [isLoadingRulesAcceptance, setIsLoadingRulesAcceptance] = useState(false);
+
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
   const canEdit = isAdmin && !isOfflineReadOnly;
 
@@ -195,6 +201,40 @@ export function MusicianDetailPage() {
       active = false;
     };
   }, [identity, isOfflineReadOnly, org, musician?.userId, isAdmin]);
+
+  useEffect(() => {
+    if (!org || isOfflineReadOnly) {
+      setRulesAcceptance(null);
+      setIsLoadingRulesAcceptance(false);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingRulesAcceptance(true);
+
+    void identity
+      .getUserOrganizationRulesAcceptance(org.id, musician?.userId ?? null)
+      .then((info) => {
+        if (!active) {
+          return;
+        }
+
+        setRulesAcceptance(info);
+        setIsLoadingRulesAcceptance(false);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setRulesAcceptance(null);
+        setIsLoadingRulesAcceptance(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [identity, isOfflineReadOnly, org, musician?.userId]);
 
   useEffect(() => {
     if (!org || !isAdmin || isOfflineReadOnly) {
@@ -540,6 +580,7 @@ export function MusicianDetailPage() {
   const isTargetOwner = targetAccessRole === 'owner';
   const isTargetAdmin = targetAccessRole === 'admin';
   const showAccessRoleSection = isAdmin && Boolean(musician.userId);
+  const showRulesAcceptanceSection = rulesAcceptance?.status !== 'not_required';
 
   return (
     <div className={orgPageContentClass}>
@@ -636,6 +677,33 @@ export function MusicianDetailPage() {
                         </p>
                       </div>
                       <MusicianLinkCopy musicianId={musician.id} />
+                    </div>
+                  )}
+                  {showRulesAcceptanceSection && (
+                    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-text">Regulamento da organização</h2>
+                        <p className="mt-1 text-sm text-muted">
+                          {isLoadingRulesAcceptance
+                            ? 'Carregando status do aceite…'
+                            : rulesAcceptance?.status === 'no_account'
+                              ? 'O aceite será exigido quando o músico criar conta e vincular este cadastro.'
+                              : rulesAcceptance?.status === 'pending'
+                                ? 'Este músico ainda não aceitou o regulamento da organização.'
+                                : rulesAcceptance?.status === 'accepted'
+                                  ? `Aceito em ${rulesAcceptance.acceptedAt.toLocaleString('pt-BR')} · versão v${rulesAcceptance.documentVersion}`
+                                  : 'Não foi possível carregar o status do aceite.'}
+                        </p>
+                      </div>
+                      {rulesAcceptance?.status === 'accepted' && (
+                        <p
+                          className={`text-sm font-medium ${
+                            rulesAcceptance.isCurrentVersion ? 'text-green-700' : 'text-amber-700'
+                          }`}
+                        >
+                          {rulesAcceptance.isCurrentVersion ? 'Versão atual' : 'Versão desatualizada'}
+                        </p>
+                      )}
                     </div>
                   )}
                   {canEdit && musicianNames.length > 1 && (

@@ -1,7 +1,7 @@
 import type {
   LegalAcceptanceRepository,
   RecordLegalAcceptanceInput,
-  OrganizationRulesAcceptanceListItem,
+  UserOrganizationRulesAcceptance,
 } from '@/application/ports/legal-acceptance-repository';
 import type { LegalAcceptance } from '@/domain/identity/legal-documents';
 import { supabase } from './client';
@@ -96,54 +96,31 @@ export function createLegalAcceptanceRepository(): LegalAcceptanceRepository {
       return (data ?? []).map((row) => mapRow(row as LegalAcceptanceRow));
     },
 
-    async listOrganizationRulesAcceptances(organizationId, currentRulesVersion) {
+    async getLatestOrganizationRulesAcceptance(organizationId, userId, currentRulesVersion) {
       const { data, error } = await supabase
         .from('legal_acceptances')
-        .select(
-          `
-          user_id,
-          document_version,
-          accepted_at,
-          profiles!inner (
-            display_name,
-            email
-          )
-        `,
-        )
+        .select('document_version, accepted_at')
+        .eq('user_id', userId)
         .eq('organization_id', organizationId)
         .eq('scope', 'organization')
         .eq('document_type', 'organization_rules')
-        .order('accepted_at', { ascending: false });
+        .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (error) {
         throw new Error(error.message);
       }
 
-      const latestByUser = new Map<string, OrganizationRulesAcceptanceListItem>();
-
-      for (const row of data ?? []) {
-        const profileRaw = row.profiles as
-          | { display_name: string; email: string }
-          | { display_name: string; email: string }[]
-          | null;
-        const profile = Array.isArray(profileRaw) ? (profileRaw[0] ?? null) : profileRaw;
-        if (!profile || latestByUser.has(row.user_id)) {
-          continue;
-        }
-
-        latestByUser.set(row.user_id, {
-          userId: row.user_id,
-          displayName: profile.display_name,
-          email: profile.email,
-          documentVersion: row.document_version,
-          acceptedAt: new Date(row.accepted_at),
-          isCurrentVersion: row.document_version === String(currentRulesVersion),
-        });
+      if (!data) {
+        return null;
       }
 
-      return [...latestByUser.values()].sort((a, b) =>
-        a.displayName.localeCompare(b.displayName, 'pt-BR'),
-      );
+      return {
+        documentVersion: data.document_version,
+        acceptedAt: new Date(data.accepted_at),
+        isCurrentVersion: data.document_version === String(currentRulesVersion),
+      } satisfies UserOrganizationRulesAcceptance;
     },
   };
 }

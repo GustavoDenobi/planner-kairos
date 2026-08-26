@@ -9,8 +9,9 @@ export type {
   AssignmentWithDetails,
   EnsembleRole,
   GroupAssignmentListItem,
+  MusicianAssignmentSummary,
 } from './assignment';
-export { GROUP_WRITER_ROLES, isGroupWriterRole } from './assignment';
+export { GROUP_WRITER_ROLES, isGroupWriterRole, toMusicianAssignmentSummary } from './assignment';
 export {
   canMergeMusicians,
   isValidEmailFormat,

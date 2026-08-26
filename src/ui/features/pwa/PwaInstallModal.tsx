@@ -11,7 +11,7 @@ export function PwaInstallModal() {
   }
 
   async function handlePrimary() {
-    if (kind === 'native') {
+    if (kind === 'native' || kind === 'samsung-internet') {
       await promptNativeInstall();
       return;
     }

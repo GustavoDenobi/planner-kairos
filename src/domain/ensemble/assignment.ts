@@ -33,3 +33,26 @@ export type GroupAssignmentListItem = AssignmentWithDetails & {
   musicianName: string;
   musicianPhone: string | null;
 };
+
+export type MusicianAssignmentSummary = {
+  groupId: string;
+  groupName: string;
+  ensembleRole: EnsembleRole;
+  sectionName: string | null;
+  partName: string | null;
+};
+
+export function toMusicianAssignmentSummary(
+  assignment: Pick<
+    AssignmentWithDetails,
+    'groupId' | 'groupName' | 'ensembleRole' | 'sectionName' | 'partName'
+  >,
+): MusicianAssignmentSummary {
+  return {
+    groupId: assignment.groupId,
+    groupName: assignment.groupName,
+    ensembleRole: assignment.ensembleRole,
+    sectionName: assignment.sectionName,
+    partName: assignment.partName,
+  };
+}
