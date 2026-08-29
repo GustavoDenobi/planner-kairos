@@ -8,13 +8,14 @@ import {
   updateEventType,
 } from './event-type-use-cases';
 import type { EventRepository, ListEventsInRangeOptions } from '@/application/ports/event-repository';
+import type { EventRecurrenceRepository } from '@/application/ports/event-recurrence-repository';
 import type { EventAbsenceRepository } from '@/application/ports/event-absence-repository';
 import type { AssignmentRepository } from '@/application/ports/assignment-repository';
 import type { GroupRepository } from '@/application/ports/group-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
-import type { EventInput, ProgramItemInput } from '@/domain/agenda';
+import type { EventInput, ProgramItemInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
 
 import {
   deleteEvent,
@@ -27,10 +28,17 @@ import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases
 import { listAssociableAudience } from './list-associable-audience';
 import { setEventProgram } from './program-use-cases';
 import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
+import {
+  cancelRecurrence,
+  deleteRecurrenceOccurrence,
+  scheduleRecurrence,
+  updateRecurrenceOccurrence,
+} from './recurrence-use-cases';
 
 export type AgendaDeps = {
   eventTypeRepo: EventTypeRepository;
   eventRepo: EventRepository;
+  eventRecurrenceRepo: EventRecurrenceRepository;
   eventAbsenceRepo: EventAbsenceRepository;
   pieceRepo: PieceRepository;
   membershipRepo: MembershipRepository;
@@ -100,6 +108,66 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         organizationId,
         userId,
         eventId,
+      ),
+    scheduleRecurrence: (organizationId: string, userId: string, input: ScheduleRecurrenceInput) =>
+      scheduleRecurrence(
+        deps.eventRepo,
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        organizationId,
+        userId,
+        input,
+      ),
+    cancelRecurrence: (organizationId: string, userId: string, recurrenceId: string, fromInstant?: string) =>
+      cancelRecurrence(
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        organizationId,
+        userId,
+        recurrenceId,
+        fromInstant,
+      ),
+    updateRecurrenceOccurrence: (
+      organizationId: string,
+      userId: string,
+      eventId: string,
+      scope: RecurrenceEditScope,
+      input: EventInput,
+      options?: { seriesEndsAt?: string; rule?: ScheduleRecurrenceInput['rule'] },
+    ) =>
+      updateRecurrenceOccurrence(
+        deps.eventRepo,
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        organizationId,
+        userId,
+        eventId,
+        scope,
+        input,
+        options,
+      ),
+    deleteRecurrenceOccurrence: (
+      organizationId: string,
+      userId: string,
+      eventId: string,
+      scope: RecurrenceEditScope,
+    ) =>
+      deleteRecurrenceOccurrence(
+        deps.eventRepo,
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        organizationId,
+        userId,
+        eventId,
+        scope,
       ),
     listAssociableAudience: (organizationId: string, userId: string) =>
       listAssociableAudience(

@@ -15,7 +15,7 @@ import { supabase } from './client';
 const EVENT_TYPE_COLUMNS = 'id, organization_id, name, kind, sort_order, color';
 
 const EVENT_COLUMNS =
-  'id, organization_id, type_id, title, starts_at, ends_at, location, notes, created_by';
+  'id, organization_id, type_id, title, starts_at, ends_at, location, notes, created_by, recurrence_id, occurrence_index, original_starts_at, is_exception';
 
 type EventTypeRow = {
   id: string;
@@ -36,6 +36,10 @@ type EventRow = {
   location: string | null;
   notes: string | null;
   created_by: string | null;
+  recurrence_id: string | null;
+  occurrence_index: number | null;
+  original_starts_at: string | null;
+  is_exception: boolean;
   event_types: EventTypeRow | EventTypeRow[] | null;
 };
 
@@ -205,6 +209,10 @@ async function buildEventDetail(
     location: row.location,
     notes: row.notes,
     createdBy: row.created_by,
+    recurrenceId: row.recurrence_id,
+    occurrenceIndex: row.occurrence_index,
+    originalStartsAt: row.original_starts_at,
+    isException: row.is_exception,
     type: mapEventType(typeRow),
     program,
     groups: eventAudience.groups,
@@ -383,6 +391,8 @@ export function createEventRepository(): EventRepository {
           createdBy: row.created_by,
           groups: eventAudience.groups,
           musicians: eventAudience.musicians,
+          recurrenceId: row.recurrence_id,
+          isException: row.is_exception,
         };
         if (!matchesMineFilter(item, options)) {
           continue;
@@ -510,6 +520,93 @@ export function createEventRepository(): EventRepository {
 
       if (error) {
         throw new Error(error.message);
+      }
+    },
+
+    async markAsException(organizationId, eventId) {
+      const { error } = await supabase
+        .from('events')
+        .update({ is_exception: true })
+        .eq('organization_id', organizationId)
+        .eq('id', eventId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    },
+
+    async bulkUpdateFutureOccurrences(organizationId, recurrenceId, fromIndex, patch, skipExceptions) {
+      let query = supabase
+        .from('events')
+        .select('id, is_exception, occurrence_index')
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .gte('occurrence_index', fromIndex);
+
+      const { data, error } = await query;
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const updateRow: Record<string, unknown> = {};
+      if (patch.typeId !== undefined) {
+        updateRow.type_id = patch.typeId;
+      }
+      if (patch.title !== undefined) {
+        updateRow.title = normalizeOptionalText(patch.title);
+      }
+      if (patch.startsAt !== undefined) {
+        updateRow.starts_at = patch.startsAt;
+      }
+      if (patch.endsAt !== undefined) {
+        updateRow.ends_at = patch.endsAt;
+      }
+      if (patch.location !== undefined) {
+        updateRow.location = normalizeOptionalText(patch.location);
+      }
+      if (patch.notes !== undefined) {
+        updateRow.notes = normalizeOptionalText(patch.notes);
+      }
+
+      for (const row of data ?? []) {
+        if (skipExceptions && row.is_exception) {
+          continue;
+        }
+        const { error: updateError } = await supabase
+          .from('events')
+          .update(updateRow)
+          .eq('organization_id', organizationId)
+          .eq('id', row.id);
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
+      }
+    },
+
+    async replaceAudienceForFutureOccurrences(
+      organizationId,
+      recurrenceId,
+      fromIndex,
+      groupIds,
+      musicianIds,
+      skipExceptions,
+    ) {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, is_exception, occurrence_index')
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .gte('occurrence_index', fromIndex);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      for (const row of data ?? []) {
+        if (skipExceptions && row.is_exception) {
+          continue;
+        }
+        await replaceAudience(organizationId, row.id, groupIds, musicianIds);
       }
     },
   };

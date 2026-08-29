@@ -10,6 +10,34 @@ import type {
 } from '@/domain/platform/plan';
 import { supabase } from './client';
 
+type PlatformOrganizationRow = {
+  id: string;
+  name: string;
+  slug: string;
+  plan_id: string;
+  plan_name: string;
+  created_at: string;
+  memberships_count: number;
+  groups_count: number;
+  musicians_count: number;
+  pieces_count: number;
+};
+
+type PlatformUserSummaryRow = {
+  id: string;
+  display_name: string;
+  email: string;
+  created_at: string;
+  memberships_count: number;
+  total_count: number | string;
+};
+
+type PlatformUserLookupRow = {
+  id: string;
+  display_name: string;
+  email: string;
+};
+
 function mapPlan(row: {
   id: string;
   name: string;
@@ -51,7 +79,7 @@ export function createPlatformRepository(): PlatformRepository {
         throw new Error(error.message);
       }
 
-      return (data ?? []).map(
+      return ((data ?? []) as PlatformOrganizationRow[]).map(
         (row): PlatformOrganizationSummary => ({
           id: row.id,
           name: row.name,
@@ -139,7 +167,7 @@ export function createPlatformRepository(): PlatformRepository {
         throw new Error(error.message);
       }
 
-      return (data ?? []).map(
+      return ((data ?? []) as PlatformUserSummaryRow[]).map(
         (row): PlatformUserSummary => ({
           id: row.id,
           displayName: row.display_name,
@@ -173,7 +201,7 @@ export function createPlatformRepository(): PlatformRepository {
         email: row.email,
         theme: row.theme,
         createdAt: row.created_at,
-        memberships: memberships.map((item) => {
+        memberships: memberships.map((item: unknown) => {
           const membership = item as Record<string, unknown>;
           return {
             membershipId: String(membership.membershipId),
@@ -195,7 +223,7 @@ export function createPlatformRepository(): PlatformRepository {
         throw new Error(error.message);
       }
 
-      return (data ?? []).map(
+      return ((data ?? []) as PlatformUserLookupRow[]).map(
         (row): PlatformUserLookup => ({
           id: row.id,
           displayName: row.display_name,

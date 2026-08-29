@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { EventKind, EventListItem, EventType, MusicianBirthdayItem } from '@/domain/agenda';
+import type { EventDetail, EventKind, EventListItem, EventType, MusicianBirthdayItem } from '@/domain/agenda';
 import { eventHasNoAudience, extraAudienceMusicianIds, listMusicianBirthdaysInRange } from '@/domain/agenda';
 import type { AssociableAudience } from '@/application/agenda';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
@@ -36,7 +36,13 @@ import {
   parseAgendaSection,
 } from '@/ui/features/agenda/agenda-routes';
 import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
+import type { RecurrenceRule } from '@/domain/agenda';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
+import {
+  RecurrenceFormFields,
+  createDefaultRecurrenceRule,
+  createDefaultSeriesEndsAt,
+} from '@/ui/features/agenda/RecurrenceFormFields';
 import {
   DEFAULT_CATEGORY_HUE,
   formatCategoryHue,
@@ -113,6 +119,11 @@ export function AgendaPage() {
   const [musicianIds, setMusicianIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>(() =>
+    createDefaultRecurrenceRule(defaultStartsAtLocal()),
+  );
+  const [seriesEndsAt, setSeriesEndsAt] = useState(createDefaultSeriesEndsAt);
 
   const [typeModal, setTypeModal] = useState<EventTypeModalState | null>(null);
   const [typeModalError, setTypeModalError] = useState<string | null>(null);
@@ -437,12 +448,16 @@ export function AgendaPage() {
   }
 
   function resetCreateForm() {
+    const nextStartsAt = defaultStartsAtLocal();
     setTitle('');
-    setStartsAt(defaultStartsAtLocal());
+    setStartsAt(nextStartsAt);
     setEndsAt('');
     setNotes('');
     setGroupIds([]);
     setMusicianIds(audience?.myMusicianId ? [audience.myMusicianId] : []);
+    setRepeatEnabled(false);
+    setRecurrenceRule(createDefaultRecurrenceRule(nextStartsAt));
+    setSeriesEndsAt(createDefaultSeriesEndsAt());
     setFormError(null);
   }
 
@@ -461,7 +476,7 @@ export function AgendaPage() {
     setFormError(null);
     setIsSubmitting(true);
 
-    const result = await agenda.scheduleEvent(org.id, userId, {
+    const eventInput = {
       typeId,
       title: title.trim() || null,
       startsAt: fromDatetimeLocalValue(startsAt),
@@ -469,7 +484,15 @@ export function AgendaPage() {
       notes: notes.trim() || null,
       groupIds,
       musicianIds,
-    });
+    };
+
+    const result = repeatEnabled
+      ? await agenda.scheduleRecurrence(org.id, userId, {
+          ...eventInput,
+          rule: recurrenceRule,
+          seriesEndsAt,
+        })
+      : await agenda.scheduleEvent(org.id, userId, eventInput);
 
     setIsSubmitting(false);
 
@@ -478,8 +501,12 @@ export function AgendaPage() {
       return;
     }
 
+    const createdEventId = repeatEnabled
+      ? (result.value as { event: { id: string } }).event.id
+      : (result.value as EventDetail).id;
+
     setCreateOpen(false);
-    navigate(eventPath(org.slug, result.value.id));
+    navigate(eventPath(org.slug, createdEventId));
   }
 
   function requestCreateEvent() {
@@ -637,6 +664,29 @@ export function AgendaPage() {
             notes={notes}
             onNotesChange={setNotes}
           />
+          <label className="flex items-center gap-2 text-sm text-text">
+            <input
+              type="checkbox"
+              checked={repeatEnabled}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                setRepeatEnabled(enabled);
+                if (enabled) {
+                  setRecurrenceRule(createDefaultRecurrenceRule(startsAt));
+                }
+              }}
+            />
+            Repetir evento
+          </label>
+          {repeatEnabled && (
+            <RecurrenceFormFields
+              startsAtLocal={startsAt}
+              rule={recurrenceRule}
+              onRuleChange={setRecurrenceRule}
+              seriesEndsAt={seriesEndsAt}
+              onSeriesEndsAtChange={setSeriesEndsAt}
+            />
+          )}
           <EventAudienceFields
             groups={audience?.groups ?? []}
             musicians={audience?.musicians ?? []}

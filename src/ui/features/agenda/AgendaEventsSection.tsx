@@ -90,12 +90,22 @@ export function AgendaEventsSection({
                     <div className="min-w-0 max-w-full">
                       <div className="flex items-center justify-between gap-3">
                         <p className="min-w-0 truncate font-medium text-text">{title}</p>
-                        <span
-                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                          style={badgeStyle}
-                        >
-                          {event.typeName}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {event.recurrenceId && (
+                            <span
+                              className="rounded-full bg-bg px-2 py-0.5 text-[10px] font-medium text-muted"
+                              title="Evento recorrente"
+                            >
+                              ↻
+                            </span>
+                          )}
+                          <span
+                            className="rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            style={badgeStyle}
+                          >
+                            {event.typeName}
+                          </span>
+                        </div>
                       </div>
                       <p className="mt-0.5 text-sm text-muted">
                         {formatEventTime(event.startsAt, event.endsAt)}

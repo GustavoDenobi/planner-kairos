@@ -18,6 +18,10 @@ function eventDetail(overrides: Partial<EventDetail> = {}): EventDetail {
     location: null,
     notes: null,
     createdBy: 'user-teacher',
+    recurrenceId: null,
+    occurrenceIndex: null,
+    originalStartsAt: null,
+    isException: false,
     type: {
       id: 'type-1',
       organizationId: 'org-1',
@@ -143,6 +147,9 @@ function createRepos(options?: {
       }),
     replaceProgram: vi.fn(),
     delete: vi.fn(),
+    markAsException: vi.fn(),
+    bulkUpdateFutureOccurrences: vi.fn(),
+    replaceAudienceForFutureOccurrences: vi.fn(),
   };
 
   return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, created };

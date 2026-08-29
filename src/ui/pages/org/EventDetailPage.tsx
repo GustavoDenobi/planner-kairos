@@ -26,7 +26,12 @@ import { agendaPath } from '@/ui/features/agenda/agenda-routes';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
 import { EventAudienceChips } from '@/ui/features/agenda/EventAudienceChips';
 import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
+import type { RecurrenceEditScope } from '@/domain/agenda';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
+import {
+  CancelRecurrenceConfirmModal,
+  RecurrenceScopeModal,
+} from '@/ui/features/agenda/RecurrenceScopeModal';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
 import { EventAbsencesSection } from '@/ui/features/agenda/EventAbsencesSection';
 import {
@@ -79,6 +84,10 @@ export function EventDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [recurrenceScopeMode, setRecurrenceScopeMode] = useState<'save' | 'delete' | null>(null);
+  const [confirmCancelRecurrence, setConfirmCancelRecurrence] = useState(false);
+  const [isCancellingRecurrence, setIsCancellingRecurrence] = useState(false);
+  const [cancelRecurrenceError, setCancelRecurrenceError] = useState<string | null>(null);
 
   const loadEvent = useCallback(async () => {
     if (!org || !eventId) {
@@ -183,7 +192,7 @@ export function EventDetailPage() {
     );
   }
 
-  async function handleSave() {
+  async function handleSave(scope?: RecurrenceEditScope) {
     if (!org || !eventId || !userId) {
       return;
     }
@@ -191,7 +200,7 @@ export function EventDetailPage() {
     setSaveError(null);
     setIsSaving(true);
 
-    const result = await agenda.updateEvent(org.id, userId, eventId, {
+    const input = {
       typeId,
       title: title.trim() || null,
       startsAt: fromDatetimeLocalValue(startsAt),
@@ -200,18 +209,29 @@ export function EventDetailPage() {
       notes: notes.trim() || null,
       groupIds,
       musicianIds,
-    });
+    };
+
+    const result =
+      event?.recurrenceId && scope
+        ? await agenda.updateRecurrenceOccurrence(org.id, userId, eventId, scope, input)
+        : await agenda.updateEvent(org.id, userId, eventId, input);
 
     setIsSaving(false);
+    setRecurrenceScopeMode(null);
 
     if (!result.ok) {
       setSaveError(agendaErrorMessage(result.error));
       return;
     }
 
-    setEvent(result.value);
-    setGroupIds(result.value.groups.map((group) => group.id));
-    setMusicianIds(result.value.musicians.map((musician) => musician.id));
+    const saved: EventDetail = result.value;
+    setEvent(saved);
+    setGroupIds(saved.groups.map((group) => group.id));
+    setMusicianIds(saved.musicians.map((musician) => musician.id));
+
+    if (saved.id !== eventId) {
+      navigate(`/${orgSlug}/agenda/eventos/${saved.id}`, { replace: true });
+    }
   }
 
   function requestSave() {
@@ -219,10 +239,14 @@ export function EventDetailPage() {
       setConfirmEmptyAudience(true);
       return;
     }
+    if (event?.recurrenceId) {
+      setRecurrenceScopeMode('save');
+      return;
+    }
     void handleSave();
   }
 
-  async function handleDelete() {
+  async function handleDelete(scope?: RecurrenceEditScope) {
     if (!org || !eventId || !userId) {
       return;
     }
@@ -230,12 +254,46 @@ export function EventDetailPage() {
     setDeleteError(null);
     setIsDeleting(true);
 
-    const result = await agenda.deleteEvent(org.id, userId, eventId);
+    const result =
+      event?.recurrenceId && scope
+        ? await agenda.deleteRecurrenceOccurrence(org.id, userId, eventId, scope)
+        : await agenda.deleteEvent(org.id, userId, eventId);
 
     setIsDeleting(false);
+    setRecurrenceScopeMode(null);
+    setConfirmDelete(false);
 
     if (!result.ok) {
       setDeleteError(agendaErrorMessage(result.error));
+      return;
+    }
+
+    navigate(agendaPath(orgSlug ?? ''));
+  }
+
+  function requestDelete() {
+    if (event?.recurrenceId) {
+      setRecurrenceScopeMode('delete');
+      return;
+    }
+    setConfirmDelete(true);
+  }
+
+  async function handleCancelRecurrence() {
+    if (!org || !userId || !event?.recurrenceId) {
+      return;
+    }
+
+    setCancelRecurrenceError(null);
+    setIsCancellingRecurrence(true);
+
+    const result = await agenda.cancelRecurrence(org.id, userId, event.recurrenceId);
+
+    setIsCancellingRecurrence(false);
+    setConfirmCancelRecurrence(false);
+
+    if (!result.ok) {
+      setCancelRecurrenceError(agendaErrorMessage(result.error));
       return;
     }
 
@@ -360,6 +418,26 @@ export function EventDetailPage() {
             {isOfflineReadOnly && (
               <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
             )}
+            {event.recurrenceId && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-bg px-2.5 py-0.5 text-xs font-medium text-muted">
+                  Série recorrente
+                  {event.isException ? ' · exceção' : ''}
+                </span>
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCancelRecurrence(true)}
+                    className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                  >
+                    Cancelar série (futuros)
+                  </button>
+                )}
+              </div>
+            )}
+            {cancelRecurrenceError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{cancelRecurrenceError}</p>
+            )}
             <EventAudienceChips
               groups={event.groups}
               musicians={event.musicians}
@@ -443,7 +521,7 @@ export function EventDetailPage() {
           )}
           <button
             type="button"
-            onClick={() => setConfirmDelete(true)}
+            onClick={requestDelete}
             disabled={isDeleting || isSaving}
             className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full md:w-auto"
           >
@@ -457,9 +535,39 @@ export function EventDetailPage() {
         title="Evento sem associação"
         message="Nenhum grupo ou músico associado. Só owners e admins poderão ver este evento. Continuar?"
         confirmLabel="Salvar mesmo assim"
-        onConfirm={() => void handleSave()}
+        onConfirm={() => {
+          if (event?.recurrenceId) {
+            setConfirmEmptyAudience(false);
+            setRecurrenceScopeMode('save');
+            return;
+          }
+          void handleSave();
+        }}
         onClose={() => setConfirmEmptyAudience(false)}
         isConfirming={isSaving}
+      />
+
+      <RecurrenceScopeModal
+        open={recurrenceScopeMode === 'save'}
+        mode="save"
+        onClose={() => setRecurrenceScopeMode(null)}
+        onConfirm={(scope) => void handleSave(scope)}
+        isConfirming={isSaving}
+      />
+
+      <RecurrenceScopeModal
+        open={recurrenceScopeMode === 'delete'}
+        mode="delete"
+        onClose={() => setRecurrenceScopeMode(null)}
+        onConfirm={(scope) => void handleDelete(scope)}
+        isConfirming={isDeleting}
+      />
+
+      <CancelRecurrenceConfirmModal
+        open={confirmCancelRecurrence}
+        onClose={() => setConfirmCancelRecurrence(false)}
+        onConfirm={() => void handleCancelRecurrence()}
+        isConfirming={isCancellingRecurrence}
       />
 
       <ConfirmModal

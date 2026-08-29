@@ -2,6 +2,13 @@ import type { EventInput, EventAudienceMusician } from './event';
 import type { EventKind, EventType, EventTypeInput } from './event-type';
 import type { EventParticipant } from './event-absence';
 import type { ProgramItemInput, ProgramItemStatus } from './program-item';
+import type { ScheduleRecurrenceInput } from './event-recurrence';
+import {
+  generateOccurrenceDates,
+  validateRecurrenceEndDate,
+  validateRecurrenceRule,
+} from './recurrence-engine';
+import { durationMinutesBetween } from './date-utils';
 
 const EVENT_KINDS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
 const PROGRAM_ITEM_STATUSES: ProgramItemStatus[] = ['planned', 'performed', 'skipped'];
@@ -59,6 +66,38 @@ export function validateEventInput(input: EventInput): string | null {
     if (Number.isNaN(ends) || ends < starts) {
       return 'invalid_dates';
     }
+  }
+  return null;
+}
+
+export function validateRecurrenceInput(
+  input: ScheduleRecurrenceInput,
+  limitAnchorAt: string = new Date().toISOString(),
+): string | null {
+  const eventError = validateEventInput(input);
+  if (eventError) {
+    return eventError;
+  }
+  const ruleError = validateRecurrenceRule(input.rule);
+  if (ruleError) {
+    return ruleError;
+  }
+  const endError = validateRecurrenceEndDate({
+    seriesStartsAt: input.startsAt,
+    seriesEndsAt: input.seriesEndsAt,
+    limitAnchorAt,
+  });
+  if (endError) {
+    return endError;
+  }
+  const occurrences = generateOccurrenceDates({
+    rule: input.rule,
+    seriesStartsAt: input.startsAt,
+    seriesEndsAt: input.seriesEndsAt,
+    durationMinutes: durationMinutesBetween(input.startsAt, input.endsAt),
+  });
+  if (occurrences.length === 0) {
+    return 'recurrence_no_occurrences';
   }
   return null;
 }

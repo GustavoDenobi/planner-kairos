@@ -6,96 +6,16 @@ import type { EventInput } from '@/domain/agenda';
 import {
   canWriteEvent,
   uniqueIds,
-  validateEventAudienceForGroupWriter,
   validateEventInput,
 } from '@/domain/agenda';
-import { isGroupWriterRole } from '@/domain/ensemble';
 import { Result } from '@/domain/shared';
+import {
+  loadWriterContext,
+  mergeAudienceIds,
+  validateGroupWriterAudience,
+} from './event-use-cases-helpers';
 
-export type EventWriterContext = {
-  isPrivileged: boolean;
-  isGroupWriter: boolean;
-  writableGroupIds: string[];
-  memberGroupIds: string[];
-  myMusicianId: string | null;
-  musicianGroupIdsByMusicianId: Record<string, string[]>;
-};
-
-async function loadWriterContext(
-  membershipRepo: MembershipRepository,
-  musicianRepo: MusicianRepository,
-  assignmentRepo: AssignmentRepository,
-  organizationId: string,
-  userId: string,
-): Promise<Result<EventWriterContext, 'not_a_member'>> {
-  const membership = await membershipRepo.getByUserAndOrg(organizationId, userId);
-  if (!membership) {
-    return Result.fail('not_a_member');
-  }
-
-  const isPrivileged = membership.accessRole === 'owner' || membership.accessRole === 'admin';
-  const musician = await musicianRepo.getByUserId(organizationId, userId);
-  const assignments = musician
-    ? await assignmentRepo.listForMusician(organizationId, musician.id)
-    : [];
-  const writableGroupIds = [
-    ...new Set(
-      assignments
-        .filter((assignment) => isGroupWriterRole(assignment.ensembleRole))
-        .map((assignment) => assignment.groupId),
-    ),
-  ];
-  const memberGroupIds = [...new Set(assignments.map((assignment) => assignment.groupId))];
-  const isGroupWriter = writableGroupIds.length > 0;
-
-  const audienceRows = isGroupWriter
-    ? await assignmentRepo.listForGroups(organizationId, writableGroupIds)
-    : [];
-  const musicianGroupIdsByMusicianId: Record<string, string[]> = {};
-  for (const row of audienceRows) {
-    const current = musicianGroupIdsByMusicianId[row.musicianId] ?? [];
-    current.push(row.groupId);
-    musicianGroupIdsByMusicianId[row.musicianId] = current;
-  }
-
-  return Result.ok({
-    isPrivileged,
-    isGroupWriter,
-    writableGroupIds,
-    memberGroupIds,
-    myMusicianId: musician?.id ?? null,
-    musicianGroupIdsByMusicianId,
-  });
-}
-
-function mergeAudienceIds(
-  input: EventInput,
-  creatorMusicianId: string | null,
-): { groupIds: string[]; musicianIds: string[] } {
-  const groupIds = uniqueIds(input.groupIds ?? []);
-  const musicianIds = uniqueIds([
-    ...(input.musicianIds ?? []),
-    ...(creatorMusicianId ? [creatorMusicianId] : []),
-  ]);
-  return { groupIds, musicianIds };
-}
-
-function validateGroupWriterAudience(
-  context: EventWriterContext,
-  groupIds: string[],
-  musicianIds: string[],
-): string | null {
-  if (context.isPrivileged) {
-    return null;
-  }
-  return validateEventAudienceForGroupWriter({
-    groupIds,
-    musicianIds,
-    writableGroupIds: context.writableGroupIds,
-    musicianGroupIdsByMusicianId: context.musicianGroupIdsByMusicianId,
-    creatorMusicianId: context.myMusicianId,
-  });
-}
+export type { EventWriterContext } from './event-use-cases-helpers';
 
 export async function listEventsInRange(
   eventRepo: EventRepository,
@@ -121,7 +41,7 @@ export async function listEventsInRange(
   const events = await eventRepo.listInRange(organizationId, {
     ...options,
     viewerUserId: userId,
-    viewerMusicianId: context.myMusicianId,
+     viewerMusicianId: context.myMusicianId,
     viewerGroupIds: context.memberGroupIds,
   });
   return Result.ok(events);

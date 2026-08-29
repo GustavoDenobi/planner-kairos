@@ -33,6 +33,50 @@ export const AGENDA_ERROR_MESSAGES: Record<string, string> = {
   not_a_member: 'Você não faz parte desta organização.',
   invalid_musician: 'Este músico não faz parte do evento.',
   absence_failed: 'Não foi possível registrar a ausência. Tente novamente.',
+  end_date_required: 'Informe a data limite da recorrência.',
+  end_date_beyond_limit: 'A data limite não pode ultrapassar 730 dias a partir da criação da série.',
+  invalid_recurrence_interval: 'Intervalo de repetição inválido.',
+  invalid_recurrence_weekday: 'Selecione ao menos um dia da semana.',
+  invalid_recurrence_month_day: 'Dia do mês inválido.',
+  invalid_recurrence_nth: 'Ocorrência mensal inválida.',
+  recurrence_no_occurrences: 'A recorrência não gera nenhum evento no período informado.',
+  not_recurrence_event: 'Este evento não faz parte de uma série.',
+};
+
+export const RECURRENCE_SCOPE_SAVE_LABELS: Record<
+  'this' | 'following' | 'all_future',
+  { title: string; description: string }
+> = {
+  this: {
+    title: 'Só este evento',
+    description: 'As demais ocorrências da série permanecem inalteradas.',
+  },
+  following: {
+    title: 'Este e os futuros',
+    description: 'Cria uma nova série a partir deste evento; o passado permanece como estava.',
+  },
+  all_future: {
+    title: 'Toda a série (futuros)',
+    description: 'Atualiza este evento e todas as ocorrências futuras da mesma série.',
+  },
+};
+
+export const RECURRENCE_SCOPE_DELETE_LABELS: Record<
+  'this' | 'following' | 'all_future',
+  { title: string; description: string }
+> = {
+  this: {
+    title: 'Só este evento',
+    description: 'Remove apenas esta ocorrência.',
+  },
+  following: {
+    title: 'Este e os futuros',
+    description: 'Encerra a série a partir deste evento e remove as ocorrências futuras.',
+  },
+  all_future: {
+    title: 'Toda a série (futuros)',
+    description: 'Cancela a série e remove todos os eventos futuros.',
+  },
 };
 
 export function agendaErrorMessage(code: string): string {

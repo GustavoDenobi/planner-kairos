@@ -9,6 +9,7 @@ import { createFileStorage } from '@/infrastructure/supabase/file-storage';
 import { createPlatformAdminGateway } from '@/infrastructure/supabase/platform-admin-gateway';
 import { createPlatformRepository } from '@/infrastructure/supabase/platform-repository';
 import { createEventRepository } from '@/infrastructure/supabase/event-repository';
+import { createEventRecurrenceRepository } from '@/infrastructure/supabase/event-recurrence-repository';
 import { createEventAbsenceRepository } from '@/infrastructure/supabase/event-absence-repository';
 import { createEventTypeRepository } from '@/infrastructure/supabase/event-type-repository';
 import { createGroupInviteRepository } from '@/infrastructure/supabase/group-invite-repository';
@@ -58,6 +59,7 @@ export function createAppServices() {
   const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
+  const eventRecurrenceRepo = createEventRecurrenceRepository();
   const eventAbsenceRepo = createEventAbsenceRepository();
 
   const identity = createIdentityUseCases({
@@ -96,6 +98,7 @@ export function createAppServices() {
   const agenda = createAgendaUseCases({
     eventTypeRepo,
     eventRepo,
+    eventRecurrenceRepo,
     eventAbsenceRepo,
     pieceRepo,
     membershipRepo,

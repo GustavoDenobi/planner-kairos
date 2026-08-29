@@ -254,6 +254,174 @@ export type Database = {
           },
         ]
       }
+      event_recurrence_groups: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          organization_id: string
+          recurrence_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          organization_id: string
+          recurrence_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          organization_id?: string
+          recurrence_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_recurrence_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrence_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrence_groups_recurrence_id_fkey"
+            columns: ["recurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_recurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_recurrence_musicians: {
+        Row: {
+          created_at: string
+          id: string
+          musician_id: string
+          organization_id: string
+          recurrence_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          musician_id: string
+          organization_id: string
+          recurrence_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          musician_id?: string
+          organization_id?: string
+          recurrence_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_recurrence_musicians_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrence_musicians_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrence_musicians_recurrence_id_fkey"
+            columns: ["recurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_recurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_recurrences: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          duration_minutes: number | null
+          id: string
+          limit_anchor_at: string
+          location: string | null
+          notes: string | null
+          organization_id: string
+          rule: Json
+          series_ends_at: string
+          series_starts_at: string
+          title: string | null
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          limit_anchor_at?: string
+          location?: string | null
+          notes?: string | null
+          organization_id: string
+          rule: Json
+          series_ends_at: string
+          series_starts_at: string
+          title?: string | null
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          limit_anchor_at?: string
+          location?: string | null
+          notes?: string | null
+          organization_id?: string
+          rule?: Json
+          series_ends_at?: string
+          series_starts_at?: string
+          title?: string | null
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_recurrences_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_recurrences_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_types: {
         Row: {
           color: string | null
@@ -301,9 +469,13 @@ export type Database = {
           created_by: string | null
           ends_at: string | null
           id: string
+          is_exception: boolean
           location: string | null
           notes: string | null
+          occurrence_index: number | null
           organization_id: string
+          original_starts_at: string | null
+          recurrence_id: string | null
           starts_at: string
           title: string | null
           type_id: string
@@ -314,9 +486,13 @@ export type Database = {
           created_by?: string | null
           ends_at?: string | null
           id?: string
+          is_exception?: boolean
           location?: string | null
           notes?: string | null
+          occurrence_index?: number | null
           organization_id: string
+          original_starts_at?: string | null
+          recurrence_id?: string | null
           starts_at: string
           title?: string | null
           type_id: string
@@ -327,9 +503,13 @@ export type Database = {
           created_by?: string | null
           ends_at?: string | null
           id?: string
+          is_exception?: boolean
           location?: string | null
           notes?: string | null
+          occurrence_index?: number | null
           organization_id?: string
+          original_starts_at?: string | null
+          recurrence_id?: string | null
           starts_at?: string
           title?: string | null
           type_id?: string
@@ -348,6 +528,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_recurrence_id_fkey"
+            columns: ["recurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_recurrences"
             referencedColumns: ["id"]
           },
           {
@@ -495,6 +682,54 @@ export type Database = {
           },
         ]
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          context: string
+          document_type: string
+          document_version: string
+          id: string
+          organization_id: string | null
+          scope: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          context: string
+          document_type: string
+          document_version: string
+          id?: string
+          organization_id?: string | null
+          scope: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          context?: string
+          document_type?: string
+          document_version?: string
+          id?: string
+          organization_id?: string | null
+          scope?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_acceptances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_acceptances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           access_role: Database["public"]["Enums"]["access_role"]
@@ -607,6 +842,11 @@ export type Database = {
           id: string
           image_storage_key: string | null
           name: string
+          plan_id: string
+          requires_rules_acceptance: boolean
+          rules_markdown: string | null
+          rules_title: string | null
+          rules_version: number
           slug: string
           updated_at: string
         }
@@ -615,6 +855,11 @@ export type Database = {
           id?: string
           image_storage_key?: string | null
           name: string
+          plan_id: string
+          requires_rules_acceptance?: boolean
+          rules_markdown?: string | null
+          rules_title?: string | null
+          rules_version?: number
           slug: string
           updated_at?: string
         }
@@ -623,10 +868,23 @@ export type Database = {
           id?: string
           image_storage_key?: string | null
           name?: string
+          plan_id?: string
+          requires_rules_acceptance?: boolean
+          rules_markdown?: string | null
+          rules_title?: string | null
+          rules_version?: number
           slug?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       part_divisions: {
         Row: {
@@ -1313,6 +1571,122 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          max_groups: number | null
+          max_musicians: number | null
+          max_pieces: number | null
+          max_storage_bytes: number | null
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          max_groups?: number | null
+          max_musicians?: number | null
+          max_pieces?: number | null
+          max_storage_bytes?: number | null
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          max_groups?: number | null
+          max_musicians?: number | null
+          max_pieces?: number | null
+          max_storage_bytes?: number | null
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_admins: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_admins_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_admins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          target_id: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          target_id?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          target_id?: string | null
+          target_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_audit_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1601,6 +1975,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assert_org_plan_limit: {
+        Args: { p_delta?: number; p_org_id: string; p_resource: string }
+        Returns: undefined
+      }
       can_access_piece_file: {
         Args: { p_piece_file_id: string }
         Returns: boolean
@@ -1615,7 +1993,15 @@ export type Database = {
       }
       can_see_event: { Args: { p_event_id: string }; Returns: boolean }
       can_see_piece: { Args: { p_piece_id: string }; Returns: boolean }
+      can_see_recurrence: {
+        Args: { p_recurrence_id: string }
+        Returns: boolean
+      }
       can_write_event: { Args: { p_event_id: string }; Returns: boolean }
+      can_write_recurrence: {
+        Args: { p_recurrence_id: string }
+        Returns: boolean
+      }
       claim_musician: {
         Args: {
           p_birth_date?: string
@@ -1659,6 +2045,10 @@ export type Database = {
           organization_image_storage_key: string
           organization_name: string
           organization_slug: string
+          requires_rules_acceptance: boolean
+          rules_markdown: string
+          rules_title: string
+          rules_version: number
         }[]
       }
       get_musician_claim_preview: {
@@ -1667,11 +2057,27 @@ export type Database = {
           already_claimed: boolean
           assignments: Json
           musician_full_name: string
+          organization_id: string
           organization_image_storage_key: string
           organization_name: string
           organization_slug: string
+          requires_rules_acceptance: boolean
+          rules_markdown: string
+          rules_title: string
+          rules_version: number
         }[]
       }
+      get_org_plan_usage: {
+        Args: { p_org_id: string }
+        Returns: {
+          events_count: number
+          groups_count: number
+          musicians_count: number
+          pieces_count: number
+          storage_bytes: number
+        }[]
+      }
+      get_org_storage_bytes: { Args: { p_org_id: string }; Returns: number }
       grant_org_admin: {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: undefined
@@ -1690,6 +2096,7 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { p_org_id: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
       is_section_lead_for: {
         Args: { p_org_id: string; p_section_id: string }
         Returns: boolean
@@ -1715,6 +2122,15 @@ export type Database = {
           use_count: number
         }[]
       }
+      log_platform_audit: {
+        Args: {
+          p_action: string
+          p_metadata?: Json
+          p_target_id?: string
+          p_target_type: string
+        }
+        Returns: undefined
+      }
       merge_musicians: {
         Args: { p_source_id: string; p_target_id: string }
         Returns: undefined
@@ -1729,6 +2145,150 @@ export type Database = {
       }
       piece_allows_override: { Args: { p_piece_id: string }; Returns: boolean }
       piece_has_audience: { Args: { p_piece_id: string }; Returns: boolean }
+      platform_assign_organization_plan: {
+        Args: { p_org_id: string; p_plan_id: string }
+        Returns: undefined
+      }
+      platform_create_organization: {
+        Args: {
+          p_name: string
+          p_owner_user_id: string
+          p_plan_id: string
+          p_slug: string
+        }
+        Returns: string
+      }
+      platform_find_user_by_email: {
+        Args: { p_email: string }
+        Returns: {
+          display_name: string
+          email: string
+          id: string
+        }[]
+      }
+      platform_get_organization: {
+        Args: { p_org_id: string }
+        Returns: {
+          created_at: string
+          events_count: number
+          groups_count: number
+          id: string
+          max_groups: number
+          max_musicians: number
+          max_pieces: number
+          max_storage_bytes: number
+          memberships_count: number
+          musicians_count: number
+          name: string
+          pieces_count: number
+          plan_id: string
+          plan_name: string
+          plan_slug: string
+          slug: string
+          storage_bytes: number
+        }[]
+      }
+      platform_get_plan: {
+        Args: { p_plan_id: string }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          max_groups: number
+          max_musicians: number
+          max_pieces: number
+          max_storage_bytes: number
+          name: string
+          organizations_count: number
+          slug: string
+          sort_order: number
+          updated_at: string
+        }[]
+      }
+      platform_get_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          memberships: Json
+          theme: Database["public"]["Enums"]["theme_preference"]
+        }[]
+      }
+      platform_list_organizations: {
+        Args: never
+        Returns: {
+          created_at: string
+          groups_count: number
+          id: string
+          memberships_count: number
+          musicians_count: number
+          name: string
+          pieces_count: number
+          plan_id: string
+          plan_name: string
+          slug: string
+        }[]
+      }
+      platform_list_plans: {
+        Args: never
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          max_groups: number
+          max_musicians: number
+          max_pieces: number
+          max_storage_bytes: number
+          name: string
+          organizations_count: number
+          slug: string
+          sort_order: number
+          updated_at: string
+        }[]
+      }
+      platform_list_users: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          memberships_count: number
+          total_count: number
+        }[]
+      }
+      platform_remove_membership: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      platform_require_admin: { Args: never; Returns: undefined }
+      platform_upsert_membership: {
+        Args: {
+          p_org_id: string
+          p_role: Database["public"]["Enums"]["access_role"]
+          p_user_id: string
+        }
+        Returns: string
+      }
+      platform_upsert_plan: {
+        Args: {
+          p_description: string
+          p_is_active: boolean
+          p_max_groups: number
+          p_max_musicians: number
+          p_max_pieces: number
+          p_max_storage_bytes: number
+          p_name: string
+          p_plan_id: string
+          p_slug: string
+          p_sort_order: number
+        }
+        Returns: string
+      }
       redeem_group_invite: {
         Args: { p_birth_date?: string; p_phone?: string; p_token: string }
         Returns: {

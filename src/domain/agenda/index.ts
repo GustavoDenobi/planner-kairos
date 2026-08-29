@@ -13,6 +13,15 @@ export type {
   ProgramItemStatus,
 } from './program-item';
 export type { EventDetail } from './event-detail';
+export type {
+  EventRecurrence,
+  ScheduleRecurrenceInput,
+  RecurrenceEditScope,
+  UpdateRecurrenceOccurrenceInput,
+  RecurrenceOccurrenceSummary,
+} from './event-recurrence';
+export type { RecurrenceRule, WeeklyRule, MonthlyRule } from './recurrence-rule';
+export type { GeneratedOccurrence } from './recurrence-engine';
 export type { EventParticipant, EventAbsence } from './event-absence';
 export type {
   MusicianBirthdayItem,
@@ -21,6 +30,15 @@ export type {
   ListMusicianBirthdaysOptions,
 } from './birthday';
 export { listMusicianBirthdaysInRange } from './birthday';
+export {
+  RECURRENCE_MAX_DAYS,
+  generateOccurrenceDates,
+  formatRecurrencePreview,
+  maxRecurrenceEndDate,
+  maxRecurrenceEndDateInputValue,
+  validateRecurrenceEndDate,
+  validateRecurrenceRule,
+} from './recurrence-engine';
 export {
   canWriteEvent,
   eventDisplayTitle,
@@ -34,4 +52,5 @@ export {
   validateEventInput,
   validateEventTypeInput,
   validateProgramItems,
+  validateRecurrenceInput,
 } from './rules';

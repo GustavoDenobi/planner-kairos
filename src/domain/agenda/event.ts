@@ -23,6 +23,10 @@ export type Event = {
   location: string | null;
   notes: string | null;
   createdBy: string | null;
+  recurrenceId: string | null;
+  occurrenceIndex: number | null;
+  originalStartsAt: string | null;
+  isException: boolean;
 };
 
 export type EventInput = {
@@ -51,4 +55,6 @@ export type EventListItem = {
   createdBy: string | null;
   groups: EventAudienceGroup[];
   musicians: EventAudienceMusician[];
+  recurrenceId: string | null;
+  isException: boolean;
 };
