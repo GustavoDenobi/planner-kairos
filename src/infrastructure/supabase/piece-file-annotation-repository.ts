@@ -3,7 +3,7 @@ import type { AnnotationGeometry, PdfAnnotation, UpdatePdfAnnotationInput } from
 import { supabase } from './client';
 
 const ANNOTATION_COLUMNS =
-  'id, organization_id, piece_file_id, page_number, layer, type, geometry, color, author_user_id, section_id, created_at, updated_at';
+  'id, organization_id, piece_file_id, page_number, layer, type, geometry, color, author_user_id, section_id, annotation_set_id, created_at, updated_at';
 
 function mapAnnotation(row: {
   id: string;
@@ -16,6 +16,7 @@ function mapAnnotation(row: {
   color: string;
   author_user_id: string;
   section_id: string | null;
+  annotation_set_id: string | null;
   created_at: string;
   updated_at: string;
 }): PdfAnnotation {
@@ -30,6 +31,7 @@ function mapAnnotation(row: {
     color: row.color,
     authorUserId: row.author_user_id,
     sectionId: row.section_id,
+    annotationSetId: row.annotation_set_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -68,6 +70,7 @@ export function createPieceFileAnnotationRepository(): PieceFileAnnotationReposi
           color: input.color,
           author_user_id: authorUserId,
           section_id: input.sectionId ?? null,
+          annotation_set_id: input.annotationSetId ?? null,
         })
         .select(ANNOTATION_COLUMNS)
         .single();

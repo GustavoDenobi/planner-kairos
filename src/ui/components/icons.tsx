@@ -180,6 +180,36 @@ export function IconPencil(props: IconProps) {
   );
 }
 
+export function IconPen(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 19l7-7 3 3-7 7-3-3z" />
+      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+      <path d="m2 2 7.586 7.586" />
+      <circle cx="11" cy="11" r="2" />
+    </svg>
+  );
+}
+
+export function IconHighlighter(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m9 11-6 6v3h9l3-3" />
+      <path d="m22 12-4.6 4.6a2 2 0 0 1-2.828 0l-5.172-5.172a2 2 0 0 1 0-2.828L14 4" />
+    </svg>
+  );
+}
+
+export function IconEraser(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+      <path d="M22 21H7" />
+      <path d="m5 11 9 9" />
+    </svg>
+  );
+}
+
 export function IconTrash(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -279,9 +309,9 @@ export function IconZoomIn(props: IconProps) {
 
 export function IconMetronome(props: IconProps) {
   return (
-    <svg {...defaults} {...props} viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" id="Metronome--Streamline-Tabler" height="24" width="24">
-      <path d="m14.153 8.188 -0.72 -3.236a2.493 2.493 0 0 0 -4.867 0L5.541 18.566A2 2 0 0 0 7.493 21h7.014a2 2 0 0 0 1.952 -2.434l-0.524 -2.357M11 18l9 -13" stroke-width="2"></path>
-      <path d="M19 5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" stroke-width="2"></path>
+    <svg {...defaults} {...props} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" id="Metronome--Streamline-Tabler" height="24" width="24">
+      <path d="m14.153 8.188 -0.72 -3.236a2.493 2.493 0 0 0 -4.867 0L5.541 18.566A2 2 0 0 0 7.493 21h7.014a2 2 0 0 0 1.952 -2.434l-0.524 -2.357M11 18l9 -13" strokeWidth="2"></path>
+      <path d="M19 5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" strokeWidth="2"></path>
     </svg>
   );
 }

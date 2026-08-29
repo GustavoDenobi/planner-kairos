@@ -47,6 +47,19 @@ export {
   resolveHighlightColor,
 } from './piece-file-annotation';
 export type {
+  AnnotationSet,
+  AnnotationSetGroup,
+  AnnotationSetMusician,
+  CreateAnnotationSetInput,
+  UpdateAnnotationSetInput,
+} from './annotation-set';
+export {
+  annotationSetHasAudience,
+  formatAnnotationSetLabel,
+  resolveAnnotationSetAudience,
+} from './annotation-set';
+export type { AnnotationSetAudienceLookup } from './annotation-set';
+export type {
   ReadingPlaylist,
   ReadingPlaylistDetail,
   ReadingPlaylistItem,
@@ -73,7 +86,10 @@ export {
   validateUpdatePdfNavigationShortcutInput,
   validateAnnotationGeometry,
   validateAnnotationLayer,
+  validateCreateAnnotationSetInput,
   validateCreatePdfAnnotationInput,
+  validateDirectedAnnotationAudience,
+  validateUpdateAnnotationSetInput,
   validateCreateReadingPlaylistInput,
   validatePieceCategoryInput,
   validatePieceFileMime,

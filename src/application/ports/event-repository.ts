@@ -30,6 +30,11 @@ export type EventOccurrencePatch = {
 export type EventRepository = {
   listInRange(organizationId: string, options: ListEventsInRangeOptions): Promise<EventListItem[]>;
   getById(organizationId: string, eventId: string): Promise<EventDetail | null>;
+  getOccurrenceByIndex(
+    organizationId: string,
+    recurrenceId: string,
+    occurrenceIndex: number,
+  ): Promise<EventDetail | null>;
   create(organizationId: string, input: EventInput): Promise<EventDetail>;
   update(organizationId: string, eventId: string, input: EventInput): Promise<EventDetail>;
   replaceProgram(

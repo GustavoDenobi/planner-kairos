@@ -17,16 +17,26 @@ import type { MembershipRepository } from '@/application/ports/membership-reposi
 import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type {
   CreatePdfAnnotationInput,
+  CreateAnnotationSetInput,
   CreatePdfNavigationShortcutInput,
+  UpdateAnnotationSetInput,
   UpdatePdfAnnotationInput,
   UpdatePdfNavigationShortcutInput,
 } from '@/domain/repertoire';
+import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
+import {
+  createAnnotationSetWithOffline,
+  deleteAnnotationSetWithOffline,
+  listAnnotationSetsForReading,
+  updateAnnotationSetWithOffline,
+} from './annotation-set-offline-use-cases';
 import {
   createNavigationShortcutWithOffline,
   deleteNavigationShortcutWithOffline,
@@ -109,6 +119,7 @@ export type OfflineUseCaseDeps = {
   fileRepo: PieceFileRepository;
   fileStorage: FileStorage;
   annotationRepo: PieceFileAnnotationRepository;
+  annotationSetRepo: AnnotationSetRepository;
   navigationShortcutRepo: PieceFileNavigationShortcutRepository;
   playlistRepo: ReadingPlaylistRepository;
   offlineStorage: OfflineStoragePorts;
@@ -161,6 +172,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         playlistCache,
         deps.annotationRepo,
         annotationStore,
+        deps.annotationSetRepo,
         deps.navigationShortcutRepo,
         navigationShortcutStore,
         organizationId,
@@ -183,6 +195,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         playlistCache,
         deps.annotationRepo,
         annotationStore,
+        deps.annotationSetRepo,
         deps.navigationShortcutRepo,
         navigationShortcutStore,
         organizationId,
@@ -205,12 +218,73 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         fileId,
       ),
 
-    listAnnotationsForReading: (organizationId: string, pieceFileId: string) =>
+    listAnnotationsForReading: (
+      organizationId: string,
+      pieceFileId: string,
+      viewer?: AnnotationViewerContext,
+    ) =>
       listAnnotationsForReading(
         deps.annotationRepo,
         annotationStore,
         organizationId,
         pieceFileId,
+        viewer,
+      ),
+
+    listAnnotationSetsForReading: (
+      organizationId: string,
+      pieceFileId: string,
+      viewer?: AnnotationViewerContext,
+    ) =>
+      listAnnotationSetsForReading(
+        deps.annotationSetRepo,
+        annotationStore,
+        organizationId,
+        pieceFileId,
+        viewer,
+      ),
+
+    createAnnotationSet: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      input: CreateAnnotationSetInput,
+      audienceLookup?: import('@/domain/repertoire').AnnotationSetAudienceLookup,
+    ) =>
+      createAnnotationSetWithOffline(
+        deps.annotationSetRepo,
+        annotationStore,
+        organizationId,
+        pieceId,
+        authorUserId,
+        input,
+        audienceLookup,
+      ),
+
+    updateAnnotationSet: (
+      organizationId: string,
+      setId: string,
+      input: UpdateAnnotationSetInput,
+    ) =>
+      updateAnnotationSetWithOffline(
+        deps.annotationSetRepo,
+        annotationStore,
+        organizationId,
+        setId,
+        input,
+      ),
+
+    deleteAnnotationSet: (
+      organizationId: string,
+      pieceFileId: string,
+      setId: string,
+    ) =>
+      deleteAnnotationSetWithOffline(
+        deps.annotationSetRepo,
+        annotationStore,
+        organizationId,
+        pieceFileId,
+        setId,
       ),
 
     createPieceFileAnnotation: (
@@ -362,10 +436,12 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     estimatePlaylistCacheSize: (organizationId: string, pieceFileIds: string[]) =>
       estimatePlaylistCacheSize(deps.fileRepo, organizationId, pieceFileIds),
 
-    syncPendingOfflineChanges: async () => {
+    syncPendingOfflineChanges: async (currentUserId?: string | null) => {
       const annotationResult = await syncPendingOfflineChanges(
         deps.annotationRepo,
         annotationStore,
+        deps.annotationSetRepo,
+        currentUserId,
       );
       const shortcutResult = await syncPendingNavigationShortcutChanges(
         deps.navigationShortcutRepo,

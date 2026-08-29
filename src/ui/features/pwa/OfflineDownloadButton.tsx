@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { OfflineFileStatus } from '@/application/offline/types';
-
 import { useOffline } from '@/ui/app/AppServicesContext';
 
 import { ConfirmModal } from '@/ui/components/ConfirmModal';
 
-import { IconCheck, IconOffline } from '@/ui/components/icons';
+import { IconAlertTriangle, IconCheck, IconOffline } from '@/ui/components/icons';
 
 import { formatBytes, shouldWarnDownloadSize } from '@/ui/features/repertoire/pdf-load';
 
@@ -120,6 +118,7 @@ export function OfflineDownloadButton({
   const offline = useOffline();
   const online = useOnlineStatus();
   const [state, setState] = useState<ButtonState>('idle');
+  const [pendingSync, setPendingSync] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sizeConfirm, setSizeConfirm] = useState<SizeConfirmState | null>(null);
 
@@ -128,8 +127,11 @@ export function OfflineDownloadButton({
 
     if (!result.ok) {
       setState('idle');
+      setPendingSync(0);
       return;
     }
+
+    setPendingSync(result.value.pendingSyncCount);
 
     if (result.value.fileStatus === 'cached') {
       setState('cached');
@@ -142,7 +144,7 @@ export function OfflineDownloadButton({
 
   useEffect(() => {
     void refreshStatus();
-  }, [refreshStatus]);
+  }, [refreshStatus, online]);
 
   async function runDownload() {
     setState('downloading');
@@ -194,8 +196,13 @@ export function OfflineDownloadButton({
     (!online && state !== 'cached') ||
     (state === 'cached' && !allowRemove);
 
+  const pendingSyncLabel =
+    pendingSync === 1
+      ? '1 alteração pendente de sincronização'
+      : `${pendingSync} alterações pendentes de sincronização`;
+
   return (
-    <div className={className}>
+    <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
       <button
         type="button"
         onClick={() => void handleDownload()}
@@ -207,6 +214,15 @@ export function OfflineDownloadButton({
         <DownloadButtonIcon state={state} />
         {!compact && <span className="hidden sm:inline">{label}</span>}
       </button>
+      {pendingSync > 0 && (
+        <span
+          title={pendingSyncLabel}
+          aria-label={pendingSyncLabel}
+          className="inline-flex text-amber-600 dark:text-amber-400"
+        >
+          <IconAlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+        </span>
+      )}
       {!compact && errorMessage && <p className="mt-1 text-xs text-red-600">{errorMessage}</p>}
 
       <ConfirmModal
@@ -362,44 +378,3 @@ export function OfflinePlaylistDownloadButton({
   );
 }
 
-export function OfflineFileStatusBadge({
-  organizationId,
-  pieceId,
-  fileId,
-}: {
-  organizationId: string;
-  pieceId: string;
-  fileId: string;
-}) {
-  const offline = useOffline();
-  const [fileStatus, setFileStatus] = useState<OfflineFileStatus>('not_cached');
-  const [pendingSync, setPendingSync] = useState(0);
-
-  useEffect(() => {
-    void offline.getOfflineStatus(organizationId, pieceId, fileId).then((result) => {
-      if (result.ok) {
-        setFileStatus(result.value.fileStatus);
-        setPendingSync(result.value.pendingSyncCount);
-      }
-    });
-  }, [offline, organizationId, pieceId, fileId]);
-
-  if (pendingSync === 0 && fileStatus !== 'stale') {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs text-muted">
-      {fileStatus === 'stale' && (
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-          Download desatualizado
-        </span>
-      )}
-      {pendingSync > 0 && (
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
-          {pendingSync} pendente(s) de sync
-        </span>
-      )}
-    </div>
-  );
-}

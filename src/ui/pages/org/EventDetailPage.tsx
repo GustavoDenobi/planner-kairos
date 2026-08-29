@@ -520,12 +520,15 @@ export function EventDetailPage() {
                     organizationId={org.id}
                     eventId={eventId}
                     program={event.program}
-                    isAdmin
+                    canEditProgram={canWrite}
                     hideHeading
+                    recurrenceId={event.recurrenceId}
+                    occurrenceIndex={event.occurrenceIndex}
                     onProgramSaved={(program) =>
                       setEvent((current) => (current ? { ...current, program } : current))
                     }
                     setEventProgram={agenda.setEventProgram}
+                    getPreviousEventProgram={agenda.getPreviousEventProgram}
                   />
                 ) : null,
             },
@@ -553,17 +556,20 @@ export function EventDetailPage() {
               <p className="mt-2 whitespace-pre-wrap text-sm text-muted">{event.notes}</p>
             </section>
           )}
-          {event.program.length > 0 && org && eventId && (
+          {org && eventId && (event.program.length > 0 || event.recurrenceId) && (
             <EventProgramSection
               orgSlug={orgSlug ?? ''}
               organizationId={org.id}
               eventId={eventId}
               program={event.program}
-              isAdmin={false}
+              canEditProgram={false}
+              recurrenceId={event.recurrenceId}
+              occurrenceIndex={event.occurrenceIndex}
               onProgramSaved={(program) =>
                 setEvent((current) => (current ? { ...current, program } : current))
               }
               setEventProgram={agenda.setEventProgram}
+              getPreviousEventProgram={agenda.getPreviousEventProgram}
             />
           )}
         </div>

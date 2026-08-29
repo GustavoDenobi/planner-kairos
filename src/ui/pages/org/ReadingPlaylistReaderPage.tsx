@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, ReadingPlaylistDetail, UpdatePdfNavigationShortcutInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
+
+import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
-import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
+import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
+
+import { useEnsemble, useOffline, useRepertoire, useAgenda } from '@/ui/app/AppServicesContext';
 
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 
@@ -16,7 +20,11 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 
 import { BackLink } from '@/ui/components/BackButton';
 
-import { PdfViewer, PdfViewerPlaylistNav, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
+import { PdfViewer, PdfViewerPlaylistNav, type DirectedSetOption, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
+
+import { DirectedAnnotationSetModal } from '@/ui/features/repertoire/DirectedAnnotationSetModal';
+
+import { DirectedAnnotationSetManageModal } from '@/ui/features/repertoire/DirectedAnnotationSetManageModal';
 
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 
@@ -49,11 +57,7 @@ import { readReturnTo } from '@/ui/navigation/return-to';
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
 
 import {
-
   OfflineDownloadButton,
-
-  OfflineFileStatusBadge,
-
 } from '@/ui/features/pwa/OfflineDownloadButton';
 
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -150,6 +154,8 @@ export function ReadingPlaylistReaderPage() {
 
   const ensemble = useEnsemble();
 
+  const agenda = useAgenda();
+
   const { userId } = useAuth();
 
   const { resolveOrgBySlug } = useOrg();
@@ -181,6 +187,23 @@ export function ReadingPlaylistReaderPage() {
   const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
 
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
+
+  const [annotationSets, setAnnotationSets] = useState<AnnotationSet[]>([]);
+
+  const [canEditDirectedLayer, setCanEditDirectedLayer] = useState(false);
+
+  const [viewerContext, setViewerContext] = useState<AnnotationViewerContext | null>(null);
+
+  const [associableGroups, setAssociableGroups] = useState<Array<{ id: string; name: string; kind: import('@/domain/ensemble').GroupKind }>>([]);
+
+  const [associableMusicians, setAssociableMusicians] = useState<Array<{ id: string; name: string; partNames?: string[] }>>([]);
+
+  const [directedSetModalOpen, setDirectedSetModalOpen] = useState(false);
+  const [directedSetManageModalOpen, setDirectedSetManageModalOpen] = useState(false);
+  const [directedSetModalMode, setDirectedSetModalMode] = useState<'create' | 'edit'>('create');
+  const [directedSetSelectRequest, setDirectedSetSelectRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const [manageHighlightedSetId, setManageHighlightedSetId] = useState<string | null>(null);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(true);
 
@@ -348,26 +371,18 @@ export function ReadingPlaylistReaderPage() {
 
     const musicianResult = await ensemble.getMyMusician(organizationId, userId);
 
+    const assignmentsResult = musicianResult.ok
+      ? await ensemble.listAssignmentsForMusician(organizationId, musicianResult.value.id)
+      : null;
+
     if (!musicianResult.ok) {
-
+      setViewerContext({ userId, myMusicianId: null, memberGroupIds: [] });
       return;
-
     }
 
-
-
-    const assignmentsResult = await ensemble.listAssignmentsForMusician(
-
-      organizationId,
-
-      musicianResult.value.id,
-
-    );
-
-    if (!assignmentsResult.ok) {
-
+    if (!assignmentsResult?.ok) {
+      setViewerContext({ userId, myMusicianId: musicianResult.value.id, memberGroupIds: [] });
       return;
-
     }
 
 
@@ -405,6 +420,12 @@ export function ReadingPlaylistReaderPage() {
     }
 
     setSectionLeadOptions(leads);
+
+    setViewerContext({
+      userId,
+      myMusicianId: musicianResult.value.id,
+      memberGroupIds: [...new Set(assignmentsResult.value.map((assignment) => assignment.groupId))],
+    });
 
     sectionLeadsLoadedRef.current = true;
 
@@ -486,7 +507,7 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await itemCacheRef.current.load(index, () =>
 
-        loadPlaylistItemData(offline, organizationId, item),
+        loadPlaylistItemData(offline, organizationId, item, viewerContext ?? undefined),
 
       );
 
@@ -522,6 +543,17 @@ export function ReadingPlaylistReaderPage() {
 
       setAnnotations(result.annotations);
 
+      if (viewerContext) {
+        const setsResult = await offline.listAnnotationSetsForReading(
+          organizationId,
+          item.pieceFileId,
+          viewerContext,
+        );
+        if (setsResult.ok) {
+          setAnnotationSets(setsResult.value);
+        }
+      }
+
       setNavigationShortcuts(result.navigationShortcuts);
 
       setIsCachedLocally(result.isCachedLocally);
@@ -534,7 +566,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [organizationId, playlist, offline, online],
+    [organizationId, playlist, offline, online, viewerContext],
 
   );
 
@@ -640,7 +672,9 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-      itemCacheRef.current.prefetch(index, () => loadPlaylistItemData(offline, organizationId, item));
+      itemCacheRef.current.prefetch(index, () =>
+        loadPlaylistItemData(offline, organizationId, item, viewerContext ?? undefined),
+      );
 
     }
 
@@ -750,7 +784,12 @@ export function ReadingPlaylistReaderPage() {
 
     const cached = await itemCacheRef.current.load(previousIndex, () =>
 
-      loadPlaylistItemData(offline, organizationId, playlist.items[previousIndex]),
+      loadPlaylistItemData(
+        offline,
+        organizationId,
+        playlist.items[previousIndex],
+        viewerContext ?? undefined,
+      ),
 
     );
 
@@ -960,7 +999,7 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-      if (!online && input.layer === 'section') {
+      if (!online && (input.layer === 'section' || input.layer === 'directed')) {
 
         return null;
 
@@ -1041,6 +1080,220 @@ export function ReadingPlaylistReaderPage() {
     },
 
     [organizationId, currentItem, offline],
+
+  );
+
+
+
+  useEffect(() => {
+
+    if (!organizationId || !userId) {
+
+      setCanEditDirectedLayer(false);
+
+      setAssociableGroups([]);
+
+      setAssociableMusicians([]);
+
+      return;
+
+    }
+
+    const resolvedOrganizationId = organizationId;
+    const resolvedUserId = userId;
+
+    async function loadAudience() {
+
+      const audienceResult = online
+
+        ? await agenda.listAssociableAudience(resolvedOrganizationId, resolvedUserId)
+
+        : null;
+
+      const cachedAudience = online
+
+        ? null
+
+        : await offline.getCachedAssociableAudience(resolvedOrganizationId, resolvedUserId);
+
+
+
+      if (audienceResult?.ok) {
+
+        setCanEditDirectedLayer(isAdmin || audienceResult.value.isGroupWriter);
+
+        setAssociableGroups(audienceResult.value.groups);
+
+        setAssociableMusicians(
+
+          audienceResult.value.musicians.map((musician) => ({
+
+            id: musician.id,
+
+            name: musician.name,
+
+            partNames: musician.partNames,
+
+          })),
+
+        );
+
+      } else if (cachedAudience) {
+
+        setCanEditDirectedLayer(isAdmin || cachedAudience.isGroupWriter);
+
+        setAssociableGroups(cachedAudience.groups);
+
+        setAssociableMusicians(
+
+          cachedAudience.musicians.map((musician) => ({
+
+            id: musician.id,
+
+            name: musician.name,
+
+            partNames: musician.partNames,
+
+          })),
+
+        );
+
+      }
+
+    }
+
+
+
+    void loadAudience();
+
+  }, [organizationId, userId, online, agenda, offline, isAdmin]);
+
+
+
+  const audienceLookup = useMemo(
+    () => ({
+      groups: associableGroups,
+      musicians: associableMusicians.map((musician) => ({
+        id: musician.id,
+        name: musician.name,
+      })),
+    }),
+    [associableGroups, associableMusicians],
+  );
+
+  const directedSetOptions = useMemo((): DirectedSetOption[] => {
+
+    return annotationSets.map((set) => ({
+
+      id: set.id,
+
+      label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
+
+      canEdit: Boolean(userId && set.authorUserId === userId),
+
+    }));
+
+  }, [annotationSets, userId, audienceLookup]);
+
+  const editingSet = editingSetId
+    ? annotationSets.find((set) => set.id === editingSetId) ?? null
+    : null;
+
+  const editableAnnotationSets = useMemo(
+    () => annotationSets.filter((set) => Boolean(userId && set.authorUserId === userId)),
+    [annotationSets, userId],
+  );
+
+  const openDirectedSetCreate = useCallback(() => {
+    setDirectedSetManageModalOpen(false);
+    setDirectedSetModalMode('create');
+    setEditingSetId(null);
+    setDirectedSetModalOpen(true);
+  }, []);
+
+  const openDirectedSetEdit = useCallback((set: AnnotationSet) => {
+    setDirectedSetManageModalOpen(false);
+    setDirectedSetModalMode('edit');
+    setEditingSetId(set.id);
+    setDirectedSetModalOpen(true);
+  }, []);
+
+  const handleDirectedSetDelete = useCallback(
+    async (setId: string) => {
+      if (!organizationId || !currentItem?.pieceFileId) {
+        return false;
+      }
+
+      const result = await offline.deleteAnnotationSet(
+        organizationId,
+        currentItem.pieceFileId,
+        setId,
+      );
+      if (!result.ok) {
+        return false;
+      }
+
+      setAnnotationSets((current) => current.filter((set) => set.id !== setId));
+      setAnnotations((current) =>
+        current.filter((annotation) => annotation.annotationSetId !== setId),
+      );
+      if (editingSetId === setId) {
+        setEditingSetId(null);
+        setDirectedSetModalOpen(false);
+      }
+      return true;
+    },
+    [organizationId, currentItem, offline, editingSetId],
+  );
+
+  const handleDirectedSetSubmit = useCallback(
+
+    async (input: CreateAnnotationSetInput | UpdateAnnotationSetInput) => {
+
+      if (!organizationId || !userId || !currentItem?.pieceId) {
+
+        return false;
+
+      }
+
+      if (directedSetModalMode === 'create') {
+        const result = await offline.createAnnotationSet(
+          organizationId,
+          currentItem.pieceId,
+          userId,
+          {
+            ...(input as CreateAnnotationSetInput),
+            pieceFileId: currentItem.pieceFileId,
+          },
+          audienceLookup,
+        );
+
+        if (!result.ok) {
+          return false;
+        }
+
+        setAnnotationSets((current) => [...current, result.value]);
+        setDirectedSetSelectRequest({ id: result.value.id, nonce: Date.now() });
+        return true;
+      }
+
+      if (!editingSetId) {
+        return false;
+      }
+
+      const result = await offline.updateAnnotationSet(organizationId, editingSetId, input);
+      if (!result.ok) {
+        return false;
+      }
+
+      setAnnotationSets((current) =>
+        current.map((set) => (set.id === editingSetId ? result.value : set)),
+      );
+      return true;
+
+    },
+
+    [organizationId, userId, currentItem, offline, audienceLookup, directedSetModalMode, editingSetId],
 
   );
 
@@ -1654,14 +1907,6 @@ export function ReadingPlaylistReaderPage() {
 
     >
 
-      {org && currentItem.pieceId && (
-        <OfflineFileStatusBadge
-          organizationId={org.id}
-          pieceId={currentItem.pieceId}
-          fileId={currentItem.pieceFileId}
-        />
-      )}
-
       <PdfViewer
 
         key={currentItem.pieceFileId}
@@ -1673,6 +1918,17 @@ export function ReadingPlaylistReaderPage() {
         annotations={annotations}
 
         sectionLeadOptions={sectionLeadOptions}
+
+        directedSetOptions={directedSetOptions}
+
+        canEditDirectedLayer={canEditDirectedLayer}
+
+        directedSetSelectRequest={directedSetSelectRequest}
+
+        onManageDirectedSet={(context) => {
+          setManageHighlightedSetId(context?.activeDirectedSetId ?? null);
+          setDirectedSetManageModalOpen(true);
+        }}
 
         playlist={playlistContext}
 
@@ -1723,6 +1979,39 @@ export function ReadingPlaylistReaderPage() {
         onNavigationShortcutReorder={handleNavigationShortcutReorder}
 
       />
+
+
+
+      {organizationId && currentItem && (
+        <>
+          <DirectedAnnotationSetManageModal
+            open={directedSetManageModalOpen}
+            sets={editableAnnotationSets}
+            audienceLookup={audienceLookup}
+            highlightedSetId={manageHighlightedSetId}
+            onClose={() => {
+              setDirectedSetManageModalOpen(false);
+              setManageHighlightedSetId(null);
+            }}
+            onCreate={openDirectedSetCreate}
+            onEdit={openDirectedSetEdit}
+            onDelete={handleDirectedSetDelete}
+          />
+          <DirectedAnnotationSetModal
+            open={directedSetModalOpen}
+            mode={directedSetModalMode}
+            groups={associableGroups}
+            musicians={associableMusicians}
+            initialSet={editingSet}
+            disabled={!online && directedSetModalMode === 'create'}
+            onClose={() => {
+              setDirectedSetModalOpen(false);
+              setEditingSetId(null);
+            }}
+            onSubmit={handleDirectedSetSubmit}
+          />
+        </>
+      )}
 
 
 

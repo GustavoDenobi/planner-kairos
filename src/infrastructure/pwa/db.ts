@@ -18,12 +18,32 @@ export type CachedAnnotationRecord = {
   organizationId: string;
   pieceFileId: string;
   pageNumber: number;
-  layer: 'personal' | 'section';
+  layer: 'personal' | 'section' | 'directed';
   type: 'stroke' | 'highlight';
   geometryJson: string;
   color: string;
   authorUserId: string;
   sectionId: string | null;
+  annotationSetId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: AnnotationSyncStatus;
+};
+
+export type CachedAnnotationSetAudience = {
+  groupIds: string[];
+  musicianIds: string[];
+  groups: Array<{ id: string; name: string; kind: string }>;
+  musicians: Array<{ id: string; fullName: string }>;
+};
+
+export type CachedAnnotationSetRecord = {
+  id: string;
+  organizationId: string;
+  pieceFileId: string;
+  authorUserId: string;
+  title: string | null;
+  audienceJson: string;
   createdAt: string;
   updatedAt: string;
   syncStatus: AnnotationSyncStatus;
@@ -31,7 +51,7 @@ export type CachedAnnotationRecord = {
 
 export type SyncOutboxRecord = {
   id: string;
-  op: 'create' | 'delete';
+  op: 'create' | 'delete' | 'create_annotation_set' | 'update_annotation_set' | 'delete_annotation_set';
   payloadJson: string;
   createdAt: string;
   retryCount: number;
@@ -120,6 +140,7 @@ export type NavigationShortcutSyncOutboxRecord = {
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
+  cachedAnnotationSets!: Table<CachedAnnotationSetRecord, string>;
   syncOutbox!: Table<SyncOutboxRecord, string>;
   cachedPlaylists!: Table<CachedPlaylistRecord, string>;
   identitySnapshot!: Table<IdentitySnapshotRecord, string>;
@@ -192,6 +213,22 @@ export class PlannerKairosOfflineDb extends Dexie {
       cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
       cachedAnnotations:
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedOrgImages: 'storageKey',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
+    });
+    this.version(8).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, annotationSetId, [organizationId+pieceFileId]',
+      cachedAnnotationSets:
+        'id, pieceFileId, organizationId, syncStatus, authorUserId, [organizationId+pieceFileId]',
       syncOutbox: 'id, createdAt',
       cachedPlaylists: 'playlistId, organizationId',
       identitySnapshot: 'id, userId',

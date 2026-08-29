@@ -217,11 +217,26 @@ describe('validateAnnotationLayer', () => {
     expect(validateAnnotationLayer('personal', 'section-1')).toBe(
       'personal_layer_requires_no_section',
     );
+    expect(
+      validateAnnotationLayer('personal', { sectionId: null, annotationSetId: 'set-1' }),
+    ).toBe('personal_layer_requires_no_set');
   });
 
   it('requires section for section layer', () => {
     expect(validateAnnotationLayer('section', 'section-1')).toBeNull();
     expect(validateAnnotationLayer('section', null)).toBe('section_layer_requires_section');
+  });
+
+  it('requires annotation set for directed layer', () => {
+    expect(
+      validateAnnotationLayer('directed', { sectionId: null, annotationSetId: 'set-1' }),
+    ).toBeNull();
+    expect(validateAnnotationLayer('directed', { sectionId: null, annotationSetId: null })).toBe(
+      'directed_layer_requires_set',
+    );
+    expect(
+      validateAnnotationLayer('directed', { sectionId: 'section-1', annotationSetId: 'set-1' }),
+    ).toBe('directed_layer_requires_no_section');
   });
 });
 

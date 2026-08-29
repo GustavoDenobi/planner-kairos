@@ -152,6 +152,7 @@ function createRepos(options?: {
     markAsException: vi.fn(),
     bulkUpdateFutureOccurrences: vi.fn(),
     replaceAudienceForFutureOccurrences: vi.fn(),
+    getOccurrenceByIndex: vi.fn(async () => null),
   };
 
   const orgRepo: OrganizationRepository = {

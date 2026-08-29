@@ -18,6 +18,9 @@ import type {
   CreateReadingPlaylistInput,
   UpdateReadingPlaylistInput,
 } from './reading-playlist';
+import { validateEventAudienceForGroupWriter } from '@/domain/agenda/rules';
+import type { CreateAnnotationSetInput, UpdateAnnotationSetInput } from './annotation-set';
+import { annotationSetHasAudience } from './annotation-set';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -237,7 +240,10 @@ export function validateCreatePdfAnnotationInput(input: CreatePdfAnnotationInput
     return 'invalid_color';
   }
 
-  const layerError = validateAnnotationLayer(input.layer, input.sectionId ?? null);
+  const layerError = validateAnnotationLayer(input.layer, {
+    sectionId: input.sectionId ?? null,
+    annotationSetId: input.annotationSetId ?? null,
+  });
   if (layerError) {
     return layerError;
   }
@@ -245,16 +251,90 @@ export function validateCreatePdfAnnotationInput(input: CreatePdfAnnotationInput
   return validateAnnotationGeometry(input.type, input.geometry);
 }
 
+export type AnnotationLayerRefs = {
+  sectionId: string | null;
+  annotationSetId: string | null;
+};
+
 export function validateAnnotationLayer(
   layer: AnnotationLayer,
-  sectionId: string | null,
+  refs: AnnotationLayerRefs | string | null,
 ): string | null {
-  if (layer === 'personal' && sectionId !== null) {
-    return 'personal_layer_requires_no_section';
+  const sectionId = typeof refs === 'object' && refs !== null && 'sectionId' in refs
+    ? refs.sectionId
+    : (refs as string | null);
+  const annotationSetId = typeof refs === 'object' && refs !== null && 'annotationSetId' in refs
+    ? refs.annotationSetId
+    : null;
+
+  if (layer === 'personal') {
+    if (sectionId !== null) {
+      return 'personal_layer_requires_no_section';
+    }
+    if (annotationSetId !== null) {
+      return 'personal_layer_requires_no_set';
+    }
+    return null;
   }
-  if (layer === 'section' && !sectionId?.trim()) {
-    return 'section_layer_requires_section';
+
+  if (layer === 'section') {
+    if (!sectionId?.trim()) {
+      return 'section_layer_requires_section';
+    }
+    if (annotationSetId !== null) {
+      return 'section_layer_requires_no_set';
+    }
+    return null;
   }
+
+  if (layer === 'directed') {
+    if (sectionId !== null) {
+      return 'directed_layer_requires_no_section';
+    }
+    if (!annotationSetId?.trim()) {
+      return 'directed_layer_requires_set';
+    }
+    return null;
+  }
+
+  return null;
+}
+
+export function validateDirectedAnnotationAudience(input: {
+  groupIds: string[];
+  musicianIds: string[];
+  writableGroupIds: string[];
+  musicianGroupIdsByMusicianId: Record<string, string[]>;
+  creatorMusicianId: string | null;
+}): string | null {
+  if (!annotationSetHasAudience(input)) {
+    return 'audience_required';
+  }
+
+  return validateEventAudienceForGroupWriter(input);
+}
+
+export function validateCreateAnnotationSetInput(input: CreateAnnotationSetInput): string | null {
+  if (!input.pieceFileId.trim()) {
+    return 'invalid_piece_file';
+  }
+
+  if (!annotationSetHasAudience(input)) {
+    return 'audience_required';
+  }
+
+  return null;
+}
+
+export function validateUpdateAnnotationSetInput(input: UpdateAnnotationSetInput): string | null {
+  if (input.groupIds !== undefined || input.musicianIds !== undefined) {
+    const groupIds = input.groupIds ?? [];
+    const musicianIds = input.musicianIds ?? [];
+    if (!annotationSetHasAudience({ groupIds, musicianIds })) {
+      return 'audience_required';
+    }
+  }
+
   return null;
 }
 

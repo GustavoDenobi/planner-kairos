@@ -411,6 +411,22 @@ export function createEventRepository(): EventRepository {
       return buildEventDetail(organizationId, row);
     },
 
+    async getOccurrenceByIndex(organizationId, recurrenceId, occurrenceIndex) {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`${EVENT_COLUMNS}, event_types (${EVENT_TYPE_COLUMNS})`)
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .eq('occurrence_index', occurrenceIndex)
+        .maybeSingle();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return buildEventDetail(organizationId, data as EventRow);
+    },
+
     async create(organizationId, input: EventInput) {
       const { data, error } = await supabase
         .from('events')

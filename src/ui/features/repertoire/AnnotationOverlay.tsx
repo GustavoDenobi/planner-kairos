@@ -8,7 +8,7 @@ import type {
 import { resolveHighlightColor } from '@/domain/repertoire';
 import {
   ERASER_HIT_RADIUS,
-  findAnnotationAtPoint,
+  findErasableAnnotationAtPoint,
   HIGHLIGHT_STROKE_WIDTH,
   PEN_STROKE_WIDTH,
   toNormalizedCoords,
@@ -19,7 +19,40 @@ export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser';
 export type VisibleLayers = {
   personal: boolean;
   section: boolean;
+  directed: Record<string, boolean>;
 };
+
+function isDirectedLayerVisible(
+  annotation: PdfAnnotation,
+  visibleLayers: VisibleLayers,
+): boolean {
+  if (!annotation.annotationSetId) {
+    return false;
+  }
+  return visibleLayers.directed[annotation.annotationSetId] ?? false;
+}
+
+function filterPageAnnotations(
+  annotations: PdfAnnotation[],
+  pageNumber: number,
+  visibleLayers: VisibleLayers,
+) {
+  return annotations.filter((annotation) => {
+    if (annotation.pageNumber !== pageNumber) {
+      return false;
+    }
+    if (annotation.layer === 'personal') {
+      return visibleLayers.personal;
+    }
+    if (annotation.layer === 'section') {
+      return visibleLayers.section;
+    }
+    if (annotation.layer === 'directed') {
+      return isDirectedLayerVisible(annotation, visibleLayers);
+    }
+    return false;
+  });
+}
 
 type SharedProps = {
   pageNumber: number;
@@ -53,22 +86,6 @@ type InteractionLayerProps = SharedProps & {
 
 function isStrokeGeometry(geometry: PdfAnnotation['geometry']): geometry is StrokeGeometry {
   return 'points' in geometry;
-}
-
-function filterPageAnnotations(
-  annotations: PdfAnnotation[],
-  pageNumber: number,
-  visibleLayers: VisibleLayers,
-) {
-  return annotations.filter((annotation) => {
-    if (annotation.pageNumber !== pageNumber) {
-      return false;
-    }
-    if (annotation.layer === 'personal') {
-      return visibleLayers.personal;
-    }
-    return visibleLayers.section;
-  });
 }
 
 function highlightBlendMode(inverted: boolean): 'multiply' | 'screen' {
@@ -248,8 +265,13 @@ export function AnnotationInteractionLayer({
       event.currentTarget.setPointerCapture(event.pointerId);
 
       if (mode === 'eraser') {
-        const target = findAnnotationAtPoint(pageAnnotations, point, ERASER_HIT_RADIUS);
-        if (target && canEraseAnnotation(target)) {
+        const target = findErasableAnnotationAtPoint(
+          pageAnnotations,
+          point,
+          canEraseAnnotation,
+          ERASER_HIT_RADIUS,
+        );
+        if (target) {
           onEraseAnnotation(target.id);
         }
         return;
@@ -284,8 +306,17 @@ export function AnnotationInteractionLayer({
       }
 
       if (mode === 'eraser') {
-        const target = findAnnotationAtPoint(pageAnnotations, point, ERASER_HIT_RADIUS);
-        if (target && canEraseAnnotation(target)) {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+          return;
+        }
+
+        const target = findErasableAnnotationAtPoint(
+          pageAnnotations,
+          point,
+          canEraseAnnotation,
+          ERASER_HIT_RADIUS,
+        );
+        if (target) {
           onEraseAnnotation(target.id);
         }
         return;
@@ -349,7 +380,7 @@ export function AnnotationInteractionLayer({
       className={`absolute inset-0 h-full w-full ${
         interactive ? 'touch-none cursor-crosshair' : 'pointer-events-none'
       } ${mode === 'eraser' && interactive ? 'cursor-cell' : ''}`}
-      style={{ zIndex: 2 }}
+      style={{ zIndex: interactive ? 30 : 2 }}
       viewBox="0 0 1 1"
       preserveAspectRatio="none"
       aria-hidden={mode === 'read'}

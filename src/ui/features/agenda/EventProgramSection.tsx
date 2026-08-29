@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { PreviousEventProgram } from '@/application/agenda';
 import type { EventDetail, ProgramItemDetail, ProgramItemStatus } from '@/domain/agenda';
 import type { Result } from '@/domain/shared';
 import type { PieceListItem } from '@/domain/repertoire';
@@ -14,6 +15,7 @@ import {
   programItemStatusLabel,
 } from '@/ui/features/agenda/agenda-labels';
 import { EventProgramPiecePicker } from '@/ui/features/agenda/EventProgramPiecePicker';
+import { EventPreviousProgramSection } from '@/ui/features/agenda/EventPreviousProgramSection';
 
 const PROGRAM_ITEM_STATUSES: ProgramItemStatus[] = ['planned', 'performed', 'skipped'];
 
@@ -36,14 +38,20 @@ type EventProgramSectionProps = {
   organizationId: string;
   eventId: string;
   program: ProgramItemDetail[];
-  isAdmin: boolean;
+  canEditProgram: boolean;
   hideHeading?: boolean;
+  recurrenceId?: string | null;
+  occurrenceIndex?: number | null;
   onProgramSaved: (program: ProgramItemDetail[]) => void;
   setEventProgram: (
     organizationId: string,
     eventId: string,
     items: { pieceId: string; notes?: string | null; status?: ProgramItemStatus }[],
   ) => Promise<Result<EventDetail>>;
+  getPreviousEventProgram?: (
+    organizationId: string,
+    eventId: string,
+  ) => Promise<Result<PreviousEventProgram | null>>;
 };
 
 function toRows(program: ProgramItemDetail[]): ProgramRow[] {
@@ -123,10 +131,13 @@ export function EventProgramSection({
   organizationId,
   eventId,
   program,
-  isAdmin,
+  canEditProgram,
   hideHeading = false,
+  recurrenceId = null,
+  occurrenceIndex = null,
   onProgramSaved,
   setEventProgram,
+  getPreviousEventProgram,
 }: EventProgramSectionProps) {
   const repertoire = useRepertoire();
   const [rows, setRows] = useState<ProgramRow[]>(() => toRows(program));
@@ -240,9 +251,29 @@ export function EventProgramSection({
     await saveProgram(nextRows);
   }
 
+  async function handleIncludePreviousProgram(items: ProgramItemDetail[]) {
+    const nextRows: ProgramRow[] = items.map((item, index) => ({
+      id: `draft-${item.pieceId}-${Date.now()}-${index}`,
+      pieceId: item.pieceId,
+      pieceTitle: item.pieceTitle,
+      pieceDeleted: false,
+      pieceCategory: item.pieceCategory,
+      notes: item.notes ?? '',
+      status: 'planned',
+    }));
+    setRows(nextRows);
+    return saveProgram(nextRows);
+  }
+
+  const showPreviousSection =
+    Boolean(recurrenceId) &&
+    occurrenceIndex != null &&
+    occurrenceIndex > 0 &&
+    getPreviousEventProgram;
+
   return (
     <section className="space-y-3">
-      {(isAdmin || !hideHeading) && (
+      {(canEditProgram || !hideHeading) && (
         <div
           className={`flex items-center gap-3 ${hideHeading ? 'justify-end' : 'justify-between'}`}
         >
@@ -257,7 +288,7 @@ export function EventProgramSection({
                 Preparar playlist
               </Link>
             )}
-            {isAdmin && (
+            {canEditProgram && (
               <button
                 type="button"
                 onClick={() => {
@@ -279,7 +310,7 @@ export function EventProgramSection({
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted text-center">Nenhuma obra na programação.</p>
-      ) : isAdmin ? (
+      ) : canEditProgram ? (
         <SortableList
           items={rows}
           onReorder={handleReorder}
@@ -401,6 +432,20 @@ export function EventProgramSection({
         isSearching={isSearching}
         onSelect={(pieceId) => void handleAdd(pieceId)}
       />
+
+      {showPreviousSection && (
+        <EventPreviousProgramSection
+          orgSlug={orgSlug}
+          organizationId={organizationId}
+          eventId={eventId}
+          recurrenceId={recurrenceId!}
+          occurrenceIndex={occurrenceIndex!}
+          canEditProgram={canEditProgram}
+          isSaving={isSaving}
+          getPreviousEventProgram={getPreviousEventProgram!}
+          onInclude={handleIncludePreviousProgram}
+        />
+      )}
     </section>
   );
 }

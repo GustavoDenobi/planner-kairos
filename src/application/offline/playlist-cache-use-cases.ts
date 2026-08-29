@@ -48,6 +48,7 @@ async function removeUnreferencedFiles(
 async function cacheAnnotationsAndShortcutsForFile(
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
@@ -67,8 +68,25 @@ async function cacheAnnotationsAndShortcutsForFile(
       color: annotation.color,
       authorUserId: annotation.authorUserId,
       sectionId: annotation.sectionId,
+      annotationSetId: annotation.annotationSetId,
       createdAt: annotation.createdAt,
       updatedAt: annotation.updatedAt,
+      syncStatus: 'synced',
+    });
+  }
+
+  const sets = await setRepo.listForFile(organizationId, pieceFileId);
+  for (const set of sets) {
+    await annotationStore.upsertSet({
+      id: set.id,
+      organizationId: set.organizationId,
+      pieceFileId: set.pieceFileId,
+      authorUserId: set.authorUserId,
+      title: set.title,
+      groups: set.groups,
+      musicians: set.musicians,
+      createdAt: set.createdAt,
+      updatedAt: set.updatedAt,
       syncStatus: 'synced',
     });
   }
@@ -92,6 +110,7 @@ export async function cacheReadingPlaylistForOffline(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
@@ -135,6 +154,7 @@ export async function cacheReadingPlaylistForOffline(
       await cacheAnnotationsAndShortcutsForFile(
         annotationRepo,
         annotationStore,
+        setRepo,
         navigationShortcutRepo,
         navigationShortcutStore,
         organizationId,
@@ -184,6 +204,7 @@ export async function cacheUserReadingPlaylistsForOffline(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
@@ -205,6 +226,7 @@ export async function cacheUserReadingPlaylistsForOffline(
     playlistCache,
     annotationRepo,
     annotationStore,
+    setRepo,
     navigationShortcutRepo,
     navigationShortcutStore,
     organizationId,
@@ -230,6 +252,7 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
   playlistCache: OfflinePlaylistCache,
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
   organizationId: string,
@@ -266,6 +289,7 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
       playlistCache,
       annotationRepo,
       annotationStore,
+      setRepo,
       navigationShortcutRepo,
       navigationShortcutStore,
       organizationId,
@@ -317,14 +341,20 @@ export async function removeCachedPlaylist(
 export async function syncPendingOfflineChanges(
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
+  setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
+  currentUserId?: string | null,
 ): Promise<{ synced: number; failed: number }> {
-  if (!isBrowserOnline()) {
+  if (!isBrowserOnline() || !currentUserId) {
     return { synced: 0, failed: 0 };
   }
 
+  const { syncPendingAnnotationSetChanges } = await import('./annotation-set-offline-use-cases');
+  const { isPermanentSyncAuthError, resolveSyncAuthorUserId } = await import('./sync-auth');
+  const setResult = await syncPendingAnnotationSetChanges(setRepo, annotationStore, currentUserId);
+
   const outbox = await annotationStore.listOutbox();
-  let synced = 0;
-  let failed = 0;
+  let synced = setResult.synced;
+  let failed = setResult.failed;
 
   for (const item of outbox) {
     try {
@@ -335,9 +365,13 @@ export async function syncPendingOfflineChanges(
           authorUserId: string;
           input: import('@/domain/repertoire').CreatePdfAnnotationInput;
         };
+        const authorUserId = resolveSyncAuthorUserId(currentUserId, payload.authorUserId);
+        if (!authorUserId) {
+          continue;
+        }
         const created = await annotationRepo.create(
           payload.organizationId,
-          payload.authorUserId,
+          authorUserId,
           payload.input,
         );
         await annotationStore.replaceClientId(
@@ -361,8 +395,12 @@ export async function syncPendingOfflineChanges(
         await annotationStore.removeOutbox(item.id);
         synced += 1;
       }
-    } catch {
-      await annotationStore.incrementOutboxRetry(item.id);
+    } catch (error) {
+      if (isPermanentSyncAuthError(error)) {
+        await annotationStore.removeOutbox(item.id);
+      } else {
+        await annotationStore.incrementOutboxRetry(item.id);
+      }
       failed += 1;
     }
   }

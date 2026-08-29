@@ -27,7 +27,7 @@ import {
 } from './event-use-cases';
 import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases';
 import { listAssociableAudience } from './list-associable-audience';
-import { setEventProgram } from './program-use-cases';
+import { setEventProgram, getPreviousEventProgram } from './program-use-cases';
 import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
 import {
   cancelRecurrence,
@@ -224,6 +224,8 @@ export function createAgendaUseCases(deps: AgendaDeps) {
       eventId: string,
       items: ProgramItemInput[],
     ) => setEventProgram(deps.eventRepo, deps.pieceRepo, organizationId, eventId, items),
+    getPreviousEventProgram: (organizationId: string, eventId: string) =>
+      getPreviousEventProgram(deps.eventRepo, organizationId, eventId),
     listEventAbsences: (organizationId: string, userId: string, eventId: string) =>
       listEventAbsences(
         deps.eventRepo,
@@ -271,6 +273,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
 }
 
 export type AgendaUseCases = ReturnType<typeof createAgendaUseCases>;
+export type { PreviousEventProgram } from './program-use-cases';
 export type {
   AssociableAudience,
   AssociableAudienceGroup,

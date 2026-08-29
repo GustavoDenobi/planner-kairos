@@ -1,20 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type * as pdfjs from 'pdfjs-dist';
-import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdatePdfNavigationShortcutInput } from '@/domain/repertoire';
-import { useRepertoire, useOffline, useEnsemble } from '@/ui/app/AppServicesContext';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
+import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
+import { useRepertoire, useOffline, useEnsemble, useAgenda } from '@/ui/app/AppServicesContext';
+import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackLink } from '@/ui/components/BackButton';
-import { PdfViewer, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
+import { PdfViewer, type DirectedSetOption, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
+import { DirectedAnnotationSetModal } from '@/ui/features/repertoire/DirectedAnnotationSetModal';
+import { DirectedAnnotationSetManageModal } from '@/ui/features/repertoire/DirectedAnnotationSetManageModal';
 import { pieceDetailPath } from '@/ui/features/repertoire/piece-file-routes';
 import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
 import { resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
 import {
   OfflineDownloadButton,
-  OfflineFileStatusBadge,
 } from '@/ui/features/pwa/OfflineDownloadButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
@@ -32,6 +35,7 @@ export function PiecePdfViewerPage() {
   const repertoire = useRepertoire();
   const offline = useOffline();
   const ensemble = useEnsemble();
+  const agenda = useAgenda();
   const { userId } = useAuth();
   const { resolveOrgBySlug } = useOrg();
   const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
@@ -46,6 +50,17 @@ export function PiecePdfViewerPage() {
   const [navigationShortcuts, setNavigationShortcuts] = useState<PdfNavigationShortcut[]>([]);
   const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
+  const [annotationSets, setAnnotationSets] = useState<AnnotationSet[]>([]);
+  const [canEditDirectedLayer, setCanEditDirectedLayer] = useState(false);
+  const [viewerContext, setViewerContext] = useState<AnnotationViewerContext | null>(null);
+  const [associableGroups, setAssociableGroups] = useState<Array<{ id: string; name: string; kind: import('@/domain/ensemble').GroupKind }>>([]);
+  const [associableMusicians, setAssociableMusicians] = useState<Array<{ id: string; name: string; partNames?: string[] }>>([]);
+  const [directedSetModalOpen, setDirectedSetModalOpen] = useState(false);
+  const [directedSetManageModalOpen, setDirectedSetManageModalOpen] = useState(false);
+  const [directedSetModalMode, setDirectedSetModalMode] = useState<'create' | 'edit'>('create');
+  const [directedSetSelectRequest, setDirectedSetSelectRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const [manageHighlightedSetId, setManageHighlightedSetId] = useState<string | null>(null);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   useLoadingBar('piece-pdf-viewer', isLoading);
   const [error, setError] = useState<string | null>(null);
@@ -203,9 +218,12 @@ export function PiecePdfViewerPage() {
         }
       }
 
+      const viewer = viewerContext ?? undefined;
+
       const annotationsResult = await offline.listAnnotationsForReading(
         resolvedOrganizationId,
         currentFileId,
+        viewer,
       );
       const shortcutsResult = await offline.listNavigationShortcutsForReading(
         resolvedOrganizationId,
@@ -310,7 +328,93 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId]);
+  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId, viewerContext]);
+
+  useEffect(() => {
+    if (!organizationId || !userId || !fileId) {
+      setAnnotationSets([]);
+      setCanEditDirectedLayer(false);
+      setViewerContext(null);
+      setAssociableGroups([]);
+      setAssociableMusicians([]);
+      return;
+    }
+
+    const resolvedOrganizationId = organizationId;
+    const resolvedUserId = userId;
+    const resolvedFileId = fileId;
+    let cancelled = false;
+
+    async function loadDirectedContext() {
+      const musicianResult = await ensemble.getMyMusician(resolvedOrganizationId, resolvedUserId);
+      const assignmentsResult = musicianResult.ok
+        ? await ensemble.listAssignmentsForMusician(
+            resolvedOrganizationId,
+            musicianResult.value.id,
+          )
+        : null;
+      const memberGroupIds = assignmentsResult?.ok
+        ? [...new Set(assignmentsResult.value.map((assignment) => assignment.groupId))]
+        : [];
+
+      if (cancelled) {
+        return;
+      }
+
+      const viewer: AnnotationViewerContext = {
+        userId: resolvedUserId,
+        myMusicianId: musicianResult.ok ? musicianResult.value.id : null,
+        memberGroupIds,
+      };
+      setViewerContext(viewer);
+
+      const audienceResult = online
+        ? await agenda.listAssociableAudience(resolvedOrganizationId, resolvedUserId)
+        : null;
+      const cachedAudience = online
+        ? null
+        : await offline.getCachedAssociableAudience(resolvedOrganizationId, resolvedUserId);
+
+      if (!cancelled) {
+        if (audienceResult?.ok) {
+          setCanEditDirectedLayer(isAdmin || audienceResult.value.isGroupWriter);
+          setAssociableGroups(audienceResult.value.groups);
+          setAssociableMusicians(
+            audienceResult.value.musicians.map((musician) => ({
+              id: musician.id,
+              name: musician.name,
+              partNames: musician.partNames,
+            })),
+          );
+        } else if (cachedAudience) {
+          setCanEditDirectedLayer(isAdmin || cachedAudience.isGroupWriter);
+          setAssociableGroups(cachedAudience.groups);
+          setAssociableMusicians(
+            cachedAudience.musicians.map((musician) => ({
+              id: musician.id,
+              name: musician.name,
+              partNames: musician.partNames,
+            })),
+          );
+        }
+      }
+
+      const setsResult = await offline.listAnnotationSetsForReading(
+        resolvedOrganizationId,
+        resolvedFileId,
+        viewer,
+      );
+      if (!cancelled && setsResult.ok) {
+        setAnnotationSets(setsResult.value);
+      }
+    }
+
+    void loadDirectedContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, userId, fileId, online, ensemble, agenda, offline, isAdmin]);
 
   useEffect(() => {
     if (!organizationId || !userId || !online) {
@@ -431,7 +535,7 @@ export function PiecePdfViewerPage() {
         return null;
       }
 
-      if (!online && input.layer === 'section') {
+      if (!online && (input.layer === 'section' || input.layer === 'directed')) {
         return null;
       }
 
@@ -464,6 +568,113 @@ export function PiecePdfViewerPage() {
       setAnnotations((current) => current.filter((annotation) => annotation.id !== annotationId));
     },
     [org, fileId, file, offline],
+  );
+
+  const audienceLookup = useMemo(
+    () => ({
+      groups: associableGroups,
+      musicians: associableMusicians.map((musician) => ({
+        id: musician.id,
+        name: musician.name,
+      })),
+    }),
+    [associableGroups, associableMusicians],
+  );
+
+  const directedSetOptions = useMemo((): DirectedSetOption[] => {
+    return annotationSets.map((set) => ({
+      id: set.id,
+      label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
+      canEdit: Boolean(userId && set.authorUserId === userId),
+    }));
+  }, [annotationSets, userId, audienceLookup]);
+
+  const editingSet = editingSetId
+    ? annotationSets.find((set) => set.id === editingSetId) ?? null
+    : null;
+
+  const editableAnnotationSets = useMemo(
+    () => annotationSets.filter((set) => Boolean(userId && set.authorUserId === userId)),
+    [annotationSets, userId],
+  );
+
+  const openDirectedSetCreate = useCallback(() => {
+    setDirectedSetManageModalOpen(false);
+    setDirectedSetModalMode('create');
+    setEditingSetId(null);
+    setDirectedSetModalOpen(true);
+  }, []);
+
+  const openDirectedSetEdit = useCallback((set: AnnotationSet) => {
+    setDirectedSetManageModalOpen(false);
+    setDirectedSetModalMode('edit');
+    setEditingSetId(set.id);
+    setDirectedSetModalOpen(true);
+  }, []);
+
+  const handleDirectedSetDelete = useCallback(
+    async (setId: string) => {
+      if (!org || !file) {
+        return false;
+      }
+
+      const result = await offline.deleteAnnotationSet(org.id, file.id, setId);
+      if (!result.ok) {
+        return false;
+      }
+
+      setAnnotationSets((current) => current.filter((set) => set.id !== setId));
+      setAnnotations((current) =>
+        current.filter((annotation) => annotation.annotationSetId !== setId),
+      );
+      if (editingSetId === setId) {
+        setEditingSetId(null);
+        setDirectedSetModalOpen(false);
+      }
+      return true;
+    },
+    [org, file, offline, editingSetId],
+  );
+
+  const handleDirectedSetSubmit = useCallback(
+    async (input: CreateAnnotationSetInput | UpdateAnnotationSetInput) => {
+      if (!org || !pieceId || !fileId || !userId || !file) {
+        return false;
+      }
+
+      if (directedSetModalMode === 'create') {
+        const result = await offline.createAnnotationSet(
+          org.id,
+          pieceId,
+          userId,
+          {
+            ...(input as CreateAnnotationSetInput),
+            pieceFileId: file.id,
+          },
+          audienceLookup,
+        );
+        if (!result.ok) {
+          return false;
+        }
+        setAnnotationSets((current) => [...current, result.value]);
+        setDirectedSetSelectRequest({ id: result.value.id, nonce: Date.now() });
+        return true;
+      }
+
+      if (!editingSetId) {
+        return false;
+      }
+
+      const result = await offline.updateAnnotationSet(org.id, editingSetId, input);
+      if (!result.ok) {
+        return false;
+      }
+      setAnnotationSets((current) =>
+        current.map((set) => (set.id === editingSetId ? result.value : set)),
+      );
+      return true;
+    },
+    [org, pieceId, fileId, userId, file, offline, directedSetModalMode, editingSetId, audienceLookup],
   );
 
   const handleNavigationShortcutCreate = useCallback(
@@ -600,15 +811,19 @@ export function PiecePdfViewerPage() {
         ) : null
       }
     >
-      {org && (
-        <OfflineFileStatusBadge organizationId={org.id} pieceId={pieceId} fileId={fileId} />
-      )}
       <PdfViewer
         key={fileId}
         url={downloadUrl ?? ''}
         userId={userId}
         annotations={annotations}
         sectionLeadOptions={sectionLeadOptions}
+        directedSetOptions={directedSetOptions}
+        canEditDirectedLayer={canEditDirectedLayer}
+        directedSetSelectRequest={directedSetSelectRequest}
+        onManageDirectedSet={(context) => {
+          setManageHighlightedSetId(context?.activeDirectedSetId ?? null);
+          setDirectedSetManageModalOpen(true);
+        }}
         preloadedPdf={preloadedPdf}
         audioPicker={{
           visible: online && accessibleAudios.length > 0,
@@ -631,6 +846,37 @@ export function PiecePdfViewerPage() {
         onNavigationShortcutDelete={handleNavigationShortcutDelete}
         onNavigationShortcutReorder={handleNavigationShortcutReorder}
       />
+
+      {org && file && (
+        <>
+          <DirectedAnnotationSetManageModal
+            open={directedSetManageModalOpen}
+            sets={editableAnnotationSets}
+            audienceLookup={audienceLookup}
+            highlightedSetId={manageHighlightedSetId}
+            onClose={() => {
+              setDirectedSetManageModalOpen(false);
+              setManageHighlightedSetId(null);
+            }}
+            onCreate={openDirectedSetCreate}
+            onEdit={openDirectedSetEdit}
+            onDelete={handleDirectedSetDelete}
+          />
+          <DirectedAnnotationSetModal
+            open={directedSetModalOpen}
+            mode={directedSetModalMode}
+            groups={associableGroups}
+            musicians={associableMusicians}
+            initialSet={editingSet}
+            disabled={!online && directedSetModalMode === 'create'}
+            onClose={() => {
+              setDirectedSetModalOpen(false);
+              setEditingSetId(null);
+            }}
+            onSubmit={handleDirectedSetSubmit}
+          />
+        </>
+      )}
 
       <PieceAudioPickerModal
         open={audioPickerOpen}

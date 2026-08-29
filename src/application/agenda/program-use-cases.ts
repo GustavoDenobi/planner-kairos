@@ -1,8 +1,47 @@
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
-import type { ProgramItemInput } from '@/domain/agenda';
+import type { ProgramItemDetail, ProgramItemInput } from '@/domain/agenda';
 import { validateProgramItems } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
+
+export type PreviousEventProgram = {
+  eventId: string;
+  startsAt: string;
+  endsAt: string | null;
+  program: ProgramItemDetail[];
+};
+
+export async function getPreviousEventProgram(
+  eventRepo: EventRepository,
+  organizationId: string,
+  eventId: string,
+) {
+  const existing = await eventRepo.getById(organizationId, eventId);
+  if (!existing) {
+    return Result.fail('not_found');
+  }
+
+  if (!existing.recurrenceId || existing.occurrenceIndex == null || existing.occurrenceIndex <= 0) {
+    return Result.ok(null);
+  }
+
+  const previous = await eventRepo.getOccurrenceByIndex(
+    organizationId,
+    existing.recurrenceId,
+    existing.occurrenceIndex - 1,
+  );
+
+  if (!previous) {
+    return Result.ok(null);
+  }
+
+  return Result.ok({
+    eventId: previous.id,
+    startsAt: previous.startsAt,
+    endsAt: previous.endsAt,
+    program: previous.program,
+  } satisfies PreviousEventProgram);
+}
 
 export async function setEventProgram(
   eventRepo: EventRepository,

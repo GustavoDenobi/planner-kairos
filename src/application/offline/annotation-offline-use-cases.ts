@@ -1,4 +1,7 @@
-import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
+import type {
+  AnnotationViewerContext,
+  OfflineAnnotationStore,
+} from '@/application/ports/offline-annotation-store';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type {
   CreatePdfAnnotationInput,
@@ -7,6 +10,8 @@ import type {
 } from '@/domain/repertoire';
 import { Result } from '@/domain/shared';
 import { isBrowserOnline } from './file-cache-use-cases';
+import { isPermanentSyncAuthError, resolveSyncAuthorUserId } from './sync-auth';
+import { visibleDirectedSetIds, repairDirectedAnnotationSetReferences } from './annotation-set-offline-use-cases';
 
 function toPdfAnnotation(local: {
   id: string;
@@ -19,6 +24,7 @@ function toPdfAnnotation(local: {
   color: string;
   authorUserId: string;
   sectionId: string | null;
+  annotationSetId: string | null;
   createdAt: string;
   updatedAt: string;
 }): PdfAnnotation {
@@ -33,9 +39,27 @@ function toPdfAnnotation(local: {
     color: local.color,
     authorUserId: local.authorUserId,
     sectionId: local.sectionId,
+    annotationSetId: local.annotationSetId,
     createdAt: local.createdAt,
     updatedAt: local.updatedAt,
   };
+}
+
+function isAnnotationVisible(
+  annotation: PdfAnnotation,
+  visibleSetIds: Set<string>,
+  viewer?: AnnotationViewerContext,
+): boolean {
+  if (annotation.layer === 'personal') {
+    return viewer ? annotation.authorUserId === viewer.userId : true;
+  }
+  if (annotation.layer === 'section') {
+    return true;
+  }
+  if (annotation.layer === 'directed') {
+    return annotation.annotationSetId ? visibleSetIds.has(annotation.annotationSetId) : false;
+  }
+  return true;
 }
 
 export async function listAnnotationsForReading(
@@ -43,6 +67,7 @@ export async function listAnnotationsForReading(
   annotationStore: OfflineAnnotationStore,
   organizationId: string,
   pieceFileId: string,
+  viewer?: AnnotationViewerContext,
 ): Promise<Result<PdfAnnotation[], string>> {
   if (isBrowserOnline()) {
     try {
@@ -60,6 +85,7 @@ export async function listAnnotationsForReading(
           color: annotation.color,
           authorUserId: annotation.authorUserId,
           sectionId: annotation.sectionId,
+          annotationSetId: annotation.annotationSetId,
           createdAt: annotation.createdAt,
           updatedAt: annotation.updatedAt,
           syncStatus: 'synced',
@@ -70,6 +96,14 @@ export async function listAnnotationsForReading(
     }
   }
 
+  const localSets = await annotationStore.listSetsForFile(organizationId, pieceFileId);
+  await repairDirectedAnnotationSetReferences(
+    annotationStore,
+    organizationId,
+    pieceFileId,
+    localSets,
+  );
+  const visibleSetIds = visibleDirectedSetIds(localSets, viewer);
   const local = await annotationStore.listForFile(organizationId, pieceFileId);
   const pending = await annotationStore.listPendingForFile(organizationId, pieceFileId);
 
@@ -86,11 +120,17 @@ export async function listAnnotationsForReading(
   const merged = new Map<string, PdfAnnotation>();
   for (const item of local) {
     if (!tombstoneIds.has(item.id)) {
-      merged.set(item.clientId, toPdfAnnotation(item));
+      const annotation = toPdfAnnotation(item);
+      if (isAnnotationVisible(annotation, visibleSetIds, viewer)) {
+        merged.set(item.clientId, annotation);
+      }
     }
   }
   for (const item of pending) {
-    merged.set(item.clientId, toPdfAnnotation(item));
+    const annotation = toPdfAnnotation(item);
+    if (isAnnotationVisible(annotation, visibleSetIds, viewer)) {
+      merged.set(item.clientId, annotation);
+    }
   }
 
   return Result.ok(Array.from(merged.values()));
@@ -119,6 +159,7 @@ export async function createAnnotationWithOffline(
     color: input.color,
     authorUserId,
     sectionId: input.sectionId ?? null,
+    annotationSetId: input.annotationSetId ?? null,
     createdAt: now,
     updatedAt: now,
     syncStatus: 'pending' as const,
@@ -136,7 +177,10 @@ export async function createAnnotationWithOffline(
         syncStatus: 'synced',
       });
       return Result.ok(created);
-    } catch {
+    } catch (error) {
+      if (isPermanentSyncAuthError(error)) {
+        return Result.fail('not_allowed');
+      }
       // fall through to offline queue
     }
   }
@@ -171,7 +215,7 @@ export async function deleteAnnotationWithOffline(
     await annotationStore.removeLocal(organizationId, pieceFileId, annotationId);
     const outbox = await annotationStore.listOutbox();
     for (const item of outbox) {
-      if (item.op === 'create' && item.payload.clientId === annotationId) {
+      if (item.op === 'create' && 'clientId' in item.payload && item.payload.clientId === annotationId) {
         await annotationStore.removeOutbox(item.id);
       }
     }
@@ -232,6 +276,7 @@ export async function updateAnnotationWithOffline(
     color: updated.color,
     authorUserId: updated.authorUserId,
     sectionId: updated.sectionId,
+    annotationSetId: updated.annotationSetId,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
     syncStatus: 'synced',

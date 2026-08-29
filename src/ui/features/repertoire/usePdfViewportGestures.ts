@@ -320,6 +320,9 @@ export function usePdfViewportGestures({
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length >= 2) {
+        if (isAnnotatingRef.current) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         beginPinch(event.touches);

@@ -94,6 +94,18 @@ function legacyHighlightHitDistance(
   return distanceBetween(point, { x: closestX, y: closestY });
 }
 
+function annotationHitDistance(annotation: PdfAnnotation, point: NormalizedPoint): number {
+  if (isStrokeGeometry(annotation.geometry)) {
+    return strokeHitDistance(annotation.geometry, point);
+  }
+
+  if ('width' in annotation.geometry && 'height' in annotation.geometry) {
+    return legacyHighlightHitDistance(annotation.geometry, point);
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
 export function findAnnotationAtPoint(
   annotations: PdfAnnotation[],
   point: NormalizedPoint,
@@ -103,13 +115,32 @@ export function findAnnotationAtPoint(
   let closestDistance = radius;
 
   for (const annotation of annotations) {
-    let distance = Number.POSITIVE_INFINITY;
+    const distance = annotationHitDistance(annotation, point);
 
-    if (isStrokeGeometry(annotation.geometry)) {
-      distance = strokeHitDistance(annotation.geometry, point);
-    } else if ('width' in annotation.geometry && 'height' in annotation.geometry) {
-      distance = legacyHighlightHitDistance(annotation.geometry, point);
+    if (distance <= closestDistance) {
+      closest = annotation;
+      closestDistance = distance;
     }
+  }
+
+  return closest;
+}
+
+export function findErasableAnnotationAtPoint(
+  annotations: PdfAnnotation[],
+  point: NormalizedPoint,
+  canErase: (annotation: PdfAnnotation) => boolean,
+  radius: number = ERASER_HIT_RADIUS,
+): PdfAnnotation | null {
+  let closest: PdfAnnotation | null = null;
+  let closestDistance = radius;
+
+  for (const annotation of annotations) {
+    if (!canErase(annotation)) {
+      continue;
+    }
+
+    const distance = annotationHitDistance(annotation, point);
 
     if (distance <= closestDistance) {
       closest = annotation;

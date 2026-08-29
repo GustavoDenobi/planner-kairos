@@ -20,6 +20,8 @@ import {
   IconArrowUpDown,
   IconChevronLeft,
   IconChevronRight,
+  IconEraser,
+  IconHighlighter,
   IconMaximize,
   IconMetronome,
   IconMinimize,
@@ -38,6 +40,10 @@ import {
   type AnnotationInteractionMode,
   type VisibleLayers,
 } from '@/ui/features/repertoire/AnnotationOverlay';
+import {
+  AnnotationLayerVisibilityDropdown,
+  type LayerVisibilityOption,
+} from '@/ui/features/repertoire/AnnotationLayerVisibilityDropdown';
 import {
   isDraftAnnotationId,
   toNormalizedCoords,
@@ -67,6 +73,12 @@ const SWIPE_THRESHOLD_PX = 48;
 export type SectionLeadOption = {
   id: string;
   name: string;
+};
+
+export type DirectedSetOption = {
+  id: string;
+  label: string;
+  canEdit: boolean;
 };
 
 export type PdfViewerPlaylistContext = {
@@ -128,6 +140,10 @@ type PdfViewerProps = {
   userId: string | null;
   annotations: PdfAnnotation[];
   sectionLeadOptions: SectionLeadOption[];
+  directedSetOptions?: DirectedSetOption[];
+  canEditDirectedLayer?: boolean;
+  directedSetSelectRequest?: { id: string; nonce: number } | null;
+  onManageDirectedSet?: (context?: { activeDirectedSetId?: string | null }) => void;
   playlist?: PdfViewerPlaylistContext;
   initialPage?: number;
   entryDirection?: 'next' | 'prev';
@@ -362,6 +378,7 @@ function createDraftAnnotation(
     color: input.color,
     authorUserId: userId,
     sectionId: input.sectionId ?? null,
+    annotationSetId: input.annotationSetId ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -377,6 +394,7 @@ function draftToCreateInput(
     geometry: draft.geometry,
     color: draft.color,
     sectionId: draft.sectionId,
+    annotationSetId: draft.annotationSetId,
   };
 }
 
@@ -385,6 +403,10 @@ export function PdfViewer({
   userId,
   annotations,
   sectionLeadOptions,
+  directedSetOptions = [],
+  canEditDirectedLayer = false,
+  directedSetSelectRequest = null,
+  onManageDirectedSet,
   playlist,
   initialPage = 1,
   entryDirection,
@@ -447,9 +469,19 @@ export function PdfViewer({
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     leadOptions[0]?.id ?? null,
   );
+  const canShowDirectedLayer = canEditDirectedLayer || directedSetOptions.length > 0;
+  const editableDirectedSets = useMemo(
+    () => directedSetOptions.filter((option) => option.canEdit),
+    [directedSetOptions],
+  );
+
+  const [activeDirectedSetId, setActiveDirectedSetId] = useState<string | null>(
+    editableDirectedSets[0]?.id ?? directedSetOptions[0]?.id ?? null,
+  );
   const [visibleLayers, setVisibleLayers] = useState<VisibleLayers>({
     personal: true,
     section: true,
+    directed: Object.fromEntries(directedSetOptions.map((option) => [option.id, true])),
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
@@ -479,6 +511,174 @@ export function PdfViewer({
       return leadOptions[0]?.id ?? null;
     });
   }, [leadOptions]);
+
+  useEffect(() => {
+    setVisibleLayers((current) => {
+      const directed = { ...current.directed };
+      let changed = false;
+      for (const option of directedSetOptions) {
+        if (directed[option.id] === undefined) {
+          directed[option.id] = true;
+          changed = true;
+        }
+      }
+      return changed ? { ...current, directed } : current;
+    });
+
+    if (directedSetOptions.length === 0) {
+      setActiveDirectedSetId(null);
+      return;
+    }
+
+    setActiveDirectedSetId((current) => {
+      if (current && directedSetOptions.some((option) => option.id === current)) {
+        return current;
+      }
+      return editableDirectedSets[0]?.id ?? directedSetOptions[0]?.id ?? null;
+    });
+  }, [directedSetOptions, editableDirectedSets]);
+
+  useEffect(() => {
+    if (!directedSetSelectRequest) {
+      return;
+    }
+    const { id } = directedSetSelectRequest;
+    if (!directedSetOptions.some((option) => option.id === id)) {
+      return;
+    }
+    setActiveDirectedSetId(id);
+    setActiveLayer('directed');
+  }, [directedSetSelectRequest, directedSetOptions]);
+
+  const layerVisibilityOptions = useMemo((): LayerVisibilityOption[] => {
+    const options: LayerVisibilityOption[] = [];
+
+    if (userId) {
+      options.push({
+        id: 'personal',
+        label: 'Pessoal',
+        visible: visibleLayers.personal,
+      });
+    }
+
+    if (canEditSectionLayer) {
+      options.push({
+        id: 'section',
+        label: 'Naipe',
+        visible: visibleLayers.section,
+      });
+    }
+
+    if (canShowDirectedLayer) {
+      for (const option of directedSetOptions) {
+        options.push({
+          id: option.id,
+          label: option.label,
+          visible: visibleLayers.directed[option.id] ?? true,
+        });
+      }
+    }
+
+    return options;
+  }, [
+    userId,
+    canEditSectionLayer,
+    canShowDirectedLayer,
+    directedSetOptions,
+    visibleLayers,
+  ]);
+
+  const toggleLayerVisibility = useCallback((id: string) => {
+    if (id === 'personal') {
+      setVisibleLayers((current) => ({ ...current, personal: !current.personal }));
+      return;
+    }
+
+    if (id === 'section') {
+      setVisibleLayers((current) => ({ ...current, section: !current.section }));
+      return;
+    }
+
+    setVisibleLayers((current) => ({
+      ...current,
+      directed: {
+        ...current.directed,
+        [id]: !(current.directed[id] ?? true),
+      },
+    }));
+  }, []);
+
+  const editLayerOptions = useMemo(() => {
+    const options: Array<{ value: string; label: string }> = [
+      { value: 'personal', label: 'Pessoal' },
+    ];
+
+    if (canEditSectionLayer) {
+      for (const lead of leadOptions) {
+        options.push({
+          value: `section:${lead.id}`,
+          label: leadOptions.length > 1 ? `Naipe: ${lead.name}` : 'Naipe',
+        });
+      }
+    }
+
+    if (canEditDirectedLayer) {
+      for (const set of editableDirectedSets) {
+        options.push({
+          value: `directed:${set.id}`,
+          label: set.label,
+        });
+      }
+    }
+
+    return options;
+  }, [canEditSectionLayer, canEditDirectedLayer, leadOptions, editableDirectedSets]);
+
+  const activeEditLayerValue = useMemo(() => {
+    if (activeLayer === 'section' && activeSectionId) {
+      return `section:${activeSectionId}`;
+    }
+    if (activeLayer === 'directed' && activeDirectedSetId) {
+      return `directed:${activeDirectedSetId}`;
+    }
+    if (editLayerOptions.some((option) => option.value === 'personal')) {
+      return 'personal';
+    }
+    return editLayerOptions[0]?.value ?? 'personal';
+  }, [activeLayer, activeSectionId, activeDirectedSetId, editLayerOptions]);
+
+  const handleEditLayerChange = useCallback((value: string) => {
+    if (value === 'personal') {
+      setActiveLayer('personal');
+      return;
+    }
+
+    if (value.startsWith('section:')) {
+      setActiveLayer('section');
+      setActiveSectionId(value.slice('section:'.length));
+      return;
+    }
+
+    if (value.startsWith('directed:')) {
+      setActiveLayer('directed');
+      setActiveDirectedSetId(value.slice('directed:'.length));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAnnotating) {
+      return;
+    }
+
+    if (editLayerOptions.some((option) => option.value === activeEditLayerValue)) {
+      return;
+    }
+
+    const fallback = editLayerOptions[0]?.value;
+    if (fallback) {
+      handleEditLayerChange(fallback);
+    }
+  }, [isAnnotating, editLayerOptions, activeEditLayerValue, handleEditLayerChange]);
 
   const persistPreferences = useCallback(
     (patch: Partial<{ inverted: boolean; navigation: PdfNavigationMode }>) => {
@@ -1156,13 +1356,21 @@ export function PdfViewer({
   }, [annotations, draftAnnotations, pendingDeletionIds]);
 
   const penColor =
-    activeLayer === 'section' ? ANNOTATION_COLORS.section : ANNOTATION_COLORS.personal;
+    activeLayer === 'section'
+      ? ANNOTATION_COLORS.section
+      : activeLayer === 'directed'
+        ? ANNOTATION_COLORS.directed
+        : ANNOTATION_COLORS.personal;
 
   const highlightColor = resolveHighlightColor(activeLayer, inverted);
 
+  const activeDirectedSet = directedSetOptions.find((option) => option.id === activeDirectedSetId);
+  const canEditActiveDirectedSet = Boolean(activeDirectedSet?.canEdit);
+
   const annotationReadOnly =
     !userId ||
-    (activeLayer === 'section' && (!canEditSectionLayer || !activeSectionId));
+    (activeLayer === 'section' && (!canEditSectionLayer || !activeSectionId)) ||
+    (activeLayer === 'directed' && (!canEditActiveDirectedSet || !activeDirectedSetId));
 
   const hasUnsavedChanges =
     draftAnnotations.length > 0 || pendingDeletionIds.length > 0;
@@ -1177,17 +1385,42 @@ export function PdfViewer({
         return true;
       }
 
-      if (annotation.layer === 'personal') {
-        return annotation.authorUserId === userId;
+      if (annotation.authorUserId !== userId) {
+        return false;
       }
 
-      return (
-        canEditSectionLayer &&
-        annotation.sectionId !== null &&
-        leadOptions.some((option) => option.id === annotation.sectionId)
-      );
+      if (annotation.layer === 'personal') {
+        return true;
+      }
+
+      if (annotation.layer === 'section') {
+        return (
+          annotation.sectionId !== null &&
+          leadOptions.some((option) => option.id === annotation.sectionId)
+        );
+      }
+
+      if (annotation.layer === 'directed') {
+        const setId = annotation.annotationSetId;
+        if (!setId) {
+          return false;
+        }
+
+        const matchingSet = directedSetOptions.find((option) => option.id === setId);
+        if (matchingSet?.canEdit) {
+          return true;
+        }
+
+        if (setId.startsWith('draft-set-')) {
+          return directedSetOptions.some((option) => option.canEdit);
+        }
+
+        return false;
+      }
+
+      return false;
     },
-    [userId, canEditSectionLayer, leadOptions],
+    [userId, leadOptions, directedSetOptions],
   );
 
   const handleSaveAnnotations = useCallback(async () => {
@@ -1202,9 +1435,7 @@ export function PdfViewer({
 
     setIsSaving(true);
     for (const annotationId of pendingDeletionIds) {
-      if (!isDraftAnnotationId(annotationId)) {
-        await onAnnotationDelete(annotationId);
-      }
+      await onAnnotationDelete(annotationId);
     }
     for (const draft of draftAnnotations) {
       await onAnnotationCreate(draftToCreateInput(draft));
@@ -1257,9 +1488,10 @@ export function PdfViewer({
         geometry,
         color: penColor,
         sectionId: activeLayer === 'section' ? activeSectionId : null,
+        annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
       });
     },
-    [penColor, activeLayer, activeSectionId, annotationReadOnly, addDraftAnnotation],
+    [penColor, activeLayer, activeSectionId, activeDirectedSetId, annotationReadOnly, addDraftAnnotation],
   );
 
   const handleHighlightComplete = useCallback(
@@ -1275,14 +1507,16 @@ export function PdfViewer({
         geometry,
         color: highlightColor,
         sectionId: activeLayer === 'section' ? activeSectionId : null,
+        annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
       });
     },
-    [highlightColor, activeLayer, activeSectionId, annotationReadOnly, addDraftAnnotation],
+    [highlightColor, activeLayer, activeSectionId, activeDirectedSetId, annotationReadOnly, addDraftAnnotation],
   );
 
   const handleEraseAnnotation = useCallback(
     (annotationId: string) => {
-      if (isDraftAnnotationId(annotationId)) {
+      const isUnsavedDraft = draftAnnotations.some((annotation) => annotation.id === annotationId);
+      if (isUnsavedDraft) {
         setDraftAnnotations((current) =>
           current.filter((annotation) => annotation.id !== annotationId),
         );
@@ -1293,7 +1527,7 @@ export function PdfViewer({
         current.includes(annotationId) ? current : [...current, annotationId],
       );
     },
-    [],
+    [draftAnnotations],
   );
 
   const handleUndoLast = useCallback(() => {
@@ -1375,6 +1609,14 @@ export function PdfViewer({
   const mobilePanelButtonClass = (active: boolean) =>
     `${toolbarIconButtonClass(active)} lg:hidden`;
   const mobilePanelRowClass = `${controlsRowClass} border-t border-border lg:hidden`;
+  const annotationPanelRowClass = `${controlsRowClass} border-t border-border`;
+
+  const renderLayerVisibilityDropdown = () => (
+    <AnnotationLayerVisibilityDropdown
+      options={layerVisibilityOptions}
+      onToggle={toggleLayerVisibility}
+    />
+  );
 
   const renderZoomControls = () => (
     <div className="flex shrink-0 items-center gap-1.5 lg:gap-2">
@@ -1422,42 +1664,7 @@ export function PdfViewer({
 
   const renderViewAnnotationControls = () => (
     <>
-      <button
-        type="button"
-        onClick={() =>
-          setVisibleLayers((current) => ({ ...current, personal: !current.personal }))
-        }
-        aria-pressed={visibleLayers.personal}
-        aria-label="Mostrar anotações pessoais"
-        title="Mostrar anotações pessoais"
-        className={`rounded-lg border px-2 py-1 text-sm ${
-          visibleLayers.personal
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border text-text'
-        }`}
-      >
-        <span className="lg:hidden">Pessoais</span>
-        <span className="hidden lg:inline">Ver pessoais</span>
-      </button>
-      {canEditSectionLayer && (
-        <button
-          type="button"
-          onClick={() =>
-            setVisibleLayers((current) => ({ ...current, section: !current.section }))
-          }
-          aria-pressed={visibleLayers.section}
-          aria-label="Mostrar anotações do naipe"
-          title="Mostrar anotações do naipe"
-          className={`rounded-lg border px-2 py-1 text-sm ${
-            visibleLayers.section
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-text'
-          }`}
-        >
-          <span className="lg:hidden">Naipe</span>
-          <span className="hidden lg:inline">Ver naipe</span>
-        </button>
-      )}
+      {renderLayerVisibilityDropdown()}
       {userId && (
         <button
           type="button"
@@ -1468,98 +1675,90 @@ export function PdfViewer({
         </button>
       )}
       {canManageNavigationShortcuts && onNavigationShortcutCreate && (
-        <button
-          type="button"
-          onClick={() => setShortcutEditorOpen(true)}
-          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-        >
-          Atalhos
-        </button>
+        <>
+          <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setShortcutEditorOpen(true)}
+            className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+          >
+            Atalhos
+          </button>
+        </>
       )}
     </>
   );
 
   const renderAnnotationToolControls = () => (
     <>
-      {canEditSectionLayer && (
-        <>
-          <span className="text-sm text-muted">Camada:</span>
-          <button
-            type="button"
-            onClick={() => setActiveLayer('personal')}
-            aria-pressed={activeLayer === 'personal'}
-            className={`rounded-lg border px-2 py-1 text-sm ${
-              activeLayer === 'personal'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            Pessoal
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveLayer('section')}
-            aria-pressed={activeLayer === 'section'}
-            className={`rounded-lg border px-2 py-1 text-sm ${
-              activeLayer === 'section'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            Naipe
-          </button>
-          {activeLayer === 'section' && leadOptions.length > 1 && (
-            <select
-              value={activeSectionId ?? ''}
-              onChange={(event) => setActiveSectionId(event.target.value || null)}
-              className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text"
-              aria-label="Naipe para anotação"
-            >
-              {leadOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <span className="mx-2 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
-        </>
+      <select
+        value={activeEditLayerValue}
+        onChange={(event) => handleEditLayerChange(event.target.value)}
+        disabled={editLayerOptions.length <= 1}
+        className="max-w-52 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-text disabled:opacity-70"
+        aria-label="Camada em edição"
+      >
+        {editLayerOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {canEditDirectedLayer && onManageDirectedSet && (
+        <button
+          type="button"
+          onClick={() =>
+            onManageDirectedSet({
+              activeDirectedSetId: activeEditLayerValue.startsWith('directed:')
+                ? activeEditLayerValue.slice('directed:'.length)
+                : null,
+            })
+          }
+          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
+        >
+          Gerenciar
+        </button>
       )}
+      <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
       <button
         type="button"
         onClick={() => setInteractionMode('pen')}
         aria-pressed={interactionMode === 'pen'}
-        className={`rounded-lg border px-2 py-1 text-sm ${
-          interactionMode === 'pen'
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border text-text'
-        }`}
+        aria-label="Caneta"
+        title="Caneta"
+        className={toolbarIconButtonClass(interactionMode === 'pen')}
       >
-        Caneta
+        <IconPencil className="h-4 w-4" />
       </button>
       <button
         type="button"
         onClick={() => setInteractionMode('highlight')}
         aria-pressed={interactionMode === 'highlight'}
-        className={`rounded-lg border px-2 py-1 text-sm ${
-          interactionMode === 'highlight'
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border text-text'
-        }`}
+        aria-label="Marca-texto"
+        title="Marca-texto"
+        className={toolbarIconButtonClass(interactionMode === 'highlight')}
       >
-        Marca-texto
+        <IconHighlighter className="h-4 w-4" />
       </button>
       <button
         type="button"
         onClick={() => setInteractionMode('eraser')}
         aria-pressed={interactionMode === 'eraser'}
-        className={`rounded-lg border px-2 py-1 text-sm ${
-          interactionMode === 'eraser'
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border text-text'
-        }`}
+        aria-label="Borracha"
+        title="Borracha"
+        className={toolbarIconButtonClass(interactionMode === 'eraser')}
       >
-        Borracha
+        <IconEraser className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={handleUndoLast}
+        disabled={draftAnnotations.length === 0}
+        className={`${toolbarIconButtonClass()} disabled:opacity-50`}
+        aria-label="Desfazer"
+        title="Desfazer"
+      >
+        <IconUndo className="h-4 w-4" />
       </button>
     </>
   );
@@ -1587,30 +1786,7 @@ export function PdfViewer({
       {isAnnotating ? (
         <>
           <div className={controlsRowClass}>
-            <button
-              type="button"
-              onClick={() =>
-                setMobileToolbarPanel((current) => (current === 'annotate' ? null : 'annotate'))
-              }
-              aria-label="Ferramentas de anotação"
-              aria-expanded={mobileToolbarPanel === 'annotate'}
-              aria-pressed={mobileToolbarPanel === 'annotate'}
-              className={mobilePanelButtonClass(mobileToolbarPanel === 'annotate')}
-            >
-              <IconPencil className="h-4 w-4" />
-            </button>
-            <div className="hidden flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:flex">
-              {renderAnnotationToolControls()}
-            </div>
-            <button
-              type="button"
-              onClick={handleUndoLast}
-              disabled={draftAnnotations.length === 0}
-              className={`${toolbarIconButtonClass()} disabled:opacity-50`}
-              aria-label="Desfazer"
-            >
-              <IconUndo className="h-4 w-4" />
-            </button>
+            {renderAnnotationToolControls()}
             <span className="flex-1" aria-hidden />
             <button
               type="button"
@@ -1629,9 +1805,6 @@ export function PdfViewer({
               Descartar
             </button>
           </div>
-          {mobileToolbarPanel === 'annotate' && (
-            <div className={mobilePanelRowClass}>{renderAnnotationToolControls()}</div>
-          )}
         </>
       ) : (
         <>
@@ -1712,6 +1885,8 @@ export function PdfViewer({
                 <IconMetronome className="h-4 w-4" />
               </button>
 
+              <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
+
             <button
               type="button"
               onClick={() =>
@@ -1720,21 +1895,17 @@ export function PdfViewer({
               aria-label="Opções de anotação"
               aria-expanded={mobileToolbarPanel === 'annotate'}
               aria-pressed={mobileToolbarPanel === 'annotate'}
-              className={mobilePanelButtonClass(mobileToolbarPanel === 'annotate')}
+              className={toolbarIconButtonClass(mobileToolbarPanel === 'annotate')}
             >
               <IconPencil className="h-4 w-4" />
             </button>
-            </div>
-            <div className="hidden items-center gap-x-1.5 lg:flex lg:gap-x-2">
-              <span className="h-6 w-px bg-border" aria-hidden="true" />
-              {renderViewAnnotationControls()}
             </div>
           </div>
           {mobileToolbarPanel === 'zoom' && (
             <div className={mobilePanelRowClass}>{renderZoomControls()}</div>
           )}
           {mobileToolbarPanel === 'annotate' && (
-            <div className={mobilePanelRowClass}>{renderViewAnnotationControls()}</div>
+            <div className={annotationPanelRowClass}>{renderViewAnnotationControls()}</div>
           )}
         </>
       )}

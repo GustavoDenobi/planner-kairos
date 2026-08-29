@@ -1,4 +1,5 @@
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
+import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { CreatePdfAnnotationInput, UpdatePdfAnnotationInput } from '@/domain/repertoire';
 import {
@@ -19,6 +20,7 @@ export async function listPieceFileAnnotations(
 export async function createPieceFileAnnotation(
   fileRepo: PieceFileRepository,
   annotationRepo: PieceFileAnnotationRepository,
+  setRepo: AnnotationSetRepository | null,
   organizationId: string,
   pieceId: string,
   authorUserId: string,
@@ -36,6 +38,16 @@ export async function createPieceFileAnnotation(
 
   if (file.kind !== 'score') {
     return Result.fail('invalid_file_kind');
+  }
+
+  if (input.layer === 'directed') {
+    if (!setRepo || !input.annotationSetId) {
+      return Result.fail('invalid_annotation_set');
+    }
+    const set = await setRepo.getById(organizationId, input.annotationSetId);
+    if (!set || set.pieceFileId !== input.pieceFileId) {
+      return Result.fail('invalid_annotation_set');
+    }
   }
 
   try {

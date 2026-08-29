@@ -34,6 +34,150 @@ export type Database = {
   }
   public: {
     Tables: {
+      annotation_set_groups: {
+        Row: {
+          annotation_set_id: string
+          created_at: string
+          group_id: string
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          annotation_set_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          annotation_set_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annotation_set_groups_annotation_set_id_fkey"
+            columns: ["annotation_set_id"]
+            isOneToOne: false
+            referencedRelation: "annotation_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_set_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_set_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      annotation_set_musicians: {
+        Row: {
+          annotation_set_id: string
+          created_at: string
+          id: string
+          musician_id: string
+          organization_id: string
+        }
+        Insert: {
+          annotation_set_id: string
+          created_at?: string
+          id?: string
+          musician_id: string
+          organization_id: string
+        }
+        Update: {
+          annotation_set_id?: string
+          created_at?: string
+          id?: string
+          musician_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annotation_set_musicians_annotation_set_id_fkey"
+            columns: ["annotation_set_id"]
+            isOneToOne: false
+            referencedRelation: "annotation_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_set_musicians_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_set_musicians_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      annotation_sets: {
+        Row: {
+          author_user_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          piece_file_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_user_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          piece_file_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_user_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          piece_file_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annotation_sets_author_user_id_fkey"
+            columns: ["author_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_sets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotation_sets_piece_file_id_fkey"
+            columns: ["piece_file_id"]
+            isOneToOne: false
+            referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assignments: {
         Row: {
           created_at: string
@@ -1053,6 +1197,7 @@ export type Database = {
       }
       piece_file_annotations: {
         Row: {
+          annotation_set_id: string | null
           author_user_id: string
           color: string
           created_at: string
@@ -1067,6 +1212,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          annotation_set_id?: string | null
           author_user_id: string
           color: string
           created_at?: string
@@ -1081,6 +1227,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          annotation_set_id?: string | null
           author_user_id?: string
           color?: string
           created_at?: string
@@ -1095,6 +1242,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "piece_file_annotations_annotation_set_id_fkey"
+            columns: ["annotation_set_id"]
+            isOneToOne: false
+            referencedRelation: "annotation_sets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "piece_file_annotations_author_user_id_fkey"
             columns: ["author_user_id"]
@@ -1991,12 +2145,14 @@ export type Database = {
         Args: { p_piece_file_id: string }
         Returns: boolean
       }
+      can_see_annotation_set: { Args: { p_set_id: string }; Returns: boolean }
       can_see_event: { Args: { p_event_id: string }; Returns: boolean }
       can_see_piece: { Args: { p_piece_id: string }; Returns: boolean }
       can_see_recurrence: {
         Args: { p_recurrence_id: string }
         Returns: boolean
       }
+      can_write_annotation_set: { Args: { p_set_id: string }; Returns: boolean }
       can_write_event: { Args: { p_event_id: string }; Returns: boolean }
       can_write_recurrence: {
         Args: { p_recurrence_id: string }
@@ -2332,7 +2488,7 @@ export type Database = {
     }
     Enums: {
       access_role: "owner" | "admin" | "member"
-      annotation_layer: "personal" | "section"
+      annotation_layer: "personal" | "section" | "directed"
       annotation_type: "stroke" | "highlight"
       ensemble_role: "member" | "teacher" | "section_lead" | "conductor"
       event_kind: "rehearsal" | "service" | "class" | "special"
@@ -2473,7 +2629,7 @@ export const Constants = {
   public: {
     Enums: {
       access_role: ["owner", "admin", "member"],
-      annotation_layer: ["personal", "section"],
+      annotation_layer: ["personal", "section", "directed"],
       annotation_type: ["stroke", "highlight"],
       ensemble_role: ["member", "teacher", "section_lead", "conductor"],
       event_kind: ["rehearsal", "service", "class", "special"],

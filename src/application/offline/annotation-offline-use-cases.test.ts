@@ -6,6 +6,7 @@ import { listAnnotationsForReading } from '@/application/offline/annotation-offl
 function createAnnotationStore(): OfflineAnnotationStore {
   const annotations: import('@/application/ports/offline-annotation-store').LocalPdfAnnotation[] =
     [];
+  const sets: import('@/application/ports/offline-annotation-store').LocalAnnotationSet[] = [];
   const outbox: import('@/application/ports/offline-annotation-store').SyncOutboxItem[] = [];
 
   return {
@@ -53,8 +54,26 @@ function createAnnotationStore(): OfflineAnnotationStore {
       }
     },
     incrementOutboxRetry: async () => {},
+    listSetsForFile: async (_orgId, pieceFileId) =>
+      sets.filter((set) => set.pieceFileId === pieceFileId),
+    upsertSet: async (set) => {
+      const index = sets.findIndex((item) => item.id === set.id);
+      if (index >= 0) {
+        sets[index] = set;
+      } else {
+        sets.push(set);
+      }
+    },
+    removeSet: async (_orgId, pieceFileId, setId) => {
+      const index = sets.findIndex((set) => set.id === setId && set.pieceFileId === pieceFileId);
+      if (index >= 0) {
+        sets.splice(index, 1);
+      }
+    },
+    replaceSetId: async () => {},
     clearAll: async () => {
       annotations.length = 0;
+      sets.length = 0;
       outbox.length = 0;
     },
   };
@@ -74,6 +93,7 @@ describe('listAnnotationsForReading', () => {
       color: '#2563eb',
       authorUserId: 'user-1',
       sectionId: null,
+      annotationSetId: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };
@@ -97,6 +117,7 @@ describe('listAnnotationsForReading', () => {
       color: '#2563eb',
       authorUserId: 'user-1',
       sectionId: null,
+      annotationSetId: null,
       createdAt: '2026-01-02T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
       syncStatus: 'pending',
@@ -114,6 +135,95 @@ describe('listAnnotationsForReading', () => {
       expect(result.value.length).toBe(2);
       expect(result.value.map((a) => a.id)).toContain('ann-1');
       expect(result.value.map((a) => a.id)).toContain('draft-local');
+    }
+  });
+
+  it('filters directed annotations by visible sets for viewer', async () => {
+    const annotationStore = createAnnotationStore();
+    await annotationStore.upsertSet({
+      id: 'set-visible',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      authorUserId: 'teacher-1',
+      title: 'João',
+      groups: [],
+      musicians: [{ id: 'musician-1', fullName: 'João' }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+    await annotationStore.upsertSet({
+      id: 'set-hidden',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      authorUserId: 'teacher-1',
+      title: 'Maria',
+      groups: [],
+      musicians: [{ id: 'musician-2', fullName: 'Maria' }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+
+    await annotationStore.upsert({
+      clientId: 'ann-visible',
+      id: 'ann-visible',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      pageNumber: 1,
+      layer: 'directed',
+      type: 'stroke',
+      geometry: { points: [{ x: 0.1, y: 0.1 }], strokeWidth: 0.01 },
+      color: '#9333ea',
+      authorUserId: 'teacher-1',
+      sectionId: null,
+      annotationSetId: 'set-visible',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+    await annotationStore.upsert({
+      clientId: 'ann-hidden',
+      id: 'ann-hidden',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      pageNumber: 1,
+      layer: 'directed',
+      type: 'stroke',
+      geometry: { points: [{ x: 0.2, y: 0.2 }], strokeWidth: 0.01 },
+      color: '#9333ea',
+      authorUserId: 'teacher-1',
+      sectionId: null,
+      annotationSetId: 'set-hidden',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+
+    const annotationRepo: PieceFileAnnotationRepository = {
+      listForFile: async () => [],
+      create: async () => {
+        throw new Error('not used');
+      },
+      update: async () => null,
+      remove: async () => true,
+    };
+
+    const result = await listAnnotationsForReading(
+      annotationRepo,
+      annotationStore,
+      'org-1',
+      'file-1',
+      {
+        userId: 'student-1',
+        myMusicianId: 'musician-1',
+        memberGroupIds: [],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.map((annotation) => annotation.id)).toEqual(['ann-visible']);
     }
   });
 });

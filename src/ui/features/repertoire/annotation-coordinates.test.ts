@@ -42,6 +42,7 @@ describe('findAnnotationAtPoint', () => {
     color: '#2563eb',
     authorUserId: 'user',
     sectionId: null,
+    annotationSetId: null,
     createdAt: '',
     updatedAt: '',
   };

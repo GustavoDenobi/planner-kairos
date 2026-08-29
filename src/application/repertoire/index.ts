@@ -1,6 +1,11 @@
 import type { FileStorage } from '@/application/ports/file-storage';
+import type { AssignmentRepository } from '@/application/ports/assignment-repository';
+import type { MembershipRepository } from '@/application/ports/membership-repository';
+import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { PieceCategoryRepository } from '@/application/ports/piece-category-repository';
+import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
@@ -9,7 +14,7 @@ import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { CreatePdfAnnotationInput, CreatePdfNavigationShortcutInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdateAnnotationSetInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -24,6 +29,12 @@ import {
   listPieceFileAnnotations,
   updatePieceFileAnnotation,
 } from './annotation-use-cases';
+import {
+  createAnnotationSet,
+  deleteAnnotationSet,
+  listAnnotationSetsForFile,
+  updateAnnotationSet,
+} from './annotation-set-use-cases';
 import {
   createPieceFileNavigationShortcut,
   deletePieceFileNavigationShortcut,
@@ -67,10 +78,15 @@ export type RepertoireDeps = {
   accessRepo: PieceAccessRepository;
   fileRepo: PieceFileRepository;
   annotationRepo: PieceFileAnnotationRepository;
+  annotationSetRepo: AnnotationSetRepository;
   navigationShortcutRepo: PieceFileNavigationShortcutRepository;
   playlistRepo: ReadingPlaylistRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
+  membershipRepo: MembershipRepository;
+  musicianRepo: MusicianRepository;
+  assignmentRepo: AssignmentRepository;
+  orgRepo: OrganizationRepository;
 };
 
 export function createRepertoireUseCases(deps: RepertoireDeps) {
@@ -160,6 +176,7 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       createPieceFileAnnotation(
         deps.fileRepo,
         deps.annotationRepo,
+        deps.annotationSetRepo,
         organizationId,
         pieceId,
         authorUserId,
@@ -183,6 +200,46 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       pieceFileId: string,
       annotationId: string,
     ) => deletePieceFileAnnotation(deps.annotationRepo, organizationId, pieceFileId, annotationId),
+
+    listAnnotationSetsForFile: (organizationId: string, pieceFileId: string) =>
+      listAnnotationSetsForFile(deps.annotationSetRepo, organizationId, pieceFileId),
+    createAnnotationSet: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      input: CreateAnnotationSetInput,
+    ) =>
+      createAnnotationSet(
+        deps.fileRepo,
+        deps.annotationSetRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        pieceId,
+        authorUserId,
+        input,
+      ),
+    updateAnnotationSet: (
+      organizationId: string,
+      userId: string,
+      setId: string,
+      input: UpdateAnnotationSetInput,
+    ) =>
+      updateAnnotationSet(
+        deps.annotationSetRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        setId,
+        input,
+      ),
+    deleteAnnotationSet: (organizationId: string, setId: string) =>
+      deleteAnnotationSet(deps.annotationSetRepo, organizationId, setId),
 
     listPieceFileNavigationShortcuts: (organizationId: string, pieceFileId: string) =>
       listPieceFileNavigationShortcuts(deps.navigationShortcutRepo, organizationId, pieceFileId),

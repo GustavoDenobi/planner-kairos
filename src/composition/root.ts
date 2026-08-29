@@ -23,6 +23,7 @@ import { createOrganizationRepository } from '@/infrastructure/supabase/organiza
 import { createPartRepository } from '@/infrastructure/supabase/part-repository';
 import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-category-repository';
 import { createPieceFileAnnotationRepository } from '@/infrastructure/supabase/piece-file-annotation-repository';
+import { createAnnotationSetRepository } from '@/infrastructure/supabase/annotation-set-repository';
 import { createPieceFileNavigationShortcutRepository } from '@/infrastructure/supabase/piece-file-navigation-shortcut-repository';
 import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
 import { createPieceAccessRepository } from '@/infrastructure/supabase/piece-access-repository';
@@ -55,6 +56,7 @@ export function createAppServices() {
   const pieceAccessRepo = createPieceAccessRepository();
   const pieceFileRepo = createPieceFileRepository();
   const annotationRepo = createPieceFileAnnotationRepository();
+  const annotationSetRepo = createAnnotationSetRepository();
   const navigationShortcutRepo = createPieceFileNavigationShortcutRepository();
   const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
@@ -89,10 +91,15 @@ export function createAppServices() {
     accessRepo: pieceAccessRepo,
     fileRepo: pieceFileRepo,
     annotationRepo,
+    annotationSetRepo,
     navigationShortcutRepo,
     playlistRepo,
     partRepo,
     fileStorage,
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
   });
 
   const agenda = createAgendaUseCases({
@@ -117,6 +124,7 @@ export function createAppServices() {
     fileRepo: pieceFileRepo,
     fileStorage,
     annotationRepo,
+    annotationSetRepo,
     navigationShortcutRepo,
     playlistRepo,
     offlineStorage,
