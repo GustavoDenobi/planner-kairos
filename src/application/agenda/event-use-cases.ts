@@ -2,6 +2,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { EventRepository, ListEventsInRangeOptions } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { EventInput } from '@/domain/agenda';
 import {
   canWriteEvent,
@@ -22,6 +23,7 @@ export async function listEventsInRange(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   options: ListEventsInRangeOptions,
@@ -30,6 +32,7 @@ export async function listEventsInRange(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -64,6 +67,7 @@ export async function scheduleEvent(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   input: EventInput,
@@ -72,6 +76,7 @@ export async function scheduleEvent(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -113,6 +118,7 @@ export async function updateEvent(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   eventId: string,
@@ -122,6 +128,7 @@ export async function updateEvent(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -195,6 +202,7 @@ export async function deleteEvent(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   eventId: string,
@@ -203,6 +211,7 @@ export async function deleteEvent(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -241,8 +250,9 @@ export async function getEventWriterContext(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
 ) {
-  return loadWriterContext(membershipRepo, musicianRepo, assignmentRepo, organizationId, userId);
+  return loadWriterContext(membershipRepo, musicianRepo, assignmentRepo, orgRepo, organizationId, userId);
 }

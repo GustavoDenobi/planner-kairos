@@ -3,6 +3,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import { scheduleEvent, updateEvent } from '@/application/agenda/event-use-cases';
 import type { EventDetail } from '@/domain/agenda';
 import type { EnsembleRole } from '@/domain/ensemble';
@@ -38,13 +39,14 @@ function eventDetail(overrides: Partial<EventDetail> = {}): EventDetail {
 }
 
 function createRepos(options?: {
-  role?: 'owner' | 'admin' | 'member';
+  role?: 'owner' | 'admin' | 'member' | null;
+  isPlatformAdmin?: boolean;
   assignments?: Array<{ groupId: string; ensembleRole: EnsembleRole }>;
   musicianId?: string | null;
   students?: Array<{ musicianId: string; groupId: string }>;
   existing?: EventDetail | null;
 }) {
-  const role = options?.role ?? 'member';
+  const role = options?.role !== undefined ? options.role : 'member';
   const assignments = options?.assignments ?? [
     { groupId: 'class-1', ensembleRole: 'teacher' as const },
   ];
@@ -152,7 +154,19 @@ function createRepos(options?: {
     replaceAudienceForFutureOccurrences: vi.fn(),
   };
 
-  return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, created };
+  const orgRepo: OrganizationRepository = {
+    isPlatformAdmin: async () => options?.isPlatformAdmin ?? false,
+    listForUser: vi.fn(),
+    listAllForPlatformAdmin: vi.fn(),
+    getBySlug: vi.fn(),
+    getById: vi.fn(),
+    updateImageKey: vi.fn(),
+    clearImage: vi.fn(),
+    updateName: vi.fn(),
+    updateRules: vi.fn(),
+  };
+
+  return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, orgRepo, created };
 }
 
 const validInput = {
@@ -169,6 +183,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       validInput,
@@ -187,6 +202,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       { ...validInput, groupIds: ['orchestra'] },
@@ -205,6 +221,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       { ...validInput, groupIds: ['class-1'], musicianIds: ['student-1'] },
@@ -231,6 +248,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       { ...validInput, groupIds: ['orchestra'], musicianIds: ['player-1'] },
@@ -256,6 +274,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       { ...validInput, groupIds: ['class-1'] },
@@ -285,6 +304,7 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       { ...validInput, groupIds: ['class-1', 'orchestra'] },
@@ -304,8 +324,26 @@ describe('scheduleEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
+      { ...validInput, groupIds: ['orchestra'] },
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows a platform admin without org membership to create an event', async () => {
+    const repos = createRepos({ role: null, isPlatformAdmin: true, assignments: [] });
+
+    const result = await scheduleEvent(
+      repos.eventRepo,
+      repos.membershipRepo,
+      repos.musicianRepo,
+      repos.assignmentRepo,
+      repos.orgRepo,
+      'org-1',
+      'platform-admin',
       { ...validInput, groupIds: ['orchestra'] },
     );
 
@@ -327,6 +365,7 @@ describe('updateEvent audience', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-1',
       'event-1',

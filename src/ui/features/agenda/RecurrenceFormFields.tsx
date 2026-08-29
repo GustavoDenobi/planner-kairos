@@ -239,9 +239,6 @@ export function RecurrenceFormFields({
           required
           className={fieldClass}
         />
-        <span className="mt-1 block text-xs text-muted">
-          Máximo de 730 dias a partir de hoje
-        </span>
       </label>
 
       <p className="text-sm text-muted">{preview}</p>

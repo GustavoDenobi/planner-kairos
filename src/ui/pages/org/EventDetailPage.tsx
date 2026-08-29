@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { AssociableAudience } from '@/application/agenda';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
-import type { EventDetail, EventType } from '@/domain/agenda';
+import type { EventDetail, EventRecurrence, EventType } from '@/domain/agenda';
 import {
   canWriteEvent,
   eventDisplayTitle,
@@ -32,6 +32,7 @@ import {
   CancelRecurrenceConfirmModal,
   RecurrenceScopeModal,
 } from '@/ui/features/agenda/RecurrenceScopeModal';
+import { EditRecurrenceSeriesModal } from '@/ui/features/agenda/EditRecurrenceSeriesModal';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
 import { EventAbsencesSection } from '@/ui/features/agenda/EventAbsencesSection';
 import {
@@ -88,6 +89,12 @@ export function EventDetailPage() {
   const [confirmCancelRecurrence, setConfirmCancelRecurrence] = useState(false);
   const [isCancellingRecurrence, setIsCancellingRecurrence] = useState(false);
   const [cancelRecurrenceError, setCancelRecurrenceError] = useState<string | null>(null);
+  const [editSeriesOpen, setEditSeriesOpen] = useState(false);
+  const [editSeriesRecurrence, setEditSeriesRecurrence] = useState<EventRecurrence | null>(null);
+  const [editSeriesLoading, setEditSeriesLoading] = useState(false);
+  const [editSeriesLoadError, setEditSeriesLoadError] = useState<string | null>(null);
+  const [editSeriesSaving, setEditSeriesSaving] = useState(false);
+  const [editSeriesError, setEditSeriesError] = useState<string | null>(null);
 
   const loadEvent = useCallback(async () => {
     if (!org || !eventId) {
@@ -300,6 +307,65 @@ export function EventDetailPage() {
     navigate(agendaPath(orgSlug ?? ''));
   }
 
+  async function openEditSeries() {
+    if (!org || !userId || !event?.recurrenceId) {
+      return;
+    }
+
+    setEditSeriesOpen(true);
+    setEditSeriesLoading(true);
+    setEditSeriesLoadError(null);
+    setEditSeriesRecurrence(null);
+    setEditSeriesError(null);
+
+    const result = await agenda.getRecurrence(org.id, userId, event.recurrenceId);
+
+    setEditSeriesLoading(false);
+
+    if (!result.ok) {
+      setEditSeriesLoadError(agendaErrorMessage(result.error));
+      return;
+    }
+
+    setEditSeriesRecurrence(result.value);
+  }
+
+  function closeEditSeries() {
+    setEditSeriesOpen(false);
+    setEditSeriesRecurrence(null);
+    setEditSeriesLoadError(null);
+    setEditSeriesError(null);
+  }
+
+  async function handleSaveRecurrenceSeries(input: {
+    rule: import('@/domain/agenda').RecurrenceRule;
+    seriesEndsAt: string;
+  }): Promise<string | null> {
+    if (!org || !userId || !event?.recurrenceId) {
+      return 'Evento não encontrado.';
+    }
+
+    setEditSeriesSaving(true);
+    setEditSeriesError(null);
+
+    const result = await agenda.updateRecurrenceSeries(
+      org.id,
+      userId,
+      event.recurrenceId,
+      input,
+    );
+
+    setEditSeriesSaving(false);
+
+    if (!result.ok) {
+      const message = agendaErrorMessage(result.error);
+      setEditSeriesError(message);
+      return message;
+    }
+
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className={`${orgPageContentClass} px-4 py-6 ${orgListPageHeightClass}`}>
@@ -401,12 +467,13 @@ export function EventDetailPage() {
         <div className="flex items-start gap-2">
           <BackButton fallbackTo={agendaPath(orgSlug ?? '')} />
           <div className="min-w-0 flex-1 ml-1">
-            <div className="flex items-center justify-between gap-3">
-              <h1 className="min-w-0 truncate text-xl font-semibold text-text sm:text-2xl">
-                {displayTitle}
-              </h1>
+            <h1 className="min-w-0 truncate text-xl font-semibold text-text sm:text-2xl">
+              {displayTitle}
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              
               <span
-                className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                className="rounded-full px-2.5 py-0.5 text-xs font-medium"
                 style={badgeStyle}
               >
                 {event.type.name}
@@ -414,29 +481,17 @@ export function EventDetailPage() {
             </div>
             <p className="mt-1 text-sm text-muted">
               {formatEventTime(event.startsAt, event.endsAt)}
+              {event.recurrenceId && (
+                <span
+                  className="rounded-full bg-bg px-2 py-0.5 font-medium text-muted"
+                  title={event.isException ? 'Evento recorrente · exceção' : 'Evento recorrente'}
+                >
+                  ↻ Recorrente
+                </span>
+              )}
             </p>
             {isOfflineReadOnly && (
               <p className="mt-1 text-sm text-muted">Modo offline — somente leitura</p>
-            )}
-            {event.recurrenceId && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-bg px-2.5 py-0.5 text-xs font-medium text-muted">
-                  Série recorrente
-                  {event.isException ? ' · exceção' : ''}
-                </span>
-                {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmCancelRecurrence(true)}
-                    className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                  >
-                    Cancelar série (futuros)
-                  </button>
-                )}
-              </div>
-            )}
-            {cancelRecurrenceError && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{cancelRecurrenceError}</p>
             )}
             <EventAudienceChips
               groups={event.groups}
@@ -519,14 +574,47 @@ export function EventDetailPage() {
           {deleteError && (
             <p className="mb-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>
           )}
-          <button
-            type="button"
-            onClick={requestDelete}
-            disabled={isDeleting || isSaving}
-            className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full md:w-auto"
-          >
-            Excluir evento
-          </button>
+          {cancelRecurrenceError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cancelRecurrenceError}</p>
+          )}
+          {editSeriesError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">{editSeriesError}</p>
+          )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {event.recurrenceId && (
+              <button
+                type="button"
+                onClick={() => void openEditSeries()}
+                disabled={
+                  editSeriesSaving ||
+                  isCancellingRecurrence ||
+                  isDeleting ||
+                  isSaving
+                }
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50 w-full sm:w-auto"
+              >
+                Editar série
+              </button>
+            )}
+            {event.recurrenceId && (
+              <button
+                type="button"
+                onClick={() => setConfirmCancelRecurrence(true)}
+                disabled={isCancellingRecurrence || isDeleting || isSaving}
+                className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full sm:w-auto"
+              >
+                Cancelar série (próximos)
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={requestDelete}
+              disabled={isDeleting || isSaving || isCancellingRecurrence}
+              className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full sm:w-auto"
+            >
+              Excluir evento
+            </button>
+          </div>
         </section>
       )}
 
@@ -568,6 +656,20 @@ export function EventDetailPage() {
         onClose={() => setConfirmCancelRecurrence(false)}
         onConfirm={() => void handleCancelRecurrence()}
         isConfirming={isCancellingRecurrence}
+      />
+
+      <EditRecurrenceSeriesModal
+        open={editSeriesOpen}
+        onClose={closeEditSeries}
+        onSaved={() => {
+          closeEditSeries();
+          void loadEvent();
+        }}
+        recurrence={editSeriesRecurrence}
+        isLoading={editSeriesLoading}
+        loadError={editSeriesLoadError}
+        onSave={handleSaveRecurrenceSeries}
+        isSaving={editSeriesSaving}
       />
 
       <ConfirmModal

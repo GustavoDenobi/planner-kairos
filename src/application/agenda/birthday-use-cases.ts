@@ -1,5 +1,6 @@
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import { listMusicianBirthdaysInRange, type MusicianBirthdayItem } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
 
@@ -12,16 +13,25 @@ export type ListMusicianBirthdaysInRangeOptions = {
 export async function listMusicianBirthdaysInRangeForAdmin(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   options: ListMusicianBirthdaysInRangeOptions,
 ) {
-  const membership = await membershipRepo.getByUserAndOrg(organizationId, userId);
-  if (!membership) {
+  const [membership, isPlatformAdmin] = await Promise.all([
+    membershipRepo.getByUserAndOrg(organizationId, userId),
+    orgRepo.isPlatformAdmin(userId),
+  ]);
+
+  if (!membership && !isPlatformAdmin) {
     return Result.fail('not_a_member' as const);
   }
 
-  if (membership.accessRole !== 'owner' && membership.accessRole !== 'admin') {
+  if (
+    !isPlatformAdmin &&
+    membership?.accessRole !== 'owner' &&
+    membership?.accessRole !== 'admin'
+  ) {
     return Result.fail('not_allowed' as const);
   }
 

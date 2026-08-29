@@ -3,10 +3,13 @@ import type { EventRecurrenceRepository } from '@/application/ports/event-recurr
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type {
   EventDetail,
   EventInput,
+  EventRecurrence,
   RecurrenceEditScope,
+  RecurrenceRule,
   ScheduleRecurrenceInput,
 } from '@/domain/agenda';
 import {
@@ -16,6 +19,7 @@ import {
   validateEventInput,
   validateRecurrenceEndDate,
   validateRecurrenceInput,
+  validateRecurrenceRule,
 } from '@/domain/agenda';
 import { durationMinutesBetween, parseDateInputEndOfDayUtc } from '@/domain/agenda/date-utils';
 import { Result } from '@/domain/shared';
@@ -68,6 +72,7 @@ export async function scheduleRecurrence(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   input: ScheduleRecurrenceInput,
@@ -76,6 +81,7 @@ export async function scheduleRecurrence(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -137,6 +143,7 @@ export async function cancelRecurrence(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   recurrenceId: string,
@@ -146,6 +153,7 @@ export async function cancelRecurrence(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -177,12 +185,160 @@ export async function cancelRecurrence(
   }
 }
 
+export async function getRecurrence(
+  recurrenceRepo: EventRecurrenceRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+  recurrenceId: string,
+): Promise<Result<EventRecurrence, 'not_found' | 'not_allowed' | 'not_a_member'>> {
+  const contextResult = await loadWriterContext(
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
+    organizationId,
+    userId,
+  );
+  if (!contextResult.ok) {
+    return contextResult;
+  }
+
+  const recurrence = await recurrenceRepo.getById(organizationId, recurrenceId);
+  if (!recurrence) {
+    return Result.fail('not_found');
+  }
+
+  if (
+    !canWriteRecurrence({
+      context: contextResult.value,
+      userId,
+      createdBy: recurrence.createdBy,
+      recurrenceGroupIds: recurrence.groupIds,
+    })
+  ) {
+    return Result.fail('not_allowed' as const);
+  }
+
+  return Result.ok(recurrence);
+}
+
+export type UpdateRecurrenceSeriesInput = {
+  rule: RecurrenceRule;
+  seriesEndsAt: string;
+};
+
+export async function updateRecurrenceSeries(
+  recurrenceRepo: EventRecurrenceRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+  recurrenceId: string,
+  input: UpdateRecurrenceSeriesInput,
+) {
+  const contextResult = await loadWriterContext(
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
+    organizationId,
+    userId,
+  );
+  if (!contextResult.ok) {
+    return contextResult;
+  }
+
+  const recurrence = await recurrenceRepo.getById(organizationId, recurrenceId);
+  if (!recurrence) {
+    return Result.fail('not_found');
+  }
+
+  if (
+    !canWriteRecurrence({
+      context: contextResult.value,
+      userId,
+      createdBy: recurrence.createdBy,
+      recurrenceGroupIds: recurrence.groupIds,
+    })
+  ) {
+    return Result.fail('not_allowed' as const);
+  }
+
+  const ruleError = validateRecurrenceRule(input.rule);
+  if (ruleError) {
+    return Result.fail(ruleError);
+  }
+
+  const endError = validateRecurrenceEndDate({
+    seriesStartsAt: recurrence.seriesStartsAt,
+    seriesEndsAt: input.seriesEndsAt,
+    limitAnchorAt: recurrence.limitAnchorAt,
+  });
+  if (endError) {
+    return Result.fail(endError);
+  }
+
+  const occurrences = generateOccurrenceDates({
+    rule: input.rule,
+    seriesStartsAt: recurrence.seriesStartsAt,
+    seriesEndsAt: input.seriesEndsAt,
+    durationMinutes: recurrence.durationMinutes,
+  });
+  if (occurrences.length === 0) {
+    return Result.fail('recurrence_no_occurrences' as const);
+  }
+
+  try {
+    const fromInstant = new Date().toISOString();
+    const summaries = await recurrenceRepo.listOccurrenceSummaries(organizationId, recurrenceId);
+    const maxKeptIndex = summaries
+      .filter((item) => item.startsAt < fromInstant || item.isException)
+      .reduce((max, item) => Math.max(max, item.occurrenceIndex), -1);
+
+    const updatedRecurrence = await recurrenceRepo.updateTemplate(organizationId, recurrenceId, {
+      rule: input.rule,
+      seriesEndsAt: input.seriesEndsAt,
+    });
+
+    await recurrenceRepo.deleteNonExceptionOccurrencesFromInstant(
+      organizationId,
+      recurrenceId,
+      fromInstant,
+    );
+
+    const endInstant = parseDateInputEndOfDayUtc(
+      input.seriesEndsAt.split('T')[0] ?? input.seriesEndsAt,
+    ).toISOString();
+    await recurrenceRepo.deleteOccurrencesAfterDate(organizationId, recurrenceId, endInstant);
+
+    const futureOccurrences = occurrences
+      .filter((occurrence) => occurrence.startsAt >= fromInstant)
+      .map((occurrence, index) => ({
+        ...occurrence,
+        occurrenceIndex: maxKeptIndex + 1 + index,
+      }));
+
+    await recurrenceRepo.insertOccurrences(organizationId, updatedRecurrence, futureOccurrences);
+
+    return Result.ok(updatedRecurrence);
+  } catch {
+    return Result.fail('update_failed' as const);
+  }
+}
+
 export async function updateRecurrenceOccurrence(
   eventRepo: EventRepository,
   recurrenceRepo: EventRecurrenceRepository,
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   eventId: string,
@@ -194,6 +350,7 @@ export async function updateRecurrenceOccurrence(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -391,6 +548,7 @@ export async function deleteRecurrenceOccurrence(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
   eventId: string,
@@ -400,6 +558,7 @@ export async function deleteRecurrenceOccurrence(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -441,6 +600,7 @@ export async function deleteRecurrenceOccurrence(
         membershipRepo,
         musicianRepo,
         assignmentRepo,
+        orgRepo,
         organizationId,
         userId,
         existing.recurrenceId,

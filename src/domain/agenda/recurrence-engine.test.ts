@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateOccurrenceDates,
+  formatRecurrencePreview,
   maxRecurrenceEndDate,
   maxRecurrenceEndDateInputValue,
   validateRecurrenceEndDate,
@@ -80,5 +81,20 @@ describe('recurrence-engine', () => {
         limitAnchorAt: '2026-01-01T10:00:00.000Z',
       }),
     ).toBe('end_date_required');
+  });
+
+  it('formatRecurrencePreview tolerates incomplete end date while editing', () => {
+    expect(
+      formatRecurrencePreview(
+        { frequency: 'weekly', interval: 1, byWeekday: [6] },
+        '',
+      ),
+    ).toBe('Informe a data limite da recorrência.');
+    expect(
+      formatRecurrencePreview(
+        { frequency: 'weekly', interval: 1, byWeekday: [6] },
+        '2026-08',
+      ),
+    ).toBe('Informe a data limite da recorrência.');
   });
 });

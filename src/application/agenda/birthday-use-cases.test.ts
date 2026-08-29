@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import { listMusicianBirthdaysInRangeForAdmin } from '@/application/agenda/birthday-use-cases';
 
-function createRepos(role: 'owner' | 'admin' | 'member' | null) {
+function createRepos(options?: {
+  role?: 'owner' | 'admin' | 'member' | null;
+  isPlatformAdmin?: boolean;
+}) {
+  const role = options?.role !== undefined ? options.role : 'member';
+
   const membershipRepo: MembershipRepository = {
     getByUserAndOrg: async () =>
       role
@@ -32,16 +38,29 @@ function createRepos(role: 'owner' | 'admin' | 'member' | null) {
     merge: vi.fn(),
   };
 
-  return { membershipRepo, musicianRepo };
+  const orgRepo: OrganizationRepository = {
+    isPlatformAdmin: async () => options?.isPlatformAdmin ?? false,
+    listForUser: vi.fn(),
+    listAllForPlatformAdmin: vi.fn(),
+    getBySlug: vi.fn(),
+    getById: vi.fn(),
+    updateImageKey: vi.fn(),
+    clearImage: vi.fn(),
+    updateName: vi.fn(),
+    updateRules: vi.fn(),
+  };
+
+  return { membershipRepo, musicianRepo, orgRepo };
 }
 
 describe('listMusicianBirthdaysInRangeForAdmin', () => {
   it('returns birthdays for admins', async () => {
-    const { membershipRepo, musicianRepo } = createRepos('admin');
+    const { membershipRepo, musicianRepo, orgRepo } = createRepos({ role: 'admin' });
 
     const result = await listMusicianBirthdaysInRangeForAdmin(
       membershipRepo,
       musicianRepo,
+      orgRepo,
       'org-1',
       'user-1',
       {
@@ -58,11 +77,12 @@ describe('listMusicianBirthdaysInRangeForAdmin', () => {
   });
 
   it('rejects members', async () => {
-    const { membershipRepo, musicianRepo } = createRepos('member');
+    const { membershipRepo, musicianRepo, orgRepo } = createRepos({ role: 'member' });
 
     const result = await listMusicianBirthdaysInRangeForAdmin(
       membershipRepo,
       musicianRepo,
+      orgRepo,
       'org-1',
       'user-1',
       {
@@ -78,11 +98,12 @@ describe('listMusicianBirthdaysInRangeForAdmin', () => {
   });
 
   it('rejects non-members', async () => {
-    const { membershipRepo, musicianRepo } = createRepos(null);
+    const { membershipRepo, musicianRepo, orgRepo } = createRepos({ role: null });
 
     const result = await listMusicianBirthdaysInRangeForAdmin(
       membershipRepo,
       musicianRepo,
+      orgRepo,
       'org-1',
       'user-1',
       {
@@ -95,5 +116,26 @@ describe('listMusicianBirthdaysInRangeForAdmin', () => {
     if (!result.ok) {
       expect(result.error).toBe('not_a_member');
     }
+  });
+
+  it('allows platform admins without org membership', async () => {
+    const { membershipRepo, musicianRepo, orgRepo } = createRepos({
+      role: null,
+      isPlatformAdmin: true,
+    });
+
+    const result = await listMusicianBirthdaysInRangeForAdmin(
+      membershipRepo,
+      musicianRepo,
+      orgRepo,
+      'org-1',
+      'platform-admin',
+      {
+        from: '2026-05-11T00:00:00.000Z',
+        to: '2026-05-18T00:00:00.000Z',
+      },
+    );
+
+    expect(result.ok).toBe(true);
   });
 });

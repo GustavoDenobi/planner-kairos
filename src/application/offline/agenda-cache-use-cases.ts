@@ -6,6 +6,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { GroupRepository } from '@/application/ports/group-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { EventDetail, EventKind, EventListItem, EventType } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
 import { listAssociableAudience } from '@/application/agenda/list-associable-audience';
@@ -127,6 +128,7 @@ export async function cacheAgendaForOffline(
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
   groupRepo: GroupRepository,
+  orgRepo: OrganizationRepository,
   agendaCache: OfflineAgendaCache,
   organizationId: string,
   userId: string,
@@ -145,6 +147,7 @@ export async function cacheAgendaForOffline(
       musicianRepo,
       assignmentRepo,
       groupRepo,
+      orgRepo,
       organizationId,
       userId,
     ),
@@ -153,6 +156,7 @@ export async function cacheAgendaForOffline(
       membershipRepo,
       musicianRepo,
       assignmentRepo,
+      orgRepo,
       organizationId,
       userId,
       range,

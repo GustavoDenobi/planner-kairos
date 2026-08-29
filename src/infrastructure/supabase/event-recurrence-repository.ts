@@ -410,5 +410,79 @@ export function createEventRecurrenceRepository(): EventRecurrenceRepository {
         throw new Error(error.message);
       }
     },
+
+    async deleteNonExceptionOccurrencesFromInstant(organizationId, recurrenceId, fromInstant) {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .eq('is_exception', false)
+        .gte('starts_at', fromInstant);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const ids = (data ?? []).map((row) => row.id);
+      if (ids.length === 0) {
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('events')
+        .delete()
+        .eq('organization_id', organizationId)
+        .in('id', ids);
+
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+    },
+
+    async insertOccurrences(organizationId, recurrence, occurrences) {
+      if (occurrences.length === 0) {
+        return;
+      }
+
+      for (let offset = 0; offset < occurrences.length; offset += BATCH_SIZE) {
+        const batch = occurrences.slice(offset, offset + BATCH_SIZE);
+        const { data: eventRows, error: eventsError } = await supabase
+          .from('events')
+          .insert(
+            batch.map((occurrence) => ({
+              organization_id: organizationId,
+              type_id: recurrence.typeId,
+              title: recurrence.title,
+              location: recurrence.location,
+              notes: recurrence.notes,
+              starts_at: occurrence.startsAt,
+              ends_at: occurrence.endsAt,
+              created_by: recurrence.createdBy ?? undefined,
+              recurrence_id: recurrence.id,
+              occurrence_index: occurrence.occurrenceIndex,
+              original_starts_at: occurrence.originalStartsAt,
+              is_exception: false,
+            })),
+          )
+          .select('id');
+
+        if (eventsError || !eventRows) {
+          throw new Error(eventsError?.message ?? 'create_failed');
+        }
+
+        for (const eventRow of eventRows) {
+          if (!eventRow?.id) {
+            continue;
+          }
+          await copyAudienceToEvent(
+            organizationId,
+            eventRow.id,
+            recurrence.groupIds,
+            recurrence.musicianIds,
+          );
+        }
+      }
+    },
   };
 }

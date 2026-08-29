@@ -2,6 +2,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { GroupRepository } from '@/application/ports/group-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { GroupKind } from '@/domain/ensemble';
 import { Result } from '@/domain/shared';
 import { getEventWriterContext } from './event-use-cases';
@@ -58,6 +59,7 @@ export async function listAssociableAudience(
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
   groupRepo: GroupRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
 ) {
@@ -65,6 +67,7 @@ export async function listAssociableAudience(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );

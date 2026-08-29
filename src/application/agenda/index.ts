@@ -14,6 +14,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { GroupRepository } from '@/application/ports/group-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { EventInput, ProgramItemInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
 
@@ -31,8 +32,10 @@ import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
 import {
   cancelRecurrence,
   deleteRecurrenceOccurrence,
+  getRecurrence,
   scheduleRecurrence,
   updateRecurrenceOccurrence,
+  updateRecurrenceSeries,
 } from './recurrence-use-cases';
 
 export type AgendaDeps = {
@@ -45,6 +48,7 @@ export type AgendaDeps = {
   musicianRepo: MusicianRepository;
   assignmentRepo: AssignmentRepository;
   groupRepo: GroupRepository;
+  orgRepo: OrganizationRepository;
 };
 
 export function createAgendaUseCases(deps: AgendaDeps) {
@@ -67,6 +71,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         options,
@@ -79,6 +84,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         input,
@@ -94,6 +100,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         eventId,
@@ -105,6 +112,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         eventId,
@@ -116,6 +124,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         input,
@@ -126,10 +135,39 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         recurrenceId,
         fromInstant,
+      ),
+    getRecurrence: (organizationId: string, userId: string, recurrenceId: string) =>
+      getRecurrence(
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        recurrenceId,
+      ),
+    updateRecurrenceSeries: (
+      organizationId: string,
+      userId: string,
+      recurrenceId: string,
+      input: import('./recurrence-use-cases').UpdateRecurrenceSeriesInput,
+    ) =>
+      updateRecurrenceSeries(
+        deps.eventRecurrenceRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        recurrenceId,
+        input,
       ),
     updateRecurrenceOccurrence: (
       organizationId: string,
@@ -145,6 +183,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         eventId,
@@ -164,6 +203,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         eventId,
@@ -175,6 +215,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.musicianRepo,
         deps.assignmentRepo,
         deps.groupRepo,
+        deps.orgRepo,
         organizationId,
         userId,
       ),
@@ -189,6 +230,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         deps.eventAbsenceRepo,
         organizationId,
         userId,
@@ -205,6 +247,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         deps.membershipRepo,
         deps.musicianRepo,
         deps.assignmentRepo,
+        deps.orgRepo,
         deps.eventAbsenceRepo,
         organizationId,
         userId,
@@ -219,6 +262,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
       listMusicianBirthdaysInRangeForAdmin(
         deps.membershipRepo,
         deps.musicianRepo,
+        deps.orgRepo,
         organizationId,
         userId,
         options,

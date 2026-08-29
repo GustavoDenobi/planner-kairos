@@ -15,6 +15,7 @@ import type { PartRepository } from '@/application/ports/part-repository';
 import type { SectionRepository } from '@/application/ports/section-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
@@ -117,6 +118,7 @@ export type OfflineUseCaseDeps = {
   musicianRepo: MusicianRepository;
   assignmentRepo: AssignmentRepository;
   groupRepo: GroupRepository;
+  orgRepo: OrganizationRepository;
   partRepo: PartRepository;
   sectionRepo: SectionRepository;
 };
@@ -383,6 +385,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         deps.musicianRepo,
         deps.assignmentRepo,
         deps.groupRepo,
+        deps.orgRepo,
         agendaCache,
         organizationId,
         userId,

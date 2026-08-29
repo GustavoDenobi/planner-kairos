@@ -59,4 +59,14 @@ export type EventRecurrenceRepository = {
     recurrenceId: string,
     seriesEndsAt: string,
   ): Promise<void>;
+  deleteNonExceptionOccurrencesFromInstant(
+    organizationId: string,
+    recurrenceId: string,
+    fromInstant: string,
+  ): Promise<void>;
+  insertOccurrences(
+    organizationId: string,
+    recurrence: EventRecurrence,
+    occurrences: GeneratedOccurrence[],
+  ): Promise<void>;
 };

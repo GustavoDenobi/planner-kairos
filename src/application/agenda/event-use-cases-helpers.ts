@@ -1,6 +1,7 @@
 import type { AssignmentRepository } from '@/application/ports/assignment-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { EventInput } from '@/domain/agenda';
 import { uniqueIds, validateEventAudienceForGroupWriter } from '@/domain/agenda';
 import { isGroupWriterRole } from '@/domain/ensemble';
@@ -19,15 +20,23 @@ export async function loadWriterContext(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   organizationId: string,
   userId: string,
 ): Promise<Result<EventWriterContext, 'not_a_member'>> {
-  const membership = await membershipRepo.getByUserAndOrg(organizationId, userId);
-  if (!membership) {
+  const [membership, isPlatformAdmin] = await Promise.all([
+    membershipRepo.getByUserAndOrg(organizationId, userId),
+    orgRepo.isPlatformAdmin(userId),
+  ]);
+
+  if (!membership && !isPlatformAdmin) {
     return Result.fail('not_a_member');
   }
 
-  const isPrivileged = membership.accessRole === 'owner' || membership.accessRole === 'admin';
+  const isPrivileged =
+    isPlatformAdmin ||
+    membership?.accessRole === 'owner' ||
+    membership?.accessRole === 'admin';
   const musician = await musicianRepo.getByUserId(organizationId, userId);
   const assignments = musician
     ? await assignmentRepo.listForMusician(organizationId, musician.id)

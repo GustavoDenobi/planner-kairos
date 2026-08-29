@@ -10,6 +10,7 @@ import {
   setUtcTimeFrom,
   startOfDayUtc,
   toDateInputValueUtc,
+  isValidDateInputValue,
 } from './date-utils';
 import type { MonthlyRule, RecurrenceRule, WeeklyRule } from './recurrence-rule';
 import { isMonthlyRule, isWeeklyRule } from './recurrence-rule';
@@ -242,11 +243,16 @@ export function generateOccurrenceDates(input: {
 
 export function formatRecurrencePreview(rule: RecurrenceRule, seriesEndsAt: string): string {
   const weekdayNames = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const datePart = seriesEndsAt.split('T')[0] ?? seriesEndsAt;
+  if (!isValidDateInputValue(datePart)) {
+    return 'Informe a data limite da recorrência.';
+  }
+
   const endLabel = new Intl.DateTimeFormat('pt-BR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).format(parseDateInputEndOfDayUtc(seriesEndsAt.split('T')[0] ?? seriesEndsAt));
+  }).format(parseDateInputEndOfDayUtc(datePart));
 
   if (isWeeklyRule(rule)) {
     const days = sortWeekdays(rule.byWeekday)

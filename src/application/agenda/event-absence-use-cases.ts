@@ -3,6 +3,7 @@ import type { AssignmentRepository } from '@/application/ports/assignment-reposi
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { EventParticipant } from '@/domain/agenda';
 import { canWriteEvent, resolveEventParticipants } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
@@ -65,6 +66,7 @@ async function assertCanManageAbsences(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   eventRepo: EventRepository,
   organizationId: string,
   userId: string,
@@ -74,6 +76,7 @@ async function assertCanManageAbsences(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     organizationId,
     userId,
   );
@@ -108,6 +111,7 @@ export async function listEventAbsences(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   absenceRepo: EventAbsenceRepository,
   organizationId: string,
   userId: string,
@@ -117,6 +121,7 @@ export async function listEventAbsences(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     eventRepo,
     organizationId,
     userId,
@@ -140,6 +145,7 @@ export async function toggleEventAbsence(
   membershipRepo: MembershipRepository,
   musicianRepo: MusicianRepository,
   assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
   absenceRepo: EventAbsenceRepository,
   organizationId: string,
   userId: string,
@@ -150,6 +156,7 @@ export async function toggleEventAbsence(
     membershipRepo,
     musicianRepo,
     assignmentRepo,
+    orgRepo,
     eventRepo,
     organizationId,
     userId,

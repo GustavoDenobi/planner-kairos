@@ -105,6 +105,7 @@ export function createAppServices() {
     musicianRepo,
     assignmentRepo,
     groupRepo,
+    orgRepo,
   });
 
   const offlineStorage = createOfflineStorage();
@@ -125,6 +126,7 @@ export function createAppServices() {
     musicianRepo,
     assignmentRepo,
     groupRepo,
+    orgRepo,
     partRepo,
     sectionRepo,
   });

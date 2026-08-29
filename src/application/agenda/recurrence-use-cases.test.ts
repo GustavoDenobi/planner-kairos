@@ -4,6 +4,7 @@ import type { EventRecurrenceRepository } from '@/application/ports/event-recurr
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import { cancelRecurrence, scheduleRecurrence } from '@/application/agenda/recurrence-use-cases';
 import type { EventDetail, EventRecurrence } from '@/domain/agenda';
 
@@ -103,6 +104,18 @@ function createRepos() {
     replaceAudienceForFutureOccurrences: vi.fn(),
   };
 
+  const orgRepo: OrganizationRepository = {
+    isPlatformAdmin: async () => false,
+    listForUser: vi.fn(),
+    listAllForPlatformAdmin: vi.fn(),
+    getBySlug: vi.fn(),
+    getById: vi.fn(),
+    updateImageKey: vi.fn(),
+    clearImage: vi.fn(),
+    updateName: vi.fn(),
+    updateRules: vi.fn(),
+  };
+
   const recurrenceRepo: EventRecurrenceRepository = {
     createWithOccurrences: vi.fn(async () => ({
       recurrence: recurrenceDetail(),
@@ -116,9 +129,11 @@ function createRepos() {
     deleteOccurrencesAfterDate: vi.fn(),
     listOccurrenceSummaries: vi.fn(async () => []),
     truncateSeriesEnd: vi.fn(),
+    deleteNonExceptionOccurrencesFromInstant: vi.fn(),
+    insertOccurrences: vi.fn(),
   };
 
-  return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, recurrenceRepo };
+  return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, orgRepo, recurrenceRepo };
 }
 
 describe('recurrence-use-cases', () => {
@@ -130,6 +145,7 @@ describe('recurrence-use-cases', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-teacher',
       {
@@ -152,6 +168,7 @@ describe('recurrence-use-cases', () => {
       repos.membershipRepo,
       repos.musicianRepo,
       repos.assignmentRepo,
+      repos.orgRepo,
       'org-1',
       'user-teacher',
       'rec-1',
