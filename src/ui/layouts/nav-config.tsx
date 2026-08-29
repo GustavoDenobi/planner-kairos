@@ -43,7 +43,22 @@ export const adminNavItems: NavItem[] = [
   },
 ];
 
-export function getNavItemsForOrg(org: OrganizationWithRole | undefined): NavItem[] {
-  const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
-  return isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+export function isOrgAdminAccess(
+  org: OrganizationWithRole | undefined,
+  isPlatformAdmin = false,
+): boolean {
+  if (isPlatformAdmin) {
+    return true;
+  }
+
+  return org?.accessRole === 'admin' || org?.accessRole === 'owner';
+}
+
+export function getNavItemsForOrg(
+  org: OrganizationWithRole | undefined,
+  isPlatformAdmin = false,
+): NavItem[] {
+  return isOrgAdminAccess(org, isPlatformAdmin)
+    ? [...baseNavItems, ...adminNavItems]
+    : baseNavItems;
 }

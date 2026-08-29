@@ -8,8 +8,14 @@ import { withReturnTo } from '@/ui/navigation/return-to';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function OrgSelectorPage() {
-  const { organizations, isLoading, isOfflineData, setCurrentOrgBySlug, refreshOrganizations } =
-    useOrg();
+  const {
+    organizations,
+    isLoading,
+    isOfflineData,
+    isPlatformAdmin,
+    setCurrentOrgBySlug,
+    refreshOrganizations,
+  } = useOrg();
   const navigate = useNavigate();
   const online = useOnlineStatus();
 
@@ -71,8 +77,16 @@ export function OrgSelectorPage() {
       <div className="mb-6 flex items-center justify-end">
         <DisplayPreferencesControls variant="compact" />
       </div>
-      <div className="mb-6 flex items-center justify-center">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-text">Selecione</h1>
+        {isPlatformAdmin && online && !isOfflineData && (
+          <Link
+            to="/admin/organizacoes"
+            className="rounded-lg border border-border px-3 py-1.5 text-sm text-primary hover:bg-bg"
+          >
+            Administração
+          </Link>
+        )}
       </div>
       {(isOfflineData || !online) && (
         <p className="mb-4 text-center text-sm text-muted">
@@ -81,7 +95,8 @@ export function OrgSelectorPage() {
       )}
       <ul className="flex flex-col gap-3">
         {organizations.map((org) => {
-          const isAdmin = org.accessRole === 'admin' || org.accessRole === 'owner';
+          const isAdmin =
+            isPlatformAdmin || org.accessRole === 'admin' || org.accessRole === 'owner';
           return (
             <li
               key={org.id}

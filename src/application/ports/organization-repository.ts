@@ -12,7 +12,9 @@ export type OrganizationRulesUpdateInput = {
 };
 
 export type OrganizationRepository = {
+  isPlatformAdmin(userId: string): Promise<boolean>;
   listForUser(userId: string): Promise<OrganizationWithRole[]>;
+  listAllForPlatformAdmin(userId: string): Promise<OrganizationWithRole[]>;
   getBySlug(slug: string): Promise<Organization | null>;
   getById(id: string): Promise<Organization | null>;
   updateImageKey(organizationId: string, imageStorageKey: string): Promise<Organization>;

@@ -728,6 +728,22 @@ No MVP: texto na ficha da obra. Relatórios visuais (trimestre, escalas mensais/
 
 ---
 
+## 5.1 Plataforma (admin inter-organizacional)
+
+Entidades globais — **sem** `organizationId`. Acesso via `platform_admins` e RPCs `platform_*`.
+
+| Entidade | Tabela | Descrição |
+|---|---|---|
+| PlatformAdmin | `platform_admins` | Usuário com privilégios inter-org (`is_platform_admin()` estende RLS) |
+| Plan | `plans` | Catálogo de planos com limites (`max_groups`, `max_musicians`, `max_pieces`, `max_storage_bytes`; `NULL` = ilimitado) |
+| PlatformAuditLog | `platform_audit_log` | Auditoria de ações administrativas |
+
+`Organization.planId` referencia o plano ativo. Limites enforced por triggers/`assert_org_plan_limit` (platform admin bypassa).
+
+UI: `/admin/organizacoes`, `/admin/usuarios`, `/admin/planos`.
+
+---
+
 ## 6. Entidades fora do núcleo (depois)
 
 Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoire/Agenda.

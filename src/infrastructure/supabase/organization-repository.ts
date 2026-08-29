@@ -32,6 +32,57 @@ const ORG_SELECT =
 
 export function createOrganizationRepository(): OrganizationRepository {
   return {
+    async isPlatformAdmin(userId) {
+      const { data, error } = await supabase
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return data !== null;
+    },
+
+    async listAllForPlatformAdmin(userId) {
+      const { data: orgRows, error: orgError } = await supabase
+        .from('organizations')
+        .select(ORG_SELECT)
+        .order('name');
+
+      if (orgError) {
+        throw new Error(orgError.message);
+      }
+
+      if (!orgRows?.length) {
+        return [];
+      }
+
+      const { data: membershipRows, error: membershipError } = await supabase
+        .from('memberships')
+        .select('access_role, organization_id')
+        .eq('user_id', userId);
+
+      if (membershipError) {
+        throw new Error(membershipError.message);
+      }
+
+      const roleByOrg = new Map(
+        (membershipRows ?? []).map((row) => [row.organization_id, row.access_role]),
+      );
+
+      return orgRows.map((row) => {
+        const org = mapOrganization(row);
+        const membershipRole = roleByOrg.get(org.id);
+        return {
+          ...org,
+          accessRole: membershipRole ?? 'owner',
+        } satisfies OrganizationWithRole;
+      });
+    },
+
     async listForUser(userId) {
       const { data: membershipRows, error: membershipError } = await supabase
         .from('memberships')

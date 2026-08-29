@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import type { PlatformUseCases } from '@/application/platform';
 import type { OfflineUseCases } from '@/application/offline';
 import type { AgendaUseCases } from '@/application/agenda';
 import type { EnsembleUseCases } from '@/application/ensemble';
@@ -11,6 +12,7 @@ export type AppServices = {
   repertoire: RepertoireUseCases;
   agenda: AgendaUseCases;
   offline: OfflineUseCases;
+  platform: PlatformUseCases;
 };
 
 const AppServicesContext = createContext<AppServices | null>(null);
@@ -53,4 +55,8 @@ export function useAgenda() {
 
 export function useOffline() {
   return useAppServices().offline;
+}
+
+export function usePlatform() {
+  return useAppServices().platform;
 }

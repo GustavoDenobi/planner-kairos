@@ -6,6 +6,7 @@ import type { OfflineIdentityStore } from '@/application/ports/offline-identity-
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
 import type { OfflineAgendaCache } from '@/application/ports/offline-agenda-cache';
 import type { OfflineMusicianCache } from '@/application/ports/offline-musician-cache';
+import type { OfflineOrgImageCache } from '@/application/ports/offline-org-image-cache';
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { EventTypeRepository } from '@/application/ports/event-type-repository';
 import type { AssignmentRepository } from '@/application/ports/assignment-repository';
@@ -82,6 +83,13 @@ import {
   listCachedMusicians,
   listCachedSectionsForGroup,
 } from './musician-cache-use-cases';
+import {
+  clearOrgImageMemoryCache,
+  getCachedOrgImageObjectUrl,
+  prefetchOrgImages,
+  removeOrgImageFromCache,
+  resolveOrgImageObjectUrl,
+} from './org-image-cache-use-cases';
 import type { CachePlaylistProgress } from './types';
 
 export type OfflineStoragePorts = {
@@ -92,6 +100,7 @@ export type OfflineStoragePorts = {
   identityStore: OfflineIdentityStore;
   agendaCache: OfflineAgendaCache;
   musicianCache: OfflineMusicianCache;
+  orgImageCache: OfflineOrgImageCache;
 };
 
 export type OfflineUseCaseDeps = {
@@ -120,6 +129,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const identityStore = deps.offlineStorage.identityStore;
   const agendaCache = deps.offlineStorage.agendaCache;
   const musicianCache = deps.offlineStorage.musicianCache;
+  const orgImageCache = deps.offlineStorage.orgImageCache;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
 
   return {
     cachePieceFileForOffline: (organizationId: string, pieceId: string, fileId: string) =>
@@ -449,13 +460,26 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     getCachedSectionPartIdsByGroup: (organizationId: string, userId: string, groupId: string) =>
       getCachedSectionPartIdsByGroup(musicianCache, organizationId, userId, groupId),
 
+    getCachedOrgImageObjectUrl: (storageKey: string) => getCachedOrgImageObjectUrl(storageKey),
+
+    resolveOrgImageUrl: (storageKey: string) =>
+      resolveOrgImageObjectUrl(orgImageCache, storageKey, supabaseUrl),
+
+    prefetchOrgImages: (storageKeys: Array<string | null | undefined>) =>
+      prefetchOrgImages(orgImageCache, storageKeys, supabaseUrl),
+
+    removeOrgImageFromCache: (storageKey: string) =>
+      removeOrgImageFromCache(orgImageCache, storageKey),
+
     clearAllOfflineData: async () => {
+      clearOrgImageMemoryCache();
       await fileCache.clearAll();
       await annotationStore.clearAll();
       await navigationShortcutStore.clearAll();
       await playlistCache.clearAll();
       await agendaCache.clearAll();
       await musicianCache.clearAll();
+      await orgImageCache.clearAll();
       await clearIdentitySnapshot(identityStore);
     },
   };

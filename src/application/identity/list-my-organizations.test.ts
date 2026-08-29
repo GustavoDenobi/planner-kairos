@@ -6,7 +6,9 @@ function createOrgRepo(
   orgs: import('@/application/ports/organization-repository').OrganizationWithRole[],
 ): OrganizationRepository {
   return {
+    isPlatformAdmin: async () => false,
     listForUser: async () => orgs,
+    listAllForPlatformAdmin: async () => orgs,
     getBySlug: async (slug) => orgs.find((org) => org.slug === slug) ?? null,
     getById: async (id) => orgs.find((org) => org.id === id) ?? null,
     updateImageKey: vi.fn(),
@@ -41,6 +43,18 @@ describe('listMyOrganizations', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual([]);
+    }
+  });
+
+  it('returns all organizations for platform admin', async () => {
+    const repo = createOrgRepo(orgs);
+    repo.isPlatformAdmin = async () => true;
+    repo.listAllForPlatformAdmin = async () => orgs;
+
+    const result = await listMyOrganizations(repo, 'admin-1');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual(orgs);
     }
   });
 

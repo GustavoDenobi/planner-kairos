@@ -83,6 +83,12 @@ export type CachedMusiciansRecord = {
   sectionPartIdsByGroupJson?: string;
 };
 
+export type CachedOrgImageRecord = {
+  storageKey: string;
+  cachedAt: string;
+  blob: Blob;
+};
+
 export type CachedNavigationShortcutRecord = {
   clientId: string;
   id: string;
@@ -119,6 +125,7 @@ export class PlannerKairosOfflineDb extends Dexie {
   identitySnapshot!: Table<IdentitySnapshotRecord, string>;
   cachedAgenda!: Table<CachedAgendaRecord, string>;
   cachedMusicians!: Table<CachedMusiciansRecord, string>;
+  cachedOrgImages!: Table<CachedOrgImageRecord, string>;
   cachedNavigationShortcuts!: Table<CachedNavigationShortcutRecord, string>;
   navigationShortcutSyncOutbox!: Table<NavigationShortcutSyncOutboxRecord, string>;
 
@@ -177,6 +184,20 @@ export class PlannerKairosOfflineDb extends Dexie {
       identitySnapshot: 'id, userId',
       cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
       cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
+    });
+    this.version(7).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedOrgImages: 'storageKey',
       cachedNavigationShortcuts:
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
       navigationShortcutSyncOutbox: 'id, createdAt',

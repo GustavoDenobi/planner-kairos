@@ -29,3 +29,4 @@ export type {
 } from './offline-annotation-store';
 export type { CachedPlaylistSnapshot, OfflinePlaylistCache } from './offline-playlist-cache';
 export type { IdentitySnapshot, OfflineIdentityStore } from './offline-identity-store';
+export type { PlatformRepository, PlatformAdminGateway } from './platform-repository';

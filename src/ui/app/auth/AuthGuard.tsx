@@ -38,12 +38,12 @@ export function AuthGuard() {
 
 function OrgGuard({ children }: { children: React.ReactNode }) {
   const { orgSlug } = useParams();
-  const { organizations, isLoading, isOfflineData, resolveOrgBySlug, refreshOrganizations } =
+  const { organizations, isLoading, isOfflineData, resolveOrgBySlug, refreshOrganizations, isPlatformAdmin } =
     useOrg();
   const online = useOnlineStatus();
   const [retriedSlug, setRetriedSlug] = useState<string | null>(null);
 
-  const isMember = orgSlug ? resolveOrgBySlug(orgSlug) !== null : true;
+  const isMember = orgSlug ? resolveOrgBySlug(orgSlug) !== null || isPlatformAdmin : true;
 
   useEffect(() => {
     if (!orgSlug || isLoading || isMember || retriedSlug === orgSlug) {

@@ -7,6 +7,7 @@ import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesCo
 import { PwaInstallSidebarButton } from '@/ui/features/pwa/PwaInstallSidebarButton';
 import { UserAvatar } from '@/ui/components/UserAvatar';
 import { useUserProfile } from '@/ui/hooks/useUserProfile';
+import { useIsOrgAdmin } from '@/ui/hooks/useIsOrgAdmin';
 import { getNavItemsForOrg } from '@/ui/layouts/nav-config';
 import { spacing } from '@/ui/theme/tokens';
 
@@ -15,14 +16,14 @@ type SidebarProps = {
 };
 
 export function Sidebar({ orgSlug }: SidebarProps) {
-  const { organizations } = useOrg();
+  const { organizations, isPlatformAdmin } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
   const profile = useUserProfile();
   const signOut = useSignOut();
   const navigate = useNavigate();
 
-  const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
-  const navItems = getNavItemsForOrg(org);
+  const isAdmin = useIsOrgAdmin(org);
+  const navItems = getNavItemsForOrg(org, isPlatformAdmin);
 
   async function handleSignOut() {
     await signOut();

@@ -20,6 +20,7 @@ type OrgContextValue = {
   currentOrg: OrganizationWithRole | null;
   isLoading: boolean;
   isOfflineData: boolean;
+  isPlatformAdmin: boolean;
   setCurrentOrgBySlug: (slug: string) => Promise<boolean>;
   refreshOrganizations: () => Promise<void>;
   resolveOrgBySlug: (slug: string) => OrganizationWithRole | null;
@@ -37,6 +38,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isOfflineData, setIsOfflineData] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const loadGenerationRef = useRef(0);
 
   const resolveOrgBySlug = useCallback(
@@ -49,6 +51,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       loadGenerationRef.current += 1;
       setOrganizations([]);
       setIsOfflineData(false);
+      setIsPlatformAdmin(false);
       setIsLoading(false);
       return;
     }
@@ -64,6 +67,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
+        offline.prefetchOrgImages(snapshot.organizations.map((org) => org.imageStorageKey));
         setIsLoading(false);
         return;
       }
@@ -76,7 +80,12 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (result.ok) {
       setOrganizations(result.value);
       setIsOfflineData(false);
-      if (session) {
+      const platformAdmin = await identity.isPlatformAdmin(userId);
+      if (generation === loadGenerationRef.current) {
+        setIsPlatformAdmin(platformAdmin);
+      }
+      offline.prefetchOrgImages(result.value.map((org) => org.imageStorageKey));
+      if (session && !platformAdmin) {
         await offline.saveIdentitySnapshot(
           session,
           result.value,
@@ -91,6 +100,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
+        offline.prefetchOrgImages(snapshot.organizations.map((org) => org.imageStorageKey));
       }
     }
     setIsLoading(false);
@@ -151,6 +161,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       currentOrg,
       isLoading,
       isOfflineData,
+      isPlatformAdmin,
       setCurrentOrgBySlug,
       refreshOrganizations,
       resolveOrgBySlug,
@@ -160,6 +171,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       currentOrg,
       isLoading,
       isOfflineData,
+      isPlatformAdmin,
       setCurrentOrgBySlug,
       refreshOrganizations,
       resolveOrgBySlug,

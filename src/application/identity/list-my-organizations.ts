@@ -6,6 +6,12 @@ export async function listMyOrganizations(
   userId: string,
 ) {
   try {
+    const isPlatformAdmin = await orgRepo.isPlatformAdmin(userId);
+    if (isPlatformAdmin) {
+      const orgs = await orgRepo.listAllForPlatformAdmin(userId);
+      return Result.ok(orgs);
+    }
+
     const orgs = await orgRepo.listForUser(userId);
     return Result.ok(orgs);
   } catch {

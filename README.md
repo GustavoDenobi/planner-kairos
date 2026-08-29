@@ -86,7 +86,7 @@ Após `npx supabase db reset`:
 |---|---|
 | Organização | Orquestra Kairós (`slug: kairos`) |
 | Formações | Orquestra, Big Band, Coral |
-| Admin | `admin@kairos.local` / `kairos-admin` |
+| Admin | `admin@kairos.local` / `kairos-admin` (também **platform admin** — painel em `/admin`) |
 
 ## Fluxo de teste manual (Fase 1)
 
@@ -97,6 +97,7 @@ Após `npx supabase db reset`:
 5. **Recuperar senha** em `/login/recuperar-senha` → OTP por e-mail (SMTP)
 6. Trocar tema → recarregar → preferência persiste no perfil
 7. Admin: upload/remover imagem da org no seletor `/orgs`
+8. Platform admin: `/admin/organizacoes` — gerenciar orgs, usuários e planos
 
 ## Decisões
 

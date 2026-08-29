@@ -3,6 +3,7 @@ import { createOfflineAnnotationStore } from './offline-annotation-store';
 import { createOfflineFileCache } from './offline-file-cache';
 import { createOfflineIdentityStore } from './offline-identity-store';
 import { createOfflineMusicianCache } from './offline-musician-cache';
+import { createOfflineOrgImageCache } from './offline-org-image-cache';
 import { createOfflineNavigationShortcutStore } from './offline-navigation-shortcut-store';
 import { createOfflinePlaylistCache } from './offline-playlist-cache';
 
@@ -14,6 +15,7 @@ export type OfflineStorage = {
   identityStore: ReturnType<typeof createOfflineIdentityStore>;
   agendaCache: ReturnType<typeof createOfflineAgendaCache>;
   musicianCache: ReturnType<typeof createOfflineMusicianCache>;
+  orgImageCache: ReturnType<typeof createOfflineOrgImageCache>;
 };
 
 export function createOfflineStorage(): OfflineStorage {
@@ -25,6 +27,7 @@ export function createOfflineStorage(): OfflineStorage {
     identityStore: createOfflineIdentityStore(),
     agendaCache: createOfflineAgendaCache(),
     musicianCache: createOfflineMusicianCache(),
+    orgImageCache: createOfflineOrgImageCache(),
   };
 }
 
@@ -35,5 +38,6 @@ export async function clearAllOfflineData(storage: OfflineStorage): Promise<void
   await storage.playlistCache.clearAll();
   await storage.agendaCache.clearAll();
   await storage.musicianCache.clearAll();
+  await storage.orgImageCache.clearAll();
   await storage.identityStore.clear();
 }

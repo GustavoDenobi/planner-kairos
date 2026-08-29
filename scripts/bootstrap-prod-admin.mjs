@@ -64,8 +64,8 @@ DECLARE
   v_section_sax UUID;
   v_section_sopranos UUID;
 BEGIN
-  INSERT INTO organizations (id, name, slug)
-  VALUES (v_org_id, 'Orquestra Kairós', 'kairos')
+  INSERT INTO organizations (id, name, slug, plan_id)
+  VALUES (v_org_id, 'Orquestra Kairós', 'kairos', 'f0000000-0000-4000-8000-000000000001')
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO groups (id, organization_id, name, kind)
@@ -129,6 +129,10 @@ BEGIN
   INSERT INTO memberships (organization_id, user_id, access_role)
   VALUES (v_org_id, v_user_id, 'owner')
   ON CONFLICT (organization_id, user_id) DO NOTHING;
+
+  INSERT INTO platform_admins (user_id)
+  VALUES (v_user_id)
+  ON CONFLICT (user_id) DO NOTHING;
 END $$;
 `;
 

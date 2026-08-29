@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { useIdentity } from '@/ui/app/AppServicesContext';
+import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { BackButton } from '@/ui/components/BackButton';
 import { MarkdownContent } from '@/ui/components/MarkdownContent';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { useIsOrgAdmin } from '@/ui/hooks/useIsOrgAdmin';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 import { organizationImageErrorMessage } from '@/ui/utils/organizationImageValidation';
 
 export function OrganizationSettingsPage() {
   const { orgSlug } = useParams();
   const identity = useIdentity();
+  const offline = useOffline();
   const { organizations, refreshOrganizations } = useOrg();
   const organization = organizations.find((org) => org.slug === orgSlug);
 
@@ -24,8 +26,7 @@ export function OrganizationSettingsPage() {
   const [rulesSaved, setRulesSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isAdmin =
-    organization?.accessRole === 'admin' || organization?.accessRole === 'owner';
+  const isAdmin = useIsOrgAdmin(organization);
 
   useEffect(() => {
     if (!organization) {
@@ -111,6 +112,13 @@ export function OrganizationSettingsPage() {
       return;
     }
 
+    if (organization!.imageStorageKey) {
+      await offline.removeOrgImageFromCache(organization!.imageStorageKey);
+    }
+    if (result.value.imageStorageKey) {
+      offline.prefetchOrgImages([result.value.imageStorageKey]);
+    }
+
     await refreshOrganizations();
   }
 
@@ -118,6 +126,9 @@ export function OrganizationSettingsPage() {
     setIsBusy(true);
     setError(null);
     try {
+      if (organization!.imageStorageKey) {
+        await offline.removeOrgImageFromCache(organization!.imageStorageKey);
+      }
       await identity.removeOrganizationImage(
         organization!.id,
         organization!.imageStorageKey,

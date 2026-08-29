@@ -3,8 +3,11 @@ import { createOfflineUseCases } from '@/application/offline';
 import { createRepertoireUseCases } from '@/application/repertoire';
 import { createEnsembleUseCases } from '@/application/ensemble';
 import { createIdentityUseCases } from '@/application/identity';
+import { createPlatformUseCases } from '@/application/platform';
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
 import { createFileStorage } from '@/infrastructure/supabase/file-storage';
+import { createPlatformAdminGateway } from '@/infrastructure/supabase/platform-admin-gateway';
+import { createPlatformRepository } from '@/infrastructure/supabase/platform-repository';
 import { createEventRepository } from '@/infrastructure/supabase/event-repository';
 import { createEventAbsenceRepository } from '@/infrastructure/supabase/event-absence-repository';
 import { createEventTypeRepository } from '@/infrastructure/supabase/event-type-repository';
@@ -102,6 +105,8 @@ export function createAppServices() {
   });
 
   const offlineStorage = createOfflineStorage();
+  const platformRepo = createPlatformRepository();
+  const platformAdminGateway = createPlatformAdminGateway();
 
   const offline = createOfflineUseCases({
     pieceRepo,
@@ -121,5 +126,10 @@ export function createAppServices() {
     sectionRepo,
   });
 
-  return { identity, ensemble, repertoire, agenda, offline };
+  const platform = createPlatformUseCases({
+    platformRepo,
+    platformAdminGateway,
+  });
+
+  return { identity, ensemble, repertoire, agenda, offline, platform };
 }

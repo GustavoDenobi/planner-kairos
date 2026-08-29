@@ -323,7 +323,31 @@ Fases 2 e 3 podem avançar em paralelo após a Fase 1, desde que Ensemble tenha 
 /:orgSlug/grupos
 /:orgSlug/grupos/:groupId
 /:orgSlug/partes
+/admin/organizacoes
+/admin/organizacoes/:orgId
+/admin/usuarios
+/admin/usuarios/:userId
+/admin/planos
+/admin/planos/:planId
 ```
+
+---
+
+## Fase 8 — Platform Admin
+
+**Objetivo:** administração inter-organizacional da plataforma (D9), catálogo de planos com limites enforced, gestão de usuários.
+
+### Entregável
+
+- `platform_admins` + bypass RLS via `is_platform_admin()`
+- Painel `/admin` (Organizações, Usuários, Planos)
+- Platform admin vê todas as orgs em `/orgs` e entra com privilégios totais
+- Planos com limites de grupos, músicos, peças e storage; triggers `assert_org_plan_limit`
+- Edge Functions: `platform-set-user-password`, `platform-delete-user`
+
+### Fora de escopo
+
+Stripe, suspensão de org, impersonação, self-service de criação de org por clientes.
 
 ---
 

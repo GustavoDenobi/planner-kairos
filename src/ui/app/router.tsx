@@ -1,5 +1,12 @@
 import { createBrowserRouter, Navigate, Outlet, useNavigation } from 'react-router-dom';
 import { AuthGuard } from '@/ui/app/auth/AuthGuard';
+import { PlatformAdminGuard } from '@/ui/app/auth/PlatformAdminGuard';import { AdminLayout } from '@/ui/layouts/AdminLayout';
+import { PlatformOrganizationDetailPage } from '@/ui/pages/admin/PlatformOrganizationDetailPage';
+import { PlatformOrganizationsPage } from '@/ui/pages/admin/PlatformOrganizationsPage';
+import { PlatformPlanFormPage } from '@/ui/pages/admin/PlatformPlanFormPage';
+import { PlatformPlansPage } from '@/ui/pages/admin/PlatformPlansPage';
+import { PlatformUserDetailPage } from '@/ui/pages/admin/PlatformUserDetailPage';
+import { PlatformUsersPage } from '@/ui/pages/admin/PlatformUsersPage';
 import { HomeRedirect } from '@/ui/app/HomeRedirect';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { AppLayout } from '@/ui/layouts/AppLayout';
@@ -55,6 +62,25 @@ export const router = createBrowserRouter([
         children: [
           { path: '/reaceitar-termos', element: <LegalReacceptancePage /> },
           { path: '/orgs', element: <OrgSelectorPage /> },
+          {
+            path: '/admin',
+            element: <PlatformAdminGuard />,
+            children: [
+              {
+                element: <AdminLayout />,
+                children: [
+                  { index: true, element: <Navigate to="organizacoes" replace /> },
+                  { path: 'organizacoes', element: <PlatformOrganizationsPage /> },
+                  { path: 'organizacoes/:orgId', element: <PlatformOrganizationDetailPage /> },
+                  { path: 'usuarios', element: <PlatformUsersPage /> },
+                  { path: 'usuarios/:userId', element: <PlatformUserDetailPage /> },
+                  { path: 'planos', element: <PlatformPlansPage /> },
+                  { path: 'planos/novo', element: <PlatformPlanFormPage /> },
+                  { path: 'planos/:planId', element: <PlatformPlanFormPage /> },
+                ],
+              },
+            ],
+          },
           {
             path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
             element: <PiecePdfViewerPage />,

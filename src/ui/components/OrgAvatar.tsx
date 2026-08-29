@@ -1,6 +1,5 @@
 import type { Organization } from '@/domain/identity';
-import { useEffect, useState } from 'react';
-import { useIdentity } from '@/ui/app/AppServicesContext';
+import { useOrgImageUrl } from '@/ui/hooks/useOrgImageUrl';
 import { getInitials } from '@/ui/utils/initials';
 
 type OrgAvatarProps = {
@@ -16,36 +15,9 @@ const sizeClasses = {
 };
 
 export function OrgAvatar({ organization, size = 'md', variant = 'circle' }: OrgAvatarProps) {
-  const identity = useIdentity();
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const imageUrl = useOrgImageUrl(organization.imageStorageKey);
 
   const rounded = variant === 'square' ? 'rounded-lg' : 'rounded-full';
-
-  useEffect(() => {
-    let active = true;
-
-    if (!organization.imageStorageKey) {
-      setImageUrl(null);
-      return;
-    }
-
-    identity
-      .getSignedUrl(organization.imageStorageKey)
-      .then((url) => {
-        if (active) {
-          setImageUrl(url);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setImageUrl(null);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [identity, organization.imageStorageKey]);
 
   const fallbackClass = `flex shrink-0 items-center justify-center bg-primary/15 font-semibold text-primary ${rounded} ${sizeClasses[size]}`;
 

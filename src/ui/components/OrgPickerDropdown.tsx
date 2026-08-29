@@ -10,7 +10,7 @@ type OrgPickerDropdownProps = {
 };
 
 export function OrgPickerDropdown({ orgSlug }: OrgPickerDropdownProps) {
-  const { organizations, setCurrentOrgBySlug, isOfflineData } = useOrg();
+  const { organizations, setCurrentOrgBySlug, isOfflineData, isPlatformAdmin } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -97,7 +97,9 @@ export function OrgPickerDropdown({ orgSlug }: OrgPickerDropdownProps) {
             {organizations.map((item) => {
               const isSelected = item.slug === orgSlug;
               const itemIsAdmin =
-                item.accessRole === 'admin' || item.accessRole === 'owner';
+                isPlatformAdmin ||
+                item.accessRole === 'admin' ||
+                item.accessRole === 'owner';
               const itemCanManage = itemIsAdmin && online && !isOfflineData;
 
               return (

@@ -54,6 +54,7 @@ export function createIdentityUseCases(deps: IdentityDeps) {
     signIn: (email: string, password: string) => signIn(deps.auth, { email, password }),
     signOut: () => signOut(deps.auth),
     listMyOrganizations: (userId: string) => listMyOrganizations(deps.orgRepo, userId),
+    isPlatformAdmin: (userId: string) => deps.orgRepo.isPlatformAdmin(userId),
     setCurrentOrganization: (userId: string, slug: string) =>
       setCurrentOrganization(deps.orgRepo, userId, slug),
     setThemePreference: (userId: string, theme: 'light' | 'dark') =>

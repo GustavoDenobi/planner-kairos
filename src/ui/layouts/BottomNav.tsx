@@ -8,9 +8,9 @@ type BottomNavProps = {
 };
 
 export function BottomNav({ orgSlug }: BottomNavProps) {
-  const { organizations } = useOrg();
+  const { organizations, isPlatformAdmin } = useOrg();
   const org = organizations.find((o) => o.slug === orgSlug);
-  const navItems = getNavItemsForOrg(org);
+  const navItems = getNavItemsForOrg(org, isPlatformAdmin);
 
   return (
     <nav
