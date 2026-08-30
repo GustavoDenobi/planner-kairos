@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { EventDetail } from '@/domain/agenda';
 import { eventDisplayTitle } from '@/domain/agenda';
@@ -15,7 +15,7 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackButton } from '@/ui/components/BackButton';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { IconPlus, IconTrash } from '@/ui/components/icons';
-import { formatEventTime } from '@/ui/features/agenda/agenda-date';
+import { formatEventDateShort } from '@/ui/features/agenda/agenda-date';
 import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
@@ -168,7 +168,7 @@ export function PrepareReadingPlaylistPage() {
         const displayTitle = eventDisplayTitle(eventDetail, {
           name: eventDetail.type.name,
         });
-        const dateLabel = formatEventTime(eventDetail.startsAt, eventDetail.endsAt);
+        const dateLabel = formatEventDateShort(eventDetail.startsAt);
         setPlaylistName(`${displayTitle} - ${dateLabel}`);
         setIsLoading(false);
       }
@@ -268,15 +268,26 @@ export function PrepareReadingPlaylistPage() {
               type="text"
               value={playlistName}
               onChange={(e) => setPlaylistName(e.target.value)}
-              placeholder="Nome da playlist"
+              placeholder="Insira um nome"
               aria-label="Nome da playlist"
-              className="w-full bg-transparent text-xl font-semibold text-text outline-none placeholder:text-muted focus:border-b focus:border-primary sm:text-2xl"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xl font-semibold text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-2xl"
             />
-            <p className="mt-1 text-sm text-muted">
-              {eventTitle} · {resolvedCount} de {rows.length} resolvidas
-            </p>
           </div>
         </div>
+        {orgSlug && eventId && (
+          <p className="text-sm text-muted">
+            Playlist do evento:{' '}
+            <Link
+              to={eventPath(orgSlug, eventId)}
+              className="font-medium text-primary hover:underline"
+            >
+              {eventTitle}
+            </Link>
+          </p>
+        )}
+        <p className="text-sm text-muted">
+          {resolvedCount} de {rows.length} resolvidas
+        </p>
       </section>
 
       <div className="space-y-6">

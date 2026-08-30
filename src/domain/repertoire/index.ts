@@ -46,6 +46,23 @@ export {
   HIGHLIGHT_COLORS_INVERTED,
   resolveHighlightColor,
 } from './piece-file-annotation';
+export type { AnnotationAppearance, AnnotationToolPreset, StrokeWidthRange } from './annotation-tool-presets';
+export {
+  ANNOTATION_PRESET_PREFIX,
+  HIGHLIGHT_COLOR_PRESETS,
+  HIGHLIGHT_STROKE_WIDTH,
+  PEN_COLOR_PRESETS,
+  PEN_STROKE_WIDTH,
+  clampStrokeWidth,
+  findPreset,
+  formatPresetColor,
+  invertRgbHex,
+  parsePresetColor,
+  resolveAnnotationAppearance,
+  resolvePresetAppearance,
+  resolvePresetStroke,
+  resolvePresetVisualStroke,
+} from './annotation-tool-presets';
 export type {
   AnnotationSet,
   AnnotationSetGroup,

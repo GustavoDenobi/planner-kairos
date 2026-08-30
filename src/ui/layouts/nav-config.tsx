@@ -1,10 +1,10 @@
 import type { OrganizationWithRole } from '@/application/ports';
 import {
   IconCalendar,
-  IconLayers,
-  IconMic,
   IconMusic,
   IconPlay,
+  IconTrumpet,
+  IconUser,
   IconUsers,
 } from '@/ui/components/icons';
 import type { ReactNode } from 'react';
@@ -26,19 +26,19 @@ export const adminNavItems: NavItem[] = [
   {
     to: 'musicos',
     label: 'Músicos',
-    icon: <IconUsers className="h-5 w-5 shrink-0" />,
+    icon: <IconUser className="h-5 w-5 shrink-0" />,
     adminOnly: true,
   },
   {
     to: 'grupos',
     label: 'Grupos',
-    icon: <IconLayers className="h-5 w-5 shrink-0" />,
+    icon: <IconUsers className="h-5 w-5 shrink-0" />,
     adminOnly: true,
   },
   {
     to: 'partes',
     label: 'Partes',
-    icon: <IconMic className="h-5 w-5 shrink-0" />,
+    icon: <IconTrumpet className="h-5 w-5 shrink-0" />,
     adminOnly: true,
   },
 ];

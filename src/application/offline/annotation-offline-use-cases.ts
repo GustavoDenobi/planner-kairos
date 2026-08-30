@@ -10,7 +10,7 @@ import type {
 } from '@/domain/repertoire';
 import { Result } from '@/domain/shared';
 import { isBrowserOnline } from './file-cache-use-cases';
-import { isPermanentSyncAuthError, resolveSyncAuthorUserId } from './sync-auth';
+import { isPermanentSyncAuthError } from './sync-auth';
 import { visibleDirectedSetIds, repairDirectedAnnotationSetReferences } from './annotation-set-offline-use-cases';
 
 function toPdfAnnotation(local: {

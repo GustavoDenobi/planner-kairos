@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { eventDisplayTitle } from '@/domain/agenda';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type {
   PieceFilePartLink,
@@ -9,7 +10,7 @@ import type {
   ReadingPlaylistPieceCategory,
 } from '@/domain/repertoire';
 import { filterScoreCandidatesForUser } from '@/domain/repertoire';
-import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -17,7 +18,8 @@ import { BackButton } from '@/ui/components/BackButton';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
-import { IconPlay, IconPlus, IconTrash } from '@/ui/components/icons';
+import { IconPlus, IconScoreSheet, IconTrash } from '@/ui/components/icons';
+import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
 import { readingPlaylistErrorMessage } from '@/ui/features/repertoire/reading-playlist-labels';
 import {
@@ -176,7 +178,6 @@ export function ReadingPlaylistNewPage() {
 
   return (
     <PlaylistEditorShell
-      title="Nova playlist"
       backTo={readingPlaylistsPath(orgSlug)}
       name={name}
       onNameChange={setName}
@@ -205,6 +206,7 @@ export function ReadingPlaylistEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const repertoire = useRepertoire();
+  const agenda = useAgenda();
   const ensemble = useEnsemble();
   const offline = useOffline();
   const { userId } = useAuth();
@@ -213,6 +215,7 @@ export function ReadingPlaylistEditPage() {
 
   const [name, setName] = useState('');
   const [sourceEventId, setSourceEventId] = useState<string | null>(null);
+  const [sourceEventTitle, setSourceEventTitle] = useState<string | null>(null);
   const [items, setItems] = useState<EditableItem[]>([]);
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
@@ -243,6 +246,20 @@ export function ReadingPlaylistEditPage() {
     const playlist = result.value;
     setName(playlist.name);
     setSourceEventId(playlist.sourceEventId);
+
+    if (playlist.sourceEventId) {
+      const eventResult = await agenda.getEvent(org.id, playlist.sourceEventId);
+      if (eventResult.ok) {
+        setSourceEventTitle(
+          eventDisplayTitle(eventResult.value, { name: eventResult.value.type.name }),
+        );
+      } else {
+        setSourceEventTitle(null);
+      }
+    } else {
+      setSourceEventTitle(null);
+    }
+
     const nextItems = playlist.items.map((item: ReadingPlaylistItemDetail) => ({
       id: item.id,
       pieceFileId: item.pieceFileId,
@@ -256,7 +273,7 @@ export function ReadingPlaylistEditPage() {
     setItems(nextItems);
     setBaseline(toSnapshot(playlist.name, nextItems));
     setIsLoading(false);
-  }, [org, userId, playlistId, repertoire]);
+  }, [org, userId, playlistId, repertoire, agenda]);
 
   useEffect(() => {
     void loadPlaylist();
@@ -464,8 +481,8 @@ export function ReadingPlaylistEditPage() {
 
   return (
     <PlaylistEditorShell
-      title="Editar playlist"
       backTo={readingPlaylistsPath(orgSlug)}
+      orgSlug={orgSlug}
       name={name}
       onNameChange={setName}
       items={items}
@@ -477,8 +494,8 @@ export function ReadingPlaylistEditPage() {
       onDelete={handleDelete}
       onOpenReader={
         items.length > 0
-          ? () =>
-              navigate(readingPlaylistReaderPath(orgSlug, playlistId, 0), {
+          ? (itemIndex) =>
+              navigate(readingPlaylistReaderPath(orgSlug, playlistId, itemIndex), {
                 state: { returnTo: locationPath(location) },
               })
           : undefined
@@ -491,6 +508,7 @@ export function ReadingPlaylistEditPage() {
       isDirty={isDirty}
       canSave={isDirty && name.trim().length > 0 && items.length > 0}
       sourceEventId={sourceEventId}
+      sourceEventTitle={sourceEventTitle}
       pickerOpen={pickerOpen}
       onPickerClose={() => setPickerOpen(false)}
       onAddFile={handleAddFile}
@@ -502,8 +520,8 @@ export function ReadingPlaylistEditPage() {
 }
 
 type PlaylistEditorShellProps = {
-  title: string;
   backTo: string;
+  orgSlug?: string;
   name: string;
   onNameChange: (name: string) => void;
   items: EditableItem[];
@@ -513,7 +531,7 @@ type PlaylistEditorShellProps = {
   onAddClick: () => void;
   onSave: (overrides?: { name?: string; items?: EditableItem[] }) => Promise<boolean>;
   onDelete?: () => Promise<boolean>;
-  onOpenReader?: () => void;
+  onOpenReader?: (itemIndex: number) => void;
   playlistId?: string;
   userId?: string;
   autoSave?: boolean;
@@ -522,6 +540,7 @@ type PlaylistEditorShellProps = {
   isDirty: boolean;
   canSave: boolean;
   sourceEventId?: string | null;
+  sourceEventTitle?: string | null;
   pickerOpen: boolean;
   onPickerClose: () => void;
   onAddFile: (
@@ -535,8 +554,8 @@ type PlaylistEditorShellProps = {
 };
 
 function PlaylistEditorShell({
-  title,
   backTo,
+  orgSlug,
   name,
   onNameChange,
   items,
@@ -555,6 +574,7 @@ function PlaylistEditorShell({
   isDirty,
   canSave,
   sourceEventId,
+  sourceEventTitle,
   pickerOpen,
   onPickerClose,
   onAddFile,
@@ -564,7 +584,7 @@ function PlaylistEditorShell({
 }: PlaylistEditorShellProps) {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const heading = name.trim() || title;
+  const heading = name.trim() || 'esta playlist';
   const bypassBlockRef = useRef(false);
 
   const blocker = useBlocker(
@@ -668,24 +688,11 @@ function PlaylistEditorShell({
                 type="text"
                 value={name}
                 onChange={(e) => onNameChange(e.target.value)}
-                placeholder={title}
+                placeholder="Insira um nome"
                 aria-label="Nome da playlist"
-                className="w-full bg-transparent text-xl font-semibold text-text outline-none placeholder:text-muted focus:border-b focus:border-primary sm:text-2xl"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xl font-semibold text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-2xl"
               />
-              {sourceEventId && (
-                <p className="mt-1 text-sm text-muted">Importado de um evento</p>
-              )}
             </div>
-            {onOpenReader && (
-              <button
-                type="button"
-                onClick={onOpenReader}
-                aria-label="Abrir leitor"
-                className="flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-primary transition-colors hover:bg-bg"
-              >
-                <IconPlay className="h-4 w-4" />
-              </button>
-            )}
             {playlistId && userId && orgId && items.length > 0 && (
               <OfflinePlaylistDownloadButton
                 organizationId={orgId}
@@ -695,6 +702,26 @@ function PlaylistEditorShell({
               />
             )}
           </div>
+          {sourceEventId && orgSlug && (
+            <p className="text-sm text-muted">
+              Playlist do evento:{' '}
+              {sourceEventTitle ? (
+                <Link
+                  to={eventPath(orgSlug, sourceEventId)}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {sourceEventTitle}
+                </Link>
+              ) : (
+                <Link
+                  to={eventPath(orgSlug, sourceEventId)}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Ver evento
+                </Link>
+              )}
+            </p>
+          )}
         </section>
 
         <div className="space-y-6">
@@ -704,6 +731,20 @@ function PlaylistEditorShell({
           )}
 
           <section className="space-y-3">
+            {onOpenReader && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onOpenReader(0)}
+                  aria-label="Abrir leitor"
+                  role="default"
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                >
+                  <IconScoreSheet className="h-5 w-5 text-white" />
+                  &nbsp;Abrir no leitor
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-text">Partituras</h2>
             </div>
@@ -716,38 +757,55 @@ function PlaylistEditorShell({
                 onReorder={onReorder}
                 ariaLabel="Ordem das partituras"
                 className="space-y-2"
-                renderItem={(item, handle) => (
-                  <div className="flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2">
-                    <SortableDragHandle {...handle} label="Reordenar" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium text-text">{item.fileTitle}</p>
-                          <p className="text-sm text-muted">{item.pieceTitle}</p>
-                          <p className="mt-0.5 text-sm text-muted">
-                            {formatPartLinks(item.partLinks, parts)}
-                          </p>
+                renderItem={(item, handle) => {
+                  const itemIndex = items.findIndex((entry) => entry.id === item.id);
+
+                  return (
+                    <div className="flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2">
+                      <SortableDragHandle {...handle} label="Reordenar" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-text">{item.fileTitle}</p>
+                            <p className="text-sm text-muted">{item.pieceTitle}</p>
+                            <p className="mt-0.5 text-sm text-muted">
+                              {formatPartLinks(item.partLinks, parts)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            {item.pieceCategory && (
+                              <CategoryBadge
+                                label={item.pieceCategory.name}
+                                color={item.pieceCategory.color}
+                                slug={item.pieceCategory.slug}
+                              />
+                            )}
+                            <div className="flex items-center gap-1">
+                              {onOpenReader && itemIndex >= 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenReader(itemIndex)}
+                                  aria-label="Abrir leitor"
+                                  className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
+                                >
+                                  <IconScoreSheet className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onRemove(item.id)}
+                                className="rounded-lg border border-border p-2 text-muted hover:text-red-600"
+                                aria-label="Remover"
+                              >
+                                <IconTrash className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        {item.pieceCategory && (
-                          <CategoryBadge
-                            label={item.pieceCategory.name}
-                            color={item.pieceCategory.color}
-                            slug={item.pieceCategory.slug}
-                            className="shrink-0"
-                          />
-                        )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(item.id)}
-                      className="shrink-0 text-muted hover:text-red-600"
-                      aria-label="Remover"
-                    >
-                      <IconTrash className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
+                  );
+                }}
               />
             )}
 

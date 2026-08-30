@@ -12,8 +12,11 @@ import type {
   UpdatePdfNavigationShortcutInput,
 } from '@/domain/repertoire';
 import {
-  ANNOTATION_COLORS,
-  resolveHighlightColor,
+  clampStrokeWidth,
+  formatPresetColor,
+  HIGHLIGHT_STROKE_WIDTH,
+  PEN_STROKE_WIDTH,
+  resolvePresetAppearance,
 } from '@/domain/repertoire';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import {
@@ -40,6 +43,7 @@ import {
   type AnnotationInteractionMode,
   type VisibleLayers,
 } from '@/ui/features/repertoire/AnnotationOverlay';
+import { AnnotationToolOptions } from '@/ui/features/repertoire/AnnotationToolOptions';
 import {
   AnnotationLayerVisibilityDropdown,
   type LayerVisibilityOption,
@@ -56,8 +60,12 @@ import {
   type ShortcutPickResult,
 } from '@/ui/features/repertoire/PdfNavigationShortcutEditor';
 import {
+  DEFAULT_ANNOTATION_TOOL_PREFERENCES,
+  loadAnnotationToolPreferences,
   loadPdfReaderPreferences,
+  saveAnnotationToolPreferences,
   savePdfReaderPreferences,
+  type AnnotationToolPreferences,
   type PdfNavigationMode,
 } from '@/ui/features/repertoire/pdf-reader-preference-storage';
 import {
@@ -180,6 +188,8 @@ type PdfPageFrameProps = {
   visibleLayers: VisibleLayers;
   penColor: string;
   highlightColor: string;
+  penStrokeWidth: number;
+  highlightStrokeWidth: number;
   readOnly: boolean;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
@@ -202,6 +212,8 @@ function PdfPageFrame({
   visibleLayers,
   penColor,
   highlightColor,
+  penStrokeWidth,
+  highlightStrokeWidth,
   readOnly,
   canEraseAnnotation,
   onStrokeComplete,
@@ -265,6 +277,9 @@ function PdfPageFrame({
     [onHighlightComplete, pageNumber],
   );
 
+  const pageAspectRatio =
+    dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : 1;
+
   return (
     <div
       className="relative mx-auto shrink-0"
@@ -286,7 +301,9 @@ function PdfPageFrame({
             pageNumber={pageNumber}
             annotations={annotations}
             visibleLayers={visibleLayers}
+            inverted={inverted}
             penColor={penColor}
+            penStrokeWidth={penStrokeWidth}
             draftStroke={draftStroke}
             showDraft={interactionMode === 'pen'}
           />
@@ -298,8 +315,10 @@ function PdfPageFrame({
             pageNumber={pageNumber}
             annotations={annotations}
             visibleLayers={visibleLayers}
-            highlightColor={highlightColor}
             inverted={inverted}
+            pageAspectRatio={pageAspectRatio}
+            highlightColor={highlightColor}
+            highlightStrokeWidth={highlightStrokeWidth}
             draftStroke={draftStroke}
             showDraft={interactionMode === 'highlight'}
           />
@@ -310,6 +329,9 @@ function PdfPageFrame({
             mode={interactionMode}
             readOnly={readOnly}
             gesturesActive={gesturesActive}
+            pageAspectRatio={pageAspectRatio}
+            penStrokeWidth={penStrokeWidth}
+            highlightStrokeWidth={highlightStrokeWidth}
             canEraseAnnotation={canEraseAnnotation}
             onStrokeComplete={handleStrokeComplete}
             onHighlightComplete={handleHighlightComplete}
@@ -465,6 +487,12 @@ export function PdfViewer({
   const [draftAnnotations, setDraftAnnotations] = useState<PdfAnnotation[]>([]);
   const [pendingDeletionIds, setPendingDeletionIds] = useState<string[]>([]);
   const [interactionMode, setInteractionMode] = useState<AnnotationInteractionMode>('read');
+  const [annotationToolPrefs, setAnnotationToolPrefs] = useState<AnnotationToolPreferences>(
+    () =>
+      userId
+        ? loadAnnotationToolPreferences(userId)
+        : DEFAULT_ANNOTATION_TOOL_PREFERENCES,
+  );
   const [activeLayer, setActiveLayer] = useState<AnnotationLayer>('personal');
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     leadOptions[0]?.id ?? null,
@@ -497,6 +525,14 @@ export function PdfViewer({
     () => [...navigationShortcuts].sort((a, b) => a.sortOrder - b.sortOrder),
     [navigationShortcuts],
   );
+
+  useEffect(() => {
+    if (!userId) {
+      setAnnotationToolPrefs(DEFAULT_ANNOTATION_TOOL_PREFERENCES);
+      return;
+    }
+    setAnnotationToolPrefs(loadAnnotationToolPreferences(userId));
+  }, [userId]);
 
   useEffect(() => {
     if (leadOptions.length === 0) {
@@ -757,9 +793,12 @@ export function PdfViewer({
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
     setInteractionMode('pen');
+    if (userId) {
+      setAnnotationToolPrefs(loadAnnotationToolPreferences(userId));
+    }
     setIsAnnotating(true);
     setMobileToolbarPanel(null);
-  }, []);
+  }, [userId]);
 
   const exitAnnotationMode = useCallback(() => {
     setIsAnnotating(false);
@@ -1347,6 +1386,50 @@ export function PdfViewer({
     [isFullscreen, navigation, isAnnotating, isGesturing, isZoomed, goToNextPage, goToPreviousPage],
   );
 
+  const persistAnnotationToolPrefs = useCallback(
+    (patch: Partial<AnnotationToolPreferences>) => {
+      if (userId) {
+        saveAnnotationToolPreferences(userId, patch);
+        setAnnotationToolPrefs(loadAnnotationToolPreferences(userId));
+        return;
+      }
+      setAnnotationToolPrefs((current) => ({ ...current, ...patch }));
+    },
+    [userId],
+  );
+
+  const handlePenPresetChange = useCallback(
+    (penPresetId: string) => {
+      persistAnnotationToolPrefs({ penPresetId });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
+  const handlePenStrokeWidthChange = useCallback(
+    (penStrokeWidth: number) => {
+      persistAnnotationToolPrefs({
+        penStrokeWidth: clampStrokeWidth(penStrokeWidth, PEN_STROKE_WIDTH),
+      });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
+  const handleHighlightPresetChange = useCallback(
+    (highlightPresetId: string) => {
+      persistAnnotationToolPrefs({ highlightPresetId });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
+  const handleHighlightStrokeWidthChange = useCallback(
+    (highlightStrokeWidth: number) => {
+      persistAnnotationToolPrefs({
+        highlightStrokeWidth: clampStrokeWidth(highlightStrokeWidth, HIGHLIGHT_STROKE_WIDTH),
+      });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
   const displayAnnotations = useMemo(() => {
     const deleted = new Set(pendingDeletionIds);
     return [
@@ -1355,14 +1438,20 @@ export function PdfViewer({
     ];
   }, [annotations, draftAnnotations, pendingDeletionIds]);
 
-  const penColor =
-    activeLayer === 'section'
-      ? ANNOTATION_COLORS.section
-      : activeLayer === 'directed'
-        ? ANNOTATION_COLORS.directed
-        : ANNOTATION_COLORS.personal;
-
-  const highlightColor = resolveHighlightColor(activeLayer, inverted);
+  const penAppearance = resolvePresetAppearance(
+    'stroke',
+    annotationToolPrefs.penPresetId,
+    inverted,
+  );
+  const highlightAppearance = resolvePresetAppearance(
+    'highlight',
+    annotationToolPrefs.highlightPresetId,
+    inverted,
+  );
+  const penColor = penAppearance.stroke;
+  const highlightColor = highlightAppearance.stroke;
+  const penStrokeWidth = annotationToolPrefs.penStrokeWidth;
+  const highlightStrokeWidth = annotationToolPrefs.highlightStrokeWidth;
 
   const activeDirectedSet = directedSetOptions.find((option) => option.id === activeDirectedSetId);
   const canEditActiveDirectedSet = Boolean(activeDirectedSet?.canEdit);
@@ -1486,12 +1575,19 @@ export function PdfViewer({
         layer: activeLayer,
         type: 'stroke',
         geometry,
-        color: penColor,
+        color: formatPresetColor(annotationToolPrefs.penPresetId),
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
       });
     },
-    [penColor, activeLayer, activeSectionId, activeDirectedSetId, annotationReadOnly, addDraftAnnotation],
+    [
+      annotationToolPrefs.penPresetId,
+      activeLayer,
+      activeSectionId,
+      activeDirectedSetId,
+      annotationReadOnly,
+      addDraftAnnotation,
+    ],
   );
 
   const handleHighlightComplete = useCallback(
@@ -1505,12 +1601,19 @@ export function PdfViewer({
         layer: activeLayer,
         type: 'highlight',
         geometry,
-        color: highlightColor,
+        color: formatPresetColor(annotationToolPrefs.highlightPresetId),
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
       });
     },
-    [highlightColor, activeLayer, activeSectionId, activeDirectedSetId, annotationReadOnly, addDraftAnnotation],
+    [
+      annotationToolPrefs.highlightPresetId,
+      activeLayer,
+      activeSectionId,
+      activeDirectedSetId,
+      annotationReadOnly,
+      addDraftAnnotation,
+    ],
   );
 
   const handleEraseAnnotation = useCallback(
@@ -1568,6 +1671,8 @@ export function PdfViewer({
     visibleLayers,
     penColor,
     highlightColor,
+    penStrokeWidth,
+    highlightStrokeWidth,
     readOnly: !userId || (interactionMode !== 'eraser' && annotationReadOnly),
     canEraseAnnotation,
     onStrokeComplete: handleStrokeComplete,
@@ -1750,18 +1855,41 @@ export function PdfViewer({
       >
         <IconEraser className="h-4 w-4" />
       </button>
-      <button
-        type="button"
-        onClick={handleUndoLast}
-        disabled={draftAnnotations.length === 0}
-        className={`${toolbarIconButtonClass()} disabled:opacity-50`}
-        aria-label="Desfazer"
-        title="Desfazer"
-      >
-        <IconUndo className="h-4 w-4" />
-      </button>
     </>
   );
+
+  const renderAnnotationToolOptions = () => {
+    if (interactionMode !== 'pen' && interactionMode !== 'highlight') {
+      return null;
+    }
+
+    return (
+      <AnnotationToolOptions
+        tool={interactionMode}
+        inverted={inverted}
+        selectedPresetId={
+          interactionMode === 'pen'
+            ? annotationToolPrefs.penPresetId
+            : annotationToolPrefs.highlightPresetId
+        }
+        strokeWidth={
+          interactionMode === 'pen'
+            ? annotationToolPrefs.penStrokeWidth
+            : annotationToolPrefs.highlightStrokeWidth
+        }
+        onPresetChange={
+          interactionMode === 'pen' ? handlePenPresetChange : handleHighlightPresetChange
+        }
+        onStrokeWidthChange={
+          interactionMode === 'pen'
+            ? handlePenStrokeWidthChange
+            : handleHighlightStrokeWidthChange
+        }
+      />
+    );
+  };
+
+  const annotationToolOptionsPanel = renderAnnotationToolOptions();
 
   const playlistBar = playlist && isFullscreen
     ? (
@@ -1787,6 +1915,16 @@ export function PdfViewer({
         <>
           <div className={controlsRowClass}>
             {renderAnnotationToolControls()}
+            <button
+              type="button"
+              onClick={handleUndoLast}
+              disabled={draftAnnotations.length === 0}
+              className={`${toolbarIconButtonClass()} disabled:opacity-50`}
+              aria-label="Desfazer"
+              title="Desfazer"
+            >
+              <IconUndo className="h-4 w-4" />
+            </button>
             <span className="flex-1" aria-hidden />
             <button
               type="button"
@@ -1805,6 +1943,9 @@ export function PdfViewer({
               Descartar
             </button>
           </div>
+          {annotationToolOptionsPanel && (
+            <div className={annotationPanelRowClass}>{annotationToolOptionsPanel}</div>
+          )}
         </>
       ) : (
         <>

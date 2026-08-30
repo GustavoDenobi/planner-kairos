@@ -44,6 +44,12 @@ export function formatDayHeader(date: Date): string {
   }).format(date);
 }
 
+export function formatEventDateShort(startsAt: string): string {
+  const date = new Date(startsAt);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
+
 export function formatEventTime(startsAt: string, endsAt: string | null): string {
   const start = new Date(startsAt);
   const timeFmt = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });

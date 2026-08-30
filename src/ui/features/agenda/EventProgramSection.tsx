@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { PreviousEventProgram } from '@/application/agenda';
 import type { EventDetail, ProgramItemDetail, ProgramItemStatus } from '@/domain/agenda';
 import type { Result } from '@/domain/shared';
-import type { PieceListItem } from '@/domain/repertoire';
+import type { PieceListItem, ReadingPlaylist } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
+import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { SortableList } from '@/ui/components/SortableList';
 import { IconCheck, IconGripVertical, IconPlus, IconTrash, IconPlay } from '@/ui/components/icons';
-import { prepareReadingPlaylistPath } from '@/ui/features/repertoire/reading-playlist-routes';
+import { EventReadingPlaylistPickerModal } from '@/ui/features/agenda/EventReadingPlaylistPickerModal';
+import {
+  prepareReadingPlaylistPath,
+  readingPlaylistEditPath,
+} from '@/ui/features/repertoire/reading-playlist-routes';
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import {
   agendaErrorMessage,
@@ -139,9 +144,14 @@ export function EventProgramSection({
   setEventProgram,
   getPreviousEventProgram,
 }: EventProgramSectionProps) {
+  const navigate = useNavigate();
   const repertoire = useRepertoire();
+  const { userId } = useAuth();
   const [rows, setRows] = useState<ProgramRow[]>(() => toRows(program));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
+  const [existingPlaylists, setExistingPlaylists] = useState<ReadingPlaylist[]>([]);
+  const [isCheckingPlaylists, setIsCheckingPlaylists] = useState(false);
   const [searchResults, setSearchResults] = useState<PieceListItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -271,6 +281,40 @@ export function EventProgramSection({
     occurrenceIndex > 0 &&
     getPreviousEventProgram;
 
+  async function handlePreparePlaylist() {
+    if (!userId) {
+      return;
+    }
+
+    setIsCheckingPlaylists(true);
+    const result = await repertoire.listReadingPlaylists(organizationId, userId);
+    setIsCheckingPlaylists(false);
+
+    if (!result.ok) {
+      navigate(prepareReadingPlaylistPath(orgSlug, eventId));
+      return;
+    }
+
+    const forEvent = result.value.filter((playlist) => playlist.sourceEventId === eventId);
+    if (forEvent.length === 0) {
+      navigate(prepareReadingPlaylistPath(orgSlug, eventId));
+      return;
+    }
+
+    setExistingPlaylists(forEvent);
+    setPlaylistPickerOpen(true);
+  }
+
+  function handleSelectExistingPlaylist(playlistId: string) {
+    setPlaylistPickerOpen(false);
+    navigate(readingPlaylistEditPath(orgSlug, playlistId));
+  }
+
+  function handleCreateNewPlaylist() {
+    setPlaylistPickerOpen(false);
+    navigate(prepareReadingPlaylistPath(orgSlug, eventId));
+  }
+
   return (
     <section className="space-y-3">
       {(canEditProgram || !hideHeading) && (
@@ -280,13 +324,15 @@ export function EventProgramSection({
           {!hideHeading && <h2 className="text-base font-semibold text-text">Programação</h2>}
           <div className="flex items-center gap-2">
             {rows.length > 0 && (
-              <Link
-                to={prepareReadingPlaylistPath(orgSlug, eventId)}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-bg"
+              <button
+                type="button"
+                onClick={() => void handlePreparePlaylist()}
+                disabled={isCheckingPlaylists || !userId}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-bg disabled:opacity-50"
               >
                 <IconPlay className="h-4 w-4" />
-                Preparar playlist
-              </Link>
+                {isCheckingPlaylists ? 'Carregando…' : 'Preparar playlist'}
+              </button>
             )}
             {canEditProgram && (
               <button
@@ -422,6 +468,14 @@ export function EventProgramSection({
           })}
         </ol>
       )}
+
+      <EventReadingPlaylistPickerModal
+        open={playlistPickerOpen}
+        onClose={() => setPlaylistPickerOpen(false)}
+        playlists={existingPlaylists}
+        onSelectPlaylist={handleSelectExistingPlaylist}
+        onCreateNew={handleCreateNewPlaylist}
+      />
 
       <EventProgramPiecePicker
         open={pickerOpen}

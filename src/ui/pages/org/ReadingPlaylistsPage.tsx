@@ -6,7 +6,7 @@ import { useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
-import { IconPencil, IconPlay, IconPlus } from '@/ui/components/icons';
+import { IconPencil, IconPlus, IconScoreSheet } from '@/ui/components/icons';
 import { readingPlaylistErrorMessage } from '@/ui/features/repertoire/reading-playlist-labels';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import {
@@ -224,9 +224,9 @@ export function ReadingPlaylistsPage() {
                         })
                       }
                       aria-label="Abrir leitor"
-                      className="rounded-lg border border-border p-2 text-primary hover:bg-bg"
+                      className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
                     >
-                      <IconPlay className="h-4 w-4" />
+                      <IconScoreSheet className="h-4 w-4" />
                     </button>
                   )}
                   {!showOfflineUi && (

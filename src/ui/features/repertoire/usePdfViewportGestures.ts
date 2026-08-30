@@ -289,8 +289,8 @@ export function usePdfViewportGestures({
           scaleRatio: ratio,
         });
         applyClampedPan({
-          x: scaledPan.x + centerDelta.x,
-          y: scaledPan.y + centerDelta.y,
+          x: scaledPan.x - centerDelta.x,
+          y: scaledPan.y - centerDelta.y,
         });
         return;
       }
@@ -304,8 +304,8 @@ export function usePdfViewportGestures({
         },
         ratio,
       );
-      viewport.scrollLeft = nextScroll.x + centerDelta.x;
-      viewport.scrollTop = nextScroll.y + centerDelta.y;
+      viewport.scrollLeft = nextScroll.x - centerDelta.x;
+      viewport.scrollTop = nextScroll.y - centerDelta.y;
     };
 
     const beginTouchPan = (touch: Touch) => {
@@ -320,9 +320,6 @@ export function usePdfViewportGestures({
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length >= 2) {
-        if (isAnnotatingRef.current) {
-          return;
-        }
         event.preventDefault();
         event.stopPropagation();
         beginPinch(event.touches);

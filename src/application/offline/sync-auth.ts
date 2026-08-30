@@ -11,7 +11,7 @@ export function isPermanentSyncAuthError(error: unknown): boolean {
 
 export function resolveSyncAuthorUserId(
   currentUserId: string | null | undefined,
-  payloadAuthorUserId: string,
+  _payloadAuthorUserId: string,
 ): string | null {
   if (!currentUserId) {
     return null;

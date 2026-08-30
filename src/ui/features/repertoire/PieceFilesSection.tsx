@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { partitionPieceFilesForViewer } from '@/domain/repertoire';
 import type { PieceFileKind, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconFilter, IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconFilter, IconPencil, IconPlus, IconScoreSheet, IconPlay } from '@/ui/components/icons';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
@@ -114,6 +114,26 @@ function FileList({
               </p>
             </button>
             <div className="flex shrink-0 items-center gap-1">
+              {file.kind === 'score' && (
+                <button
+                  type="button"
+                  onClick={() => onOpen(file)}
+                  aria-label="Abrir leitor"
+                  className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
+                >
+                  <IconScoreSheet className="h-4 w-4" />
+                </button>
+              )}
+              {file.kind == 'audio' && (
+                <button
+                  type="button"
+                  onClick={() => onOpen(file)}
+                  aria-label="Abrir áudio"
+                  className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
+                >
+                  <IconPlay className="h-4 w-4" />
+                </button>
+              )}
               {allowDownload && (
                 <OfflineDownloadButton
                   organizationId={file.organizationId}

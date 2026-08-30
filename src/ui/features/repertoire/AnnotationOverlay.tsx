@@ -5,14 +5,13 @@ import type {
   PdfAnnotation,
   StrokeGeometry,
 } from '@/domain/repertoire';
-import { resolveHighlightColor } from '@/domain/repertoire';
+import { resolveAnnotationAppearance } from '@/domain/repertoire';
 import {
   ERASER_HIT_RADIUS,
   findErasableAnnotationAtPoint,
-  HIGHLIGHT_STROKE_WIDTH,
-  PEN_STROKE_WIDTH,
   toNormalizedCoords,
 } from '@/ui/features/repertoire/annotation-coordinates';
+import { buildHighlightBrushRects } from '@/ui/features/repertoire/highlight-brush';
 
 export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser';
 
@@ -61,14 +60,18 @@ type SharedProps = {
 };
 
 type PenLayerProps = SharedProps & {
+  inverted: boolean;
   penColor: string;
+  penStrokeWidth: number;
   draftStroke: NormalizedPoint[] | null;
   showDraft: boolean;
 };
 
 type HighlightLayerProps = SharedProps & {
-  highlightColor: string;
   inverted: boolean;
+  pageAspectRatio: number;
+  highlightColor: string;
+  highlightStrokeWidth: number;
   draftStroke: NormalizedPoint[] | null;
   showDraft: boolean;
 };
@@ -77,6 +80,9 @@ type InteractionLayerProps = SharedProps & {
   mode: AnnotationInteractionMode;
   readOnly: boolean;
   gesturesActive?: boolean;
+  pageAspectRatio: number;
+  penStrokeWidth: number;
+  highlightStrokeWidth: number;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (geometry: StrokeGeometry) => void;
   onHighlightComplete: (geometry: StrokeGeometry) => void;
@@ -86,10 +92,6 @@ type InteractionLayerProps = SharedProps & {
 
 function isStrokeGeometry(geometry: PdfAnnotation['geometry']): geometry is StrokeGeometry {
   return 'points' in geometry;
-}
-
-function highlightBlendMode(inverted: boolean): 'multiply' | 'screen' {
-  return inverted ? 'screen' : 'multiply';
 }
 
 const SVG_BASE = {
@@ -103,7 +105,9 @@ export function AnnotationPenLayer({
   pageNumber,
   annotations,
   visibleLayers,
+  inverted,
   penColor,
+  penStrokeWidth,
   draftStroke,
   showDraft,
 }: PenLayerProps) {
@@ -115,12 +119,13 @@ export function AnnotationPenLayer({
     <svg {...SVG_BASE}>
       {pageAnnotations.map((annotation) => {
         const geometry = annotation.geometry as StrokeGeometry;
+        const appearance = resolveAnnotationAppearance(annotation, inverted);
         return (
           <polyline
             key={annotation.id}
             points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
             fill="none"
-            stroke={annotation.color}
+            stroke={appearance.stroke}
             strokeWidth={geometry.strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -132,7 +137,7 @@ export function AnnotationPenLayer({
           points={draftStroke.map((point) => `${point.x},${point.y}`).join(' ')}
           fill="none"
           stroke={penColor}
-          strokeWidth={PEN_STROKE_WIDTH}
+          strokeWidth={penStrokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -145,31 +150,48 @@ export function AnnotationHighlightLayer({
   pageNumber,
   annotations,
   visibleLayers,
-  highlightColor,
   inverted,
+  pageAspectRatio,
+  highlightColor,
+  highlightStrokeWidth,
   draftStroke,
   showDraft,
 }: HighlightLayerProps) {
   const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
     (annotation) => annotation.type === 'highlight',
   );
-  const blendMode = highlightBlendMode(inverted);
+  const draftBlendMode = inverted ? 'screen' : 'multiply';
+  const draftRects =
+    showDraft && draftStroke
+      ? buildHighlightBrushRects(draftStroke, highlightStrokeWidth, pageAspectRatio)
+      : [];
 
   return (
     <svg {...SVG_BASE}>
       {pageAnnotations.map((annotation) => {
+        const appearance = resolveAnnotationAppearance(annotation, inverted);
+        const blendMode = appearance.blendMode ?? 'multiply';
+
         if (isStrokeGeometry(annotation.geometry)) {
+          const brushRects = buildHighlightBrushRects(
+            annotation.geometry.points,
+            annotation.geometry.strokeWidth,
+            pageAspectRatio,
+          );
           return (
-            <polyline
-              key={annotation.id}
-              points={annotation.geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
-              fill="none"
-              stroke={resolveHighlightColor(annotation.layer, inverted)}
-              strokeWidth={annotation.geometry.strokeWidth}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ mixBlendMode: blendMode }}
-            />
+            <g key={annotation.id} style={{ mixBlendMode: blendMode }}>
+              {brushRects.map((rect, index) => (
+                <rect
+                  key={`${annotation.id}-${index}`}
+                  x={rect.x}
+                  y={rect.y}
+                  width={rect.width}
+                  height={rect.height}
+                  fill={appearance.stroke}
+                  stroke="none"
+                />
+              ))}
+            </g>
           );
         }
 
@@ -182,7 +204,7 @@ export function AnnotationHighlightLayer({
               y={geometry.y}
               width={geometry.width}
               height={geometry.height}
-              fill={resolveHighlightColor(annotation.layer, inverted)}
+              fill={appearance.stroke}
               stroke="none"
               style={{ mixBlendMode: blendMode }}
             />
@@ -191,16 +213,20 @@ export function AnnotationHighlightLayer({
 
         return null;
       })}
-      {showDraft && draftStroke && draftStroke.length >= 1 && (
-        <polyline
-          points={draftStroke.map((point) => `${point.x},${point.y}`).join(' ')}
-          fill="none"
-          stroke={highlightColor}
-          strokeWidth={HIGHLIGHT_STROKE_WIDTH}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ mixBlendMode: blendMode }}
-        />
+      {draftRects.length > 0 && (
+        <g style={{ mixBlendMode: draftBlendMode }}>
+          {draftRects.map((rect, index) => (
+            <rect
+              key={`draft-${index}`}
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              fill={highlightColor}
+              stroke="none"
+            />
+          ))}
+        </g>
       )}
     </svg>
   );
@@ -213,6 +239,9 @@ export function AnnotationInteractionLayer({
   mode,
   readOnly,
   gesturesActive = false,
+  pageAspectRatio,
+  penStrokeWidth,
+  highlightStrokeWidth,
   canEraseAnnotation,
   onStrokeComplete,
   onHighlightComplete,
@@ -270,6 +299,7 @@ export function AnnotationInteractionLayer({
           point,
           canEraseAnnotation,
           ERASER_HIT_RADIUS,
+          pageAspectRatio,
         );
         if (target) {
           onEraseAnnotation(target.id);
@@ -315,6 +345,7 @@ export function AnnotationInteractionLayer({
           point,
           canEraseAnnotation,
           ERASER_HIT_RADIUS,
+          pageAspectRatio,
         );
         if (target) {
           onEraseAnnotation(target.id);
@@ -348,14 +379,21 @@ export function AnnotationInteractionLayer({
     }
 
     if (mode === 'pen') {
-      onStrokeComplete({ points: stroke, strokeWidth: PEN_STROKE_WIDTH });
+      onStrokeComplete({ points: stroke, strokeWidth: penStrokeWidth });
       return;
     }
 
     if (mode === 'highlight') {
-      onHighlightComplete({ points: stroke, strokeWidth: HIGHLIGHT_STROKE_WIDTH });
+      onHighlightComplete({ points: stroke, strokeWidth: highlightStrokeWidth });
     }
-  }, [clearDraft, mode, onHighlightComplete, onStrokeComplete]);
+  }, [
+    clearDraft,
+    highlightStrokeWidth,
+    mode,
+    onHighlightComplete,
+    onStrokeComplete,
+    penStrokeWidth,
+  ]);
 
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {

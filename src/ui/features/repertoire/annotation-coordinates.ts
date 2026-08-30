@@ -1,4 +1,9 @@
 import type { NormalizedPoint, PdfAnnotation, StrokeGeometry } from '@/domain/repertoire';
+import {
+  HIGHLIGHT_STROKE_WIDTH as HIGHLIGHT_STROKE_WIDTH_RANGE,
+  PEN_STROKE_WIDTH as PEN_STROKE_WIDTH_RANGE,
+} from '@/domain/repertoire';
+import { highlightStrokeHitDistance } from '@/ui/features/repertoire/highlight-brush';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -19,11 +24,11 @@ export function toNormalizedCoords(
   };
 }
 
-/** Pen stroke width as a fraction of page width (scales with zoom). */
-export const PEN_STROKE_WIDTH = 0.003;
+/** Default pen stroke width as a fraction of page width (scales with zoom). */
+export const PEN_STROKE_WIDTH = PEN_STROKE_WIDTH_RANGE.default;
 
-/** Highlighter stroke width as a fraction of page width. */
-export const HIGHLIGHT_STROKE_WIDTH = 0.028;
+/** Default highlighter stroke width as a fraction of page width. */
+export const HIGHLIGHT_STROKE_WIDTH = HIGHLIGHT_STROKE_WIDTH_RANGE.default;
 
 /** Hit-test radius for eraser, as a fraction of page width. */
 export const ERASER_HIT_RADIUS = 0.02;
@@ -94,7 +99,15 @@ function legacyHighlightHitDistance(
   return distanceBetween(point, { x: closestX, y: closestY });
 }
 
-function annotationHitDistance(annotation: PdfAnnotation, point: NormalizedPoint): number {
+function annotationHitDistance(
+  annotation: PdfAnnotation,
+  point: NormalizedPoint,
+  pageAspectRatio: number,
+): number {
+  if (annotation.type === 'highlight' && isStrokeGeometry(annotation.geometry)) {
+    return highlightStrokeHitDistance(annotation.geometry, point, pageAspectRatio);
+  }
+
   if (isStrokeGeometry(annotation.geometry)) {
     return strokeHitDistance(annotation.geometry, point);
   }
@@ -110,12 +123,13 @@ export function findAnnotationAtPoint(
   annotations: PdfAnnotation[],
   point: NormalizedPoint,
   radius: number = ERASER_HIT_RADIUS,
+  pageAspectRatio: number = 1,
 ): PdfAnnotation | null {
   let closest: PdfAnnotation | null = null;
   let closestDistance = radius;
 
   for (const annotation of annotations) {
-    const distance = annotationHitDistance(annotation, point);
+    const distance = annotationHitDistance(annotation, point, pageAspectRatio);
 
     if (distance <= closestDistance) {
       closest = annotation;
@@ -131,6 +145,7 @@ export function findErasableAnnotationAtPoint(
   point: NormalizedPoint,
   canErase: (annotation: PdfAnnotation) => boolean,
   radius: number = ERASER_HIT_RADIUS,
+  pageAspectRatio: number = 1,
 ): PdfAnnotation | null {
   let closest: PdfAnnotation | null = null;
   let closestDistance = radius;
@@ -140,7 +155,7 @@ export function findErasableAnnotationAtPoint(
       continue;
     }
 
-    const distance = annotationHitDistance(annotation, point);
+    const distance = annotationHitDistance(annotation, point, pageAspectRatio);
 
     if (distance <= closestDistance) {
       closest = annotation;
