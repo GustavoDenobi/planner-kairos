@@ -7,12 +7,14 @@ const mockRefreshSession = vi.fn();
 const mockSignOut = vi.fn();
 const mockOnAuthStateChange = vi.fn();
 const mockSignInWithPassword = vi.fn();
+const mockSignInWithOAuth = vi.fn();
 const mockFunctionsInvoke = vi.fn();
 
 vi.mock('./client', () => ({
   supabase: {
     auth: {
       signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      signInWithOAuth: (...args: unknown[]) => mockSignInWithOAuth(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
       getSession: (...args: unknown[]) => mockGetSession(...args),
       refreshSession: (...args: unknown[]) => mockRefreshSession(...args),
@@ -207,5 +209,36 @@ describe('auth-gateway invite signup errors', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'invalid_invite' });
+  });
+});
+
+describe('auth-gateway google oauth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    });
+  });
+
+  it('starts google oauth with redirect url', async () => {
+    mockSignInWithOAuth.mockResolvedValueOnce({ error: null });
+
+    const gateway = createAuthGateway();
+    const result = await gateway.signInWithGoogle('http://localhost:5173/auth/callback');
+
+    expect(result).toEqual({ ok: true });
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: 'http://localhost:5173/auth/callback' },
+    });
+  });
+
+  it('returns failure when oauth redirect fails', async () => {
+    mockSignInWithOAuth.mockResolvedValueOnce({ error: { message: 'provider_disabled' } });
+
+    const gateway = createAuthGateway();
+    const result = await gateway.signInWithGoogle('http://localhost:5173/auth/callback');
+
+    expect(result).toEqual({ ok: false });
   });
 });

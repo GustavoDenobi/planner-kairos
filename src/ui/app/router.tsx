@@ -14,6 +14,7 @@ import { PublicLayout } from '@/ui/layouts/PublicLayout';
 import { InvitePage } from '@/ui/pages/InvitePage';
 import { MusicianClaimPage } from '@/ui/pages/MusicianClaimPage';
 import { LoginPage } from '@/ui/pages/LoginPage';
+import { AuthCallbackPage } from '@/ui/pages/AuthCallbackPage';
 import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
 import { PasswordRecoveryPage } from '@/ui/pages/PasswordRecoveryPage';
 import { PrivacyPolicyPage } from '@/ui/pages/PrivacyPolicyPage';
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
         element: <PublicLayout />,
         children: [
           { path: '/login', element: <LoginPage /> },
+          { path: '/auth/callback', element: <AuthCallbackPage /> },
           { path: '/login/recuperar-senha', element: <PasswordRecoveryPage /> },
           { path: '/privacidade', element: <PrivacyPolicyPage /> },
           { path: '/termos', element: <TermsOfUsePage /> },

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
+import { AuthDivider } from '@/ui/components/AuthDivider';
+import { GoogleSignInButton } from '@/ui/components/GoogleSignInButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { LOGIN_ERROR_MESSAGES } from '@/ui/utils/auth-error-labels';
 
@@ -10,12 +12,20 @@ export function LoginPage() {
   const identity = useIdentity();
   const offline = useOffline();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const online = useOnlineStatus();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [offlineWithoutSnapshot, setOfflineWithoutSnapshot] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('error') === 'oauth_failed') {
+      setError(LOGIN_ERROR_MESSAGES.oauthFailed);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (online) {
@@ -60,6 +70,22 @@ export function LoginPage() {
     navigate('/orgs');
   }
 
+  async function handleGoogleSignIn() {
+    setError(null);
+
+    if (!online) {
+      setError(LOGIN_ERROR_MESSAGES.offline);
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+    const result = await identity.signInWithGoogle({ kind: 'login' });
+    if (!result.ok) {
+      setIsGoogleSubmitting(false);
+      setError(LOGIN_ERROR_MESSAGES.oauthFailed);
+    }
+  }
+
   if (offlineWithoutSnapshot) {
     return (
       <div className="rounded-xl border border-border bg-surface p-6 shadow-sm text-center">
@@ -71,6 +97,8 @@ export function LoginPage() {
       </div>
     );
   }
+
+  const authBusy = isSubmitting || isGoogleSubmitting;
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
@@ -114,12 +142,21 @@ export function LoginPage() {
 
         <button
           type="submit"
-          disabled={isSubmitting || !online}
+          disabled={authBusy || !online}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {isSubmitting ? 'Entrando…' : 'Entrar'}
         </button>
       </form>
+
+      <AuthDivider />
+
+      <GoogleSignInButton
+        label="Entrar com Google"
+        disabled={!online}
+        isLoading={isGoogleSubmitting}
+        onClick={() => void handleGoogleSignIn()}
+      />
 
       <p className="mt-4 text-center text-sm text-muted">
         <Link to="/login/recuperar-senha" className="text-primary hover:underline">

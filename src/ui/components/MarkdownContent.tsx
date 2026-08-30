@@ -73,7 +73,7 @@ type MarkdownContentProps = {
 export function MarkdownContent({ markdown, className = '' }: MarkdownContentProps) {
   return (
     <div
-      className={`space-y-2 text-sm leading-relaxed text-muted ${className}`}
+      className={`select-text space-y-2 text-sm leading-relaxed text-muted ${className}`}
       dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(markdown) }}
     />
   );

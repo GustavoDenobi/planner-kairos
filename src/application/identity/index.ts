@@ -30,7 +30,14 @@ import { setOrganizationName } from './set-organization-name';
 import { getOrganizationRules, setOrganizationRules } from './set-organization-rules';
 import { setThemePreference } from './set-theme-preference';
 import { signIn } from './sign-in';
+import { signInWithGoogle } from './sign-in-with-google';
 import { signOut } from './sign-out';
+import {
+  clearOAuthPendingContext,
+  readOAuthPendingContext,
+  type OAuthPendingContext,
+} from './oauth-pending-context';
+import { resumeOAuthPendingAction } from './resume-oauth-pending-action';
 import { updateGroupInviteExpires } from './update-group-invite-expires';
 import { updateGroupInviteMaxUses } from './update-group-invite-max-uses';
 
@@ -52,6 +59,7 @@ export type IdentityDeps = {
 export function createIdentityUseCases(deps: IdentityDeps) {
   return {
     signIn: (email: string, password: string) => signIn(deps.auth, { email, password }),
+    signInWithGoogle: (context: OAuthPendingContext) => signInWithGoogle(deps.auth, context),
     signOut: () => signOut(deps.auth),
     listMyOrganizations: (userId: string) => listMyOrganizations(deps.orgRepo, userId),
     isPlatformAdmin: (userId: string) => deps.orgRepo.isPlatformAdmin(userId),
@@ -136,9 +144,24 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       ),
     getSignedUrl: (path: string) => deps.fileStorage.getSignedUrl(path),
     getSession: () => deps.auth.getSession(),
+    readOAuthPendingContext: () => readOAuthPendingContext(),
+    clearOAuthPendingContext: () => clearOAuthPendingContext(),
+    resumeOAuthPendingAction: (context: OAuthPendingContext, userId: string) =>
+      resumeOAuthPendingAction(
+        {
+          inviteRepo: deps.inviteRepo,
+          claimRepo: deps.musicianClaimRepo,
+          profileRepo: deps.profileRepo,
+          legalRepo: deps.legalRepo,
+        },
+        context,
+        userId,
+      ),
     onAuthStateChange: (cb: Parameters<AuthGateway['onAuthStateChange']>[0]) =>
       deps.auth.onAuthStateChange(cb),
   };
 }
 
 export type IdentityUseCases = ReturnType<typeof createIdentityUseCases>;
+
+export type { OAuthPendingContext } from './oauth-pending-context';

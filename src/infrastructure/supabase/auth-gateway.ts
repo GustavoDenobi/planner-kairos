@@ -193,6 +193,14 @@ export function createAuthGateway(): AuthGateway {
       });
       return () => data.subscription.unsubscribe();
     },
+
+    async signInWithGoogle(redirectTo) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      return error ? { ok: false } : { ok: true };
+    },
   };
 
   return gateway;

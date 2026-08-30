@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { InviteSignupFieldErrors, MusicianClaimPreview } from '@/domain/identity';
-import { getInviteSignupFieldErrors, organizationRulesRequireAcceptance } from '@/domain/identity';
+import {
+  getInviteSignupFieldErrors,
+  getOAuthOnboardingFieldErrors,
+  hasOAuthOnboardingFieldErrors,
+  organizationRulesRequireAcceptance,
+} from '@/domain/identity';
 import { useIdentity } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { AuthDivider } from '@/ui/components/AuthDivider';
+import { GoogleSignInButton } from '@/ui/components/GoogleSignInButton';
 import { LegalAcceptanceCheckboxes } from '@/ui/components/LegalAcceptanceCheckboxes';
 import { OrganizationRulesAcceptance } from '@/ui/components/OrganizationRulesAcceptance';
 import { ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+import { LOGIN_ERROR_MESSAGES } from '@/ui/utils/auth-error-labels';
 import { formatBirthDateInput } from '@/ui/utils/birthDateInput';
 import {
   assignmentPreviewLabel,
@@ -42,6 +51,8 @@ export function MusicianClaimPage() {
   const { session } = useAuth();
   const { setCurrentOrgBySlug } = useOrg();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const online = useOnlineStatus();
 
   const [preview, setPreview] = useState<MusicianClaimPreview | null>(null);
   const [previewError, setPreviewError] = useState(false);
@@ -55,6 +66,13 @@ export function MusicianClaimPage() {
   const [fieldErrors, setFieldErrors] = useState<InviteSignupFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('error') === 'oauth_resume_failed') {
+      setSubmitError(LOGIN_ERROR_MESSAGES.oauthFailed);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!musicianId) {
@@ -204,6 +222,67 @@ export function MusicianClaimPage() {
     navigate(`/${result.value.organizationSlug}/agenda`);
   }
 
+  async function handleGoogleSignup() {
+    if (!musicianId || !preview || !online) {
+      return;
+    }
+
+    setSubmitError(null);
+
+    const oauthFieldErrors = getOAuthOnboardingFieldErrors({ displayName, phone, birthDate });
+    if (hasOAuthOnboardingFieldErrors(oauthFieldErrors)) {
+      setFieldErrors(oauthFieldErrors);
+      return;
+    }
+
+    if (!platformLegalAccepted) {
+      setSubmitError(musicianClaimSubmitErrorMessage('platform_legal_not_accepted'));
+      return;
+    }
+
+    if (requiresOrgRules && !organizationRulesAccepted) {
+      setSubmitError(musicianClaimSubmitErrorMessage('organization_rules_not_accepted'));
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+    const result = await identity.signInWithGoogle({
+      kind: 'musician_signup',
+      musicianId,
+      displayName,
+      phone,
+      birthDate,
+      organizationId: preview.organizationId,
+      organizationRules: preview.organizationRules,
+      organizationRulesAccepted,
+      fallbackPath: `/musico/${musicianId}`,
+    });
+
+    if (!result.ok) {
+      setIsGoogleSubmitting(false);
+      setSubmitError(LOGIN_ERROR_MESSAGES.oauthFailed);
+    }
+  }
+
+  async function handleGoogleLogin() {
+    if (!musicianId || !online) {
+      return;
+    }
+
+    setSubmitError(null);
+    setIsGoogleSubmitting(true);
+
+    const result = await identity.signInWithGoogle({
+      kind: 'musician_login',
+      returnPath: `/musico/${musicianId}`,
+    });
+
+    if (!result.ok) {
+      setIsGoogleSubmitting(false);
+      setSubmitError(LOGIN_ERROR_MESSAGES.oauthFailed);
+    }
+  }
+
   if (previewError) {
     return (
       <div className="rounded-xl border border-border bg-surface p-6 text-center">
@@ -226,9 +305,17 @@ export function MusicianClaimPage() {
     'rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary';
   const submitDisabled =
     isSubmitting ||
+    isGoogleSubmitting ||
     (session
       ? requiresOrgRules && !organizationRulesAccepted
       : !platformLegalAccepted || (requiresOrgRules && !organizationRulesAccepted));
+
+  const googleSignupDisabled =
+    isSubmitting ||
+    isGoogleSubmitting ||
+    !online ||
+    !platformLegalAccepted ||
+    (requiresOrgRules && !organizationRulesAccepted);
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
@@ -414,6 +501,27 @@ export function MusicianClaimPage() {
           >
             {isSubmitting ? 'Criando conta…' : 'Criar conta e vincular'}
           </button>
+
+          <AuthDivider />
+
+          <GoogleSignInButton
+            label="Continuar com Google"
+            disabled={googleSignupDisabled}
+            isLoading={isGoogleSubmitting}
+            onClick={() => void handleGoogleSignup()}
+          />
+
+          <p className="text-center text-sm text-muted">
+            Já tem conta?{' '}
+            <button
+              type="button"
+              disabled={isSubmitting || isGoogleSubmitting || !online}
+              onClick={() => void handleGoogleLogin()}
+              className="text-primary hover:underline disabled:opacity-50"
+            >
+              Entrar com Google
+            </button>
+          </p>
         </form>
       )}
     </div>

@@ -11,7 +11,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function PrivacyPolicyPage() {
   return (
-    <article className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <article className="select-text rounded-xl border border-border bg-surface p-6 shadow-sm">
       <header>
         <h1 className="font-brand text-2xl font-bold text-text">Política de Privacidade</h1>
         <p className="mt-2 text-sm text-muted">Última atualização: 25 de agosto de 2026</p>

@@ -14,6 +14,7 @@ function createAuth(overrides: Partial<AuthGateway> = {}): AuthGateway {
     signOut: vi.fn(),
     getSession: vi.fn(),
     onAuthStateChange: vi.fn(),
+    signInWithGoogle: vi.fn(),
     ...overrides,
   };
 }

@@ -27,6 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+supabase/.env
+client_secret_850553217091-c9erojv41qsfe1ovd4m57rnemvv17dtp.apps.googleusercontent.com.json.credentials.json
 
 # Supabase
 .supabase

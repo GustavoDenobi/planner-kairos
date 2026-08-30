@@ -51,4 +51,5 @@ export type AuthGateway = {
   signOut(): Promise<void>;
   getSession(): Promise<AuthSession | null>;
   onAuthStateChange(callback: (session: AuthSession | null) => void): () => void;
+  signInWithGoogle(redirectTo: string): Promise<{ ok: true } | { ok: false }>;
 };

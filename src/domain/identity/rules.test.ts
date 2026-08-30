@@ -7,7 +7,9 @@ import {
   canRedeemGroupInvite,
   canRevokeAdminRole,
   getInviteSignupFieldErrors,
+  getOAuthOnboardingFieldErrors,
   hasInviteSignupFieldErrors,
+  hasOAuthOnboardingFieldErrors,
   isGroupInviteExhausted,
   isGroupInviteValid,
   isPasswordRecoveryCodeValid,
@@ -193,6 +195,46 @@ describe('getInviteSignupFieldErrors', () => {
       phone: 'invalid_phone',
       birthDate: 'invalid_birth_date',
       password: 'password_too_short',
+    });
+  });
+});
+
+describe('getOAuthOnboardingFieldErrors', () => {
+  const validInput = {
+    displayName: 'Maria Silva',
+    phone: '(11) 98765-4321',
+    birthDate: '15/05/1990',
+  };
+
+  it('returns no errors for valid input', () => {
+    expect(getOAuthOnboardingFieldErrors(validInput)).toEqual({});
+    expect(hasOAuthOnboardingFieldErrors(getOAuthOnboardingFieldErrors(validInput))).toBe(false);
+  });
+
+  it('requires displayName, phone and birthDate without email or password', () => {
+    const errors = getOAuthOnboardingFieldErrors({
+      displayName: '',
+      phone: '',
+      birthDate: '',
+    });
+
+    expect(errors).toEqual({
+      displayName: 'required',
+      phone: 'required',
+      birthDate: 'required',
+    });
+  });
+
+  it('validates phone and birthDate format', () => {
+    const errors = getOAuthOnboardingFieldErrors({
+      displayName: 'Maria',
+      phone: '123',
+      birthDate: '01/01/2030',
+    });
+
+    expect(errors).toEqual({
+      phone: 'invalid_phone',
+      birthDate: 'invalid_birth_date',
     });
   });
 });

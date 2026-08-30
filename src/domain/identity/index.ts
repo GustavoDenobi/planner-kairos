@@ -23,7 +23,9 @@ export {
   canRevokeAdminRole,
   isPasswordRecoveryCodeValid,
   getInviteSignupFieldErrors,
+  getOAuthOnboardingFieldErrors,
   hasInviteSignupFieldErrors,
+  hasOAuthOnboardingFieldErrors,
   isPlatformLegalAccepted,
   isOrganizationRulesAccepted,
   isValidInviteBirthDate,
@@ -53,6 +55,8 @@ export type {
   InviteSignupFieldErrorCode,
   InviteSignupFieldErrors,
   InviteSignupInput,
+  OAuthOnboardingInput,
+  OAuthOnboardingFieldErrors,
   OrganizationImageErrorCode,
   AdminRoleManagementError,
 } from './rules';

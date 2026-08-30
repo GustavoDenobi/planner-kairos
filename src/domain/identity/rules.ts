@@ -26,6 +26,16 @@ export type InviteSignupInput = {
   password: string;
 };
 
+export type OAuthOnboardingInput = {
+  displayName: string;
+  phone: string;
+  birthDate: string;
+};
+
+export type OAuthOnboardingFieldErrors = Partial<
+  Record<'displayName' | 'phone' | 'birthDate', InviteSignupFieldErrorCode>
+>;
+
 export function parseInviteBirthDate(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -110,6 +120,34 @@ export function getInviteSignupFieldErrors(input: InviteSignupInput): InviteSign
   }
 
   return errors;
+}
+
+export function getOAuthOnboardingFieldErrors(
+  input: OAuthOnboardingInput,
+): OAuthOnboardingFieldErrors {
+  const errors: OAuthOnboardingFieldErrors = {};
+
+  if (!input.displayName.trim()) {
+    errors.displayName = 'required';
+  }
+
+  if (!input.phone.trim()) {
+    errors.phone = 'required';
+  } else if (!isValidPhoneFormat(input.phone)) {
+    errors.phone = 'invalid_phone';
+  }
+
+  if (!input.birthDate.trim()) {
+    errors.birthDate = 'required';
+  } else if (!isValidInviteBirthDate(input.birthDate)) {
+    errors.birthDate = 'invalid_birth_date';
+  }
+
+  return errors;
+}
+
+export function hasOAuthOnboardingFieldErrors(errors: OAuthOnboardingFieldErrors): boolean {
+  return Object.keys(errors).length > 0;
 }
 
 export function hasInviteSignupFieldErrors(errors: InviteSignupFieldErrors): boolean {

@@ -90,7 +90,7 @@ export function LegalReacceptancePage() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col bg-bg p-4 pt-8">
-      <article className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <article className="select-text rounded-xl border border-border bg-surface p-6 shadow-sm">
         <header>
           <h1 className="font-brand text-2xl font-bold text-text">Atualização necessária</h1>
           <p className="mt-2 text-sm text-muted">
