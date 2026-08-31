@@ -50,6 +50,7 @@ const sampleFile: PieceFileWithLinks = {
   storageKey: 'org-1/piece-1/file-1',
   mimeType: 'application/pdf',
   title: 'Score',
+  sortOrder: 0,
   originalName: 'score.pdf',
   byteSize: 3,
   contentHash: 'hash-1',

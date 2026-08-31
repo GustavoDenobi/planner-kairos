@@ -8,6 +8,7 @@ import {
   filterScoreCandidatesForUser,
   resolveDefaultScoreFile,
 } from '@/domain/repertoire';
+import { formatProgramUnitDetail, resolveProgramUnitStartPage } from '@/domain/agenda';
 import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -40,6 +41,7 @@ type ProgramRowState = {
     color: string | null;
   } | null;
   programNotes: string;
+  startPage: number | null;
   candidates: PieceFileWithLinks[];
   selectedFileId: string | null;
   skipped: boolean;
@@ -124,10 +126,29 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: true,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
+            startPage: null,
             candidates: [],
             selectedFileId: null,
             skipped: true,
           });
+          continue;
+        }
+
+        if (item.units.length > 0) {
+          for (const unit of item.units) {
+            nextRows.push({
+              programItemId: `${item.id}:${unit.id}`,
+              pieceId: item.pieceId,
+              pieceTitle: `${item.pieceTitle} — ${formatProgramUnitDetail(unit)}`,
+              pieceDeleted: false,
+              pieceCategory: item.pieceCategory,
+              programNotes: item.notes ?? '',
+              startPage: resolveProgramUnitStartPage(unit),
+              candidates: [],
+              selectedFileId: unit.pieceFileId,
+              skipped: false,
+            });
+          }
           continue;
         }
 
@@ -140,6 +161,7 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: false,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
+            startPage: null,
             candidates: [],
             selectedFileId: null,
             skipped: true,
@@ -157,6 +179,7 @@ export function PrepareReadingPlaylistPage() {
           pieceDeleted: false,
           pieceCategory: item.pieceCategory,
           programNotes: item.notes ?? '',
+          startPage: null,
           candidates,
           selectedFileId: defaultFile?.id ?? null,
           skipped: candidates.length === 0,
@@ -213,7 +236,13 @@ export function PrepareReadingPlaylistPage() {
       .filter((row) => !row.skipped && row.selectedFileId)
       .map((row) => ({
         pieceFileId: row.selectedFileId!,
-        notes: row.programNotes.trim() || null,
+        notes:
+          [
+            row.programNotes.trim() || null,
+            row.startPage != null ? `Abrir na p. ${row.startPage}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || null,
       }));
 
     const result = await repertoire.createReadingPlaylist(org.id, userId, {

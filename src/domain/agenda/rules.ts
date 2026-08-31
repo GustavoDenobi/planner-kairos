@@ -1,7 +1,12 @@
 import type { EventInput, EventAudienceMusician } from './event';
 import type { EventKind, EventType, EventTypeInput } from './event-type';
 import type { EventParticipant } from './event-absence';
-import type { ProgramItemInput, ProgramItemStatus } from './program-item';
+import type {
+  ProgramItemInput,
+  ProgramItemStatus,
+  ProgramItemUnitInput,
+  ProgramItemValidationContext,
+} from './program-item';
 import type { ScheduleRecurrenceInput } from './event-recurrence';
 import {
   generateOccurrenceDates,
@@ -106,8 +111,126 @@ export function isValidProgramItemStatus(status: ProgramItemStatus): boolean {
   return PROGRAM_ITEM_STATUSES.includes(status);
 }
 
-export function validateProgramItems(items: ProgramItemInput[]): string | null {
-  const seen = new Set<string>();
+function validateProgramItemUnitPages(unit: ProgramItemUnitInput): string | null {
+  const startPage = unit.startPage ?? null;
+  const endPage = unit.endPage ?? null;
+
+  if (startPage != null && (!Number.isInteger(startPage) || startPage < 1)) {
+    return 'invalid_start_page';
+  }
+  if (endPage != null && (!Number.isInteger(endPage) || endPage < 1)) {
+    return 'invalid_end_page';
+  }
+  if (startPage != null && endPage != null && endPage < startPage) {
+    return 'invalid_page_range';
+  }
+  return null;
+}
+
+function unitDedupeKey(unit: ProgramItemUnitInput): string {
+  if (unit.pieceFileTocEntryId) {
+    return `toc:${unit.pieceFileTocEntryId}`;
+  }
+  return `file:${unit.pieceFileId}`;
+}
+
+function validateProgramItemUnitReferences(
+  unit: ProgramItemUnitInput,
+  scoreFileIds: Set<string>,
+  context: ProgramItemValidationContext | undefined,
+  pieceId: string,
+): string | null {
+  if (!unit.pieceFileId.trim()) {
+    return 'invalid_unit_file';
+  }
+  if (!scoreFileIds.has(unit.pieceFileId)) {
+    return 'invalid_unit_file';
+  }
+
+  const piece = context?.piecesById.get(pieceId);
+  const file = piece?.files.find((item) => item.id === unit.pieceFileId);
+
+  if (unit.pieceFileTocEntryId) {
+    if (!file?.tocEntryIds.has(unit.pieceFileTocEntryId)) {
+      return 'invalid_toc_entry';
+    }
+  }
+
+  return validateProgramItemUnitPages(unit);
+}
+
+function validateProgramItemUnits(
+  units: ProgramItemUnitInput[] | undefined,
+  pieceId: string,
+  context: ProgramItemValidationContext | undefined,
+): string | null {
+  if (!units || units.length === 0) {
+    return null;
+  }
+
+  const piece = context?.piecesById.get(pieceId);
+  if (!piece) {
+    return 'piece_not_found';
+  }
+
+  const scoreFiles = piece.files.filter((file) => file.kind === 'score');
+  const scoreFileIds = new Set(scoreFiles.map((file) => file.id));
+  const generalScoreFiles = scoreFiles.filter((file) => file.partLinkCount === 0);
+
+  if (piece.fileOrganization === 'distributed') {
+    if (units.length > 1) {
+      return 'distributed_single_unit';
+    }
+    const unit = units[0];
+    if (!unit) {
+      return null;
+    }
+    if (!scoreFileIds.has(unit.pieceFileId)) {
+      return 'invalid_unit_file';
+    }
+    const file = scoreFiles.find((item) => item.id === unit.pieceFileId);
+    if (file && file.partLinkCount > 0) {
+      return 'distributed_general_score_only';
+    }
+    return validateProgramItemUnitReferences(unit, scoreFileIds, context, pieceId);
+  }
+
+  if (piece.fileOrganization === 'single') {
+    if (units.length > 1) {
+      return 'single_single_unit';
+    }
+    const unit = units[0];
+    if (!unit) {
+      return null;
+    }
+    return validateProgramItemUnitReferences(unit, scoreFileIds, context, pieceId);
+  }
+
+  const seenKeys = new Set<string>();
+  for (const unit of units) {
+    const refError = validateProgramItemUnitReferences(unit, scoreFileIds, context, pieceId);
+    if (refError) {
+      return refError;
+    }
+
+    const key = unitDedupeKey(unit);
+    if (seenKeys.has(key)) {
+      return unit.pieceFileTocEntryId ? 'duplicate_toc_entry' : 'duplicate_unit_file';
+    }
+    seenKeys.add(key);
+  }
+
+  if (generalScoreFiles.length === 0 && units.length === 0) {
+    return null;
+  }
+
+  return null;
+}
+
+export function validateProgramItems(
+  items: ProgramItemInput[],
+  context?: ProgramItemValidationContext,
+): string | null {
   for (const item of items) {
     if (!item.pieceId.trim()) {
       return 'invalid_piece';
@@ -115,11 +238,13 @@ export function validateProgramItems(items: ProgramItemInput[]): string | null {
     if (item.status !== undefined && !isValidProgramItemStatus(item.status)) {
       return 'invalid_status';
     }
-    if (seen.has(item.pieceId)) {
-      return 'duplicate_piece';
+
+    const unitsError = validateProgramItemUnits(item.units, item.pieceId, context);
+    if (unitsError) {
+      return unitsError;
     }
-    seen.add(item.pieceId);
   }
+
   return null;
 }
 

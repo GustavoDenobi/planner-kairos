@@ -8,13 +8,14 @@ import type { PieceCategoryRepository } from '@/application/ports/piece-category
 import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
+import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceAccessRepository } from '@/application/ports/piece-access-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdateAnnotationSetInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, CreatePieceFileTocEntryInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdateAnnotationSetInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, UpdatePieceFileTocEntryInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -42,8 +43,16 @@ import {
   reorderPieceFileNavigationShortcuts,
   updatePieceFileNavigationShortcut,
 } from './navigation-shortcut-use-cases';
+import {
+  createPieceFileTocEntry,
+  deletePieceFileTocEntry,
+  listPieceFileTocEntries,
+  listPieceTocEntries,
+  reorderPieceFileTocEntries,
+  updatePieceFileTocEntry,
+} from './toc-entry-use-cases';
 import type { AttachPieceFileInput, UpdatePieceFileInput } from './file-use-cases';
-import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, updatePieceFile } from './file-use-cases';
+import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, reorderPieceScoreFiles, updatePieceFile } from './file-use-cases';
 import {
   createReadingPlaylist,
   deleteReadingPlaylist,
@@ -80,6 +89,7 @@ export type RepertoireDeps = {
   annotationRepo: PieceFileAnnotationRepository;
   annotationSetRepo: AnnotationSetRepository;
   navigationShortcutRepo: PieceFileNavigationShortcutRepository;
+  tocEntryRepo: PieceFileTocEntryRepository;
   playlistRepo: ReadingPlaylistRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
@@ -164,6 +174,12 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
         pieceId,
         fileId,
       ),
+    reorderPieceScoreFiles: (
+      organizationId: string,
+      pieceId: string,
+      orderedFileIds: string[],
+    ) =>
+      reorderPieceScoreFiles(deps.pieceRepo, deps.fileRepo, organizationId, pieceId, orderedFileIds),
 
     listPieceFileAnnotations: (organizationId: string, pieceFileId: string) =>
       listPieceFileAnnotations(deps.annotationRepo, organizationId, pieceFileId),
@@ -292,6 +308,48 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
         pieceFileId,
         orderedIds,
       ),
+
+    listPieceFileTocEntries: (organizationId: string, pieceFileId: string) =>
+      listPieceFileTocEntries(deps.tocEntryRepo, organizationId, pieceFileId),
+    listPieceTocEntries: (organizationId: string, pieceId: string) =>
+      listPieceTocEntries(deps.tocEntryRepo, organizationId, pieceId),
+    createPieceFileTocEntry: (
+      organizationId: string,
+      pieceId: string,
+      input: CreatePieceFileTocEntryInput,
+    ) =>
+      createPieceFileTocEntry(
+        deps.fileRepo,
+        deps.tocEntryRepo,
+        organizationId,
+        pieceId,
+        input,
+      ),
+    updatePieceFileTocEntry: (
+      organizationId: string,
+      pieceFileId: string,
+      entryId: string,
+      input: UpdatePieceFileTocEntryInput,
+    ) =>
+      updatePieceFileTocEntry(
+        deps.tocEntryRepo,
+        organizationId,
+        pieceFileId,
+        entryId,
+        input,
+      ),
+    deletePieceFileTocEntry: (
+      organizationId: string,
+      pieceFileId: string,
+      entryId: string,
+    ) =>
+      deletePieceFileTocEntry(deps.tocEntryRepo, organizationId, pieceFileId, entryId),
+    reorderPieceFileTocEntries: (
+      organizationId: string,
+      pieceFileId: string,
+      orderedIds: string[],
+    ) =>
+      reorderPieceFileTocEntries(deps.tocEntryRepo, organizationId, pieceFileId, orderedIds),
 
     listReadingPlaylists: (organizationId: string, ownerUserId: string) =>
       listReadingPlaylists(deps.playlistRepo, organizationId, ownerUserId),

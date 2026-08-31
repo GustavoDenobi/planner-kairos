@@ -1,6 +1,7 @@
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
 import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
+import type { OfflineTocEntryStore } from '@/application/ports/offline-toc-entry-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflineIdentityStore } from '@/application/ports/offline-identity-store';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
@@ -19,6 +20,7 @@ import type { OrganizationRepository } from '@/application/ports/organization-re
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
+import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
@@ -26,9 +28,11 @@ import type {
   CreatePdfAnnotationInput,
   CreateAnnotationSetInput,
   CreatePdfNavigationShortcutInput,
+  CreatePieceFileTocEntryInput,
   UpdateAnnotationSetInput,
   UpdatePdfAnnotationInput,
   UpdatePdfNavigationShortcutInput,
+  UpdatePieceFileTocEntryInput,
 } from '@/domain/repertoire';
 import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
 import {
@@ -45,6 +49,14 @@ import {
   syncPendingNavigationShortcutChanges,
   updateNavigationShortcutWithOffline,
 } from './navigation-shortcut-offline-use-cases';
+import {
+  createTocEntryWithOffline,
+  deleteTocEntryWithOffline,
+  listTocEntriesForReading,
+  reorderTocEntriesWithOffline,
+  syncPendingTocEntryChanges,
+  updateTocEntryWithOffline,
+} from './toc-entry-offline-use-cases';
 import {
   createAnnotationWithOffline,
   deleteAnnotationWithOffline,
@@ -107,6 +119,7 @@ export type OfflineStoragePorts = {
   fileCache: OfflineFileCache;
   annotationStore: OfflineAnnotationStore;
   navigationShortcutStore: OfflineNavigationShortcutStore;
+  tocEntryStore: OfflineTocEntryStore;
   playlistCache: OfflinePlaylistCache;
   identityStore: OfflineIdentityStore;
   agendaCache: OfflineAgendaCache;
@@ -121,6 +134,7 @@ export type OfflineUseCaseDeps = {
   annotationRepo: PieceFileAnnotationRepository;
   annotationSetRepo: AnnotationSetRepository;
   navigationShortcutRepo: PieceFileNavigationShortcutRepository;
+  tocEntryRepo: PieceFileTocEntryRepository;
   playlistRepo: ReadingPlaylistRepository;
   offlineStorage: OfflineStoragePorts;
   eventRepo: EventRepository;
@@ -138,6 +152,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const fileCache = deps.offlineStorage.fileCache;
   const annotationStore = deps.offlineStorage.annotationStore;
   const navigationShortcutStore = deps.offlineStorage.navigationShortcutStore;
+  const tocEntryStore = deps.offlineStorage.tocEntryStore;
   const playlistCache = deps.offlineStorage.playlistCache;
   const identityStore = deps.offlineStorage.identityStore;
   const agendaCache = deps.offlineStorage.agendaCache;
@@ -173,13 +188,15 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         deps.annotationRepo,
         annotationStore,
         deps.annotationSetRepo,
-        deps.navigationShortcutRepo,
-        navigationShortcutStore,
-        organizationId,
-        playlistId,
-        userId,
-        onProgress,
-      ),
+        deps.      navigationShortcutRepo,
+      navigationShortcutStore,
+      deps.tocEntryRepo,
+      tocEntryStore,
+      organizationId,
+      playlistId,
+      userId,
+      onProgress,
+    ),
 
     cacheUserReadingPlaylistsForOffline: (
       organizationId: string,
@@ -198,6 +215,8 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         deps.annotationSetRepo,
         deps.navigationShortcutRepo,
         navigationShortcutStore,
+        deps.tocEntryRepo,
+        tocEntryStore,
         organizationId,
         userId,
         onProgress,
@@ -394,6 +413,68 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         orderedIds,
       ),
 
+    listTocEntriesForReading: (organizationId: string, pieceFileId: string) =>
+      listTocEntriesForReading(
+        deps.tocEntryRepo,
+        tocEntryStore,
+        organizationId,
+        pieceFileId,
+      ),
+
+    createPieceFileTocEntry: (
+      organizationId: string,
+      pieceId: string,
+      input: CreatePieceFileTocEntryInput,
+    ) =>
+      createTocEntryWithOffline(
+        deps.tocEntryRepo,
+        tocEntryStore,
+        organizationId,
+        pieceId,
+        input,
+      ),
+
+    updatePieceFileTocEntry: (
+      organizationId: string,
+      pieceFileId: string,
+      entryId: string,
+      input: UpdatePieceFileTocEntryInput,
+    ) =>
+      updateTocEntryWithOffline(
+        deps.tocEntryRepo,
+        tocEntryStore,
+        organizationId,
+        pieceFileId,
+        entryId,
+        input,
+      ),
+
+    deletePieceFileTocEntry: (
+      organizationId: string,
+      pieceFileId: string,
+      entryId: string,
+    ) =>
+      deleteTocEntryWithOffline(
+        deps.tocEntryRepo,
+        tocEntryStore,
+        organizationId,
+        pieceFileId,
+        entryId,
+      ),
+
+    reorderPieceFileTocEntries: (
+      organizationId: string,
+      pieceFileId: string,
+      orderedIds: string[],
+    ) =>
+      reorderTocEntriesWithOffline(
+        deps.tocEntryRepo,
+        tocEntryStore,
+        organizationId,
+        pieceFileId,
+        orderedIds,
+      ),
+
     getOfflineStatus: (
       organizationId: string,
       pieceId: string,
@@ -447,9 +528,13 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         deps.navigationShortcutRepo,
         navigationShortcutStore,
       );
+      const tocResult = await syncPendingTocEntryChanges(
+        deps.tocEntryRepo,
+        tocEntryStore,
+      );
       return {
-        synced: annotationResult.synced + shortcutResult.synced,
-        failed: annotationResult.failed + shortcutResult.failed,
+        synced: annotationResult.synced + shortcutResult.synced + tocResult.synced,
+        failed: annotationResult.failed + shortcutResult.failed + tocResult.failed,
       };
     },
 

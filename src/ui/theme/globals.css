@@ -153,6 +153,22 @@ html[data-keyboard-open] [data-modal-overlay] {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
 }
 
+@keyframes annotation-laser-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.annotation-laser-fade-out {
+  animation-name: annotation-laser-fade-out;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
 @keyframes upload-entry-slide-in-next {
   from {
     opacity: 0;

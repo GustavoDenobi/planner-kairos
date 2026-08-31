@@ -149,6 +149,38 @@ export function IconFilter(props: IconProps) {
   );
 }
 
+export function IconList(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <line x1="8" x2="21" y1="6" y2="6" />
+      <line x1="8" x2="21" y1="12" y2="12" />
+      <line x1="8" x2="21" y1="18" y2="18" />
+      <line x1="3" x2="3.01" y1="6" y2="6" />
+      <line x1="3" x2="3.01" y1="12" y2="12" />
+      <line x1="3" x2="3.01" y1="18" y2="18" />
+    </svg>
+  );
+}
+
+export function IconMenu(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <line x1="4" x2="20" y1="6" y2="6" />
+      <line x1="4" x2="20" y1="12" y2="12" />
+      <line x1="4" x2="20" y1="18" y2="18" />
+    </svg>
+  );
+}
+
+export function IconColumns(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="3" y="3" width="7" height="18" rx="1" />
+      <rect x="14" y="3" width="7" height="18" rx="1" />
+    </svg>
+  );
+}
+
 export function IconCake(props: IconProps) {
   return (
     <svg {...defaults} {...props} fill="currentColor" stroke="none" viewBox="0 0 32 32">
@@ -256,6 +288,22 @@ export function IconEraser(props: IconProps) {
       <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
       <path d="M22 21H7" />
       <path d="m5 11 9 9" />
+    </svg>
+  );
+}
+
+export function IconLaser(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+      <path d="M12 2v4" />
+      <path d="M12 18v4" />
+      <path d="M2 12h4" />
+      <path d="M18 12h4" />
+      <path d="m4.93 4.93 2.83 2.83" />
+      <path d="m16.24 16.24 2.83 2.83" />
+      <path d="m4.93 19.07 2.83-2.83" />
+      <path d="m16.24 7.76 2.83-2.83" />
     </svg>
   );
 }

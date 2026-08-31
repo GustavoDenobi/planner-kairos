@@ -11,12 +11,15 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
 import { ConfirmModal } from '@/ui/components/ConfirmModal';
 import { Modal } from '@/ui/components/Modal';
+import { Toast } from '@/ui/components/Toast';
 import { IconChevronLeft, IconPlus, IconSettings } from '@/ui/components/icons';
 import { AgendaEventTypesSection } from '@/ui/features/agenda/AgendaEventTypesSection';
 import { AgendaEventsSection } from '@/ui/features/agenda/AgendaEventsSection';
+import { AgendaWeekKanban } from '@/ui/features/agenda/AgendaWeekKanban';
 import { AgendaFiltersBar, type AgendaFilterScope } from '@/ui/features/agenda/AgendaFiltersBar';
 import { AgendaRangeControls } from '@/ui/features/agenda/AgendaRangeControls';
 import {
+  defaultStartsAtForDay,
   fromDatetimeLocalValue,
   getWeekRange,
   shiftAnchor,
@@ -28,7 +31,12 @@ import {
   loadAgendaBirthdaysVisibility,
   saveAgendaBirthdaysVisibility,
 } from '@/ui/features/agenda/agenda-birthdays-storage';
-import { loadAgendaRange, saveAgendaRange } from '@/ui/features/agenda/agenda-range-storage';
+import {
+  loadAgendaViewPreference,
+  saveAgendaViewPreference,
+  type AgendaViewMode,
+  type StoredAgendaViewPreference,
+} from '@/ui/features/agenda/agenda-view-storage';
 import { agendaErrorMessage, eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import {
   agendaSectionQueryValue,
@@ -55,6 +63,10 @@ import {
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
+
+const AUTO_COLUMNS_EVENT_THRESHOLD = 10;
+const AUTO_COLUMNS_TOAST =
+  'Muitos eventos nesta semana — vista alterada para colunas.';
 
 type EventTypeModalState = {
   id: string | null;
@@ -87,8 +99,12 @@ export function AgendaPage() {
   const pageTitle = showEventTypesView ? 'Tipos de evento' : 'Agenda';
 
   const [anchor, setAnchor] = useState(() => new Date());
-  const [rangeReady, setRangeReady] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [viewReady, setViewReady] = useState(false);
+  const [viewMode, setViewMode] = useState<AgendaViewMode>('list');
+  const [storedViewPreference, setStoredViewPreference] =
+    useState<StoredAgendaViewPreference>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [scope, setScope] = useState<AgendaFilterScope>('mine');
   const [filterKind, setFilterKind] = useState<EventKind | ''>('');
   const [filterTypeId, setFilterTypeId] = useState('');
@@ -149,14 +165,10 @@ export function AgendaPage() {
 
   useEffect(() => {
     if (!userId) {
-      setRangeReady(true);
       setFiltersReady(true);
       setBirthdaysReady(true);
+      setViewReady(true);
       return;
-    }
-    const storedRange = loadAgendaRange(userId);
-    if (storedRange) {
-      setAnchor(new Date(storedRange.anchorIso));
     }
     const storedFilters = loadAgendaFilters(userId);
     if (storedFilters) {
@@ -166,17 +178,34 @@ export function AgendaPage() {
       setFilterGroupId(storedFilters.groupId);
     }
     setShowBirthdays(loadAgendaBirthdaysVisibility(userId));
-    setRangeReady(true);
+    const viewPreference = loadAgendaViewPreference(userId);
+    setStoredViewPreference(viewPreference);
+    setViewMode(viewPreference ?? 'list');
     setFiltersReady(true);
     setBirthdaysReady(true);
+    setViewReady(true);
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !rangeReady) {
+    if (!viewReady || isLoading || showEventTypesView) {
       return;
     }
-    saveAgendaRange(userId, 'week', anchor);
-  }, [userId, anchor, rangeReady]);
+    if (
+      events.length > AUTO_COLUMNS_EVENT_THRESHOLD &&
+      storedViewPreference === null &&
+      viewMode === 'list'
+    ) {
+      setViewMode('columns');
+      setToastMessage(AUTO_COLUMNS_TOAST);
+    }
+  }, [
+    viewReady,
+    isLoading,
+    showEventTypesView,
+    events.length,
+    storedViewPreference,
+    viewMode,
+  ]);
 
   useEffect(() => {
     if (!userId || !filtersReady) {
@@ -361,11 +390,11 @@ export function AgendaPage() {
   }, [eventTypes, typeId]);
 
   useEffect(() => {
-    if (!org || !rangeReady || !filtersReady || !birthdaysReady) {
+    if (!org || !filtersReady || !birthdaysReady) {
       return;
     }
     void loadData();
-  }, [org, rangeReady, filtersReady, birthdaysReady, loadData]);
+  }, [org, filtersReady, birthdaysReady, loadData]);
 
   function openCreateTypeModal() {
     setTypeModal({
@@ -447,18 +476,30 @@ export function AgendaPage() {
     }
   }
 
-  function resetCreateForm() {
-    const nextStartsAt = defaultStartsAtLocal();
+  function resetCreateForm(startsAtLocal: string = defaultStartsAtLocal()) {
     setTitle('');
-    setStartsAt(nextStartsAt);
+    setStartsAt(startsAtLocal);
     setEndsAt('');
     setNotes('');
     setGroupIds([]);
     setMusicianIds(audience?.myMusicianId ? [audience.myMusicianId] : []);
     setRepeatEnabled(false);
-    setRecurrenceRule(createDefaultRecurrenceRule(nextStartsAt));
+    setRecurrenceRule(createDefaultRecurrenceRule(startsAtLocal));
     setSeriesEndsAt(createDefaultSeriesEndsAt());
     setFormError(null);
+  }
+
+  function openCreateForDay(day: Date) {
+    resetCreateForm(defaultStartsAtForDay(day));
+    setCreateOpen(true);
+  }
+
+  function handleViewModeChange(mode: AgendaViewMode) {
+    setViewMode(mode);
+    setStoredViewPreference(mode);
+    if (userId) {
+      saveAgendaViewPreference(userId, mode);
+    }
   }
 
   function hasEmptyAudience() {
@@ -520,7 +561,7 @@ export function AgendaPage() {
   return (
     <>
       <div className={`flex min-w-0 flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}>
-        <div className="shrink-0 space-y-4 pb-6">
+        <div className="min-w-0 w-full max-w-full shrink-0 space-y-4 overflow-x-hidden pb-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               {showEventTypesView && (
@@ -612,13 +653,21 @@ export function AgendaPage() {
                     onNext={() => setAnchor((current) => shiftAnchor('week', current, 1))}
                   />
                 }
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
               />
             </>
           )}
           <hr className="border-border" />
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+        <div
+          className={`min-h-0 min-w-0 flex-1 ${
+            viewMode === 'columns'
+              ? 'flex flex-col overflow-hidden'
+              : 'overflow-x-hidden overflow-y-auto overscroll-contain'
+          }`}
+        >
           {showEventTypesView && isOfflineReadOnly ? (
             <p className="text-sm text-muted">
               Gerir tipos de evento exige conexão com a internet.
@@ -638,6 +687,16 @@ export function AgendaPage() {
               Esta semana está fora do intervalo disponível offline (semana atual até 90 dias à
               frente).
             </p>
+          ) : viewMode === 'columns' ? (
+            <AgendaWeekKanban
+              orgSlug={orgSlug ?? ''}
+              anchor={anchor}
+              events={events}
+              birthdays={birthdays}
+              isLoading={isLoading}
+              canCreateEvents={canCreateEvents}
+              onAddEvent={openCreateForDay}
+            />
           ) : (
             <AgendaEventsSection
               orgSlug={orgSlug ?? ''}
@@ -648,6 +707,8 @@ export function AgendaPage() {
           )}
         </div>
       </div>
+
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Novo evento" size="lg">
         <div className="max-h-[min(80vh,40rem)] space-y-4 overflow-y-auto pr-1">

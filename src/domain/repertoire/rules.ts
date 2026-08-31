@@ -15,6 +15,11 @@ import type {
   UpdatePdfNavigationShortcutInput,
 } from './piece-file-navigation-shortcut';
 import type {
+  CreatePieceFileTocEntryInput,
+  PieceFileTocEntry,
+  UpdatePieceFileTocEntryInput,
+} from './piece-file-toc-entry';
+import type {
   CreateReadingPlaylistInput,
   UpdateReadingPlaylistInput,
 } from './reading-playlist';
@@ -456,6 +461,82 @@ export function validateUpdatePdfNavigationShortcutInput(
     input.anchorX ?? existing.anchorX,
     input.anchorY ?? existing.anchorY,
   );
+}
+
+function validateOptionalEndPage(
+  targetPageNumber: number,
+  endPageNumber: number | null | undefined,
+): string | null {
+  if (endPageNumber == null) {
+    return null;
+  }
+  if (!Number.isInteger(endPageNumber) || endPageNumber < 1) {
+    return 'invalid_end_page';
+  }
+  if (endPageNumber < targetPageNumber) {
+    return 'invalid_page_range';
+  }
+  return null;
+}
+
+export function validateCreatePieceFileTocEntryInput(
+  input: CreatePieceFileTocEntryInput,
+): string | null {
+  if (!input.pieceFileId.trim()) {
+    return 'invalid_piece_file';
+  }
+  if (!input.label.trim()) {
+    return 'invalid_label';
+  }
+  if (!Number.isInteger(input.targetPageNumber) || input.targetPageNumber < 1) {
+    return 'invalid_page_number';
+  }
+  if (input.sortOrder !== undefined && (!Number.isInteger(input.sortOrder) || input.sortOrder < 0)) {
+    return 'invalid_sort_order';
+  }
+
+  const targetXError = validateOptionalNormalizedCoord(input.targetX);
+  if (targetXError) {
+    return targetXError;
+  }
+
+  const targetYError = validateOptionalNormalizedCoord(input.targetY);
+  if (targetYError) {
+    return targetYError;
+  }
+
+  return validateOptionalEndPage(input.targetPageNumber, input.endPageNumber);
+}
+
+export function validateUpdatePieceFileTocEntryInput(
+  input: UpdatePieceFileTocEntryInput,
+  existing: Pick<PieceFileTocEntry, 'targetPageNumber'>,
+): string | null {
+  if (input.label !== undefined && !input.label.trim()) {
+    return 'invalid_label';
+  }
+  if (
+    input.targetPageNumber !== undefined
+    && (!Number.isInteger(input.targetPageNumber) || input.targetPageNumber < 1)
+  ) {
+    return 'invalid_page_number';
+  }
+  if (input.sortOrder !== undefined && (!Number.isInteger(input.sortOrder) || input.sortOrder < 0)) {
+    return 'invalid_sort_order';
+  }
+
+  const targetXError = validateOptionalNormalizedCoord(input.targetX);
+  if (targetXError) {
+    return targetXError;
+  }
+
+  const targetYError = validateOptionalNormalizedCoord(input.targetY);
+  if (targetYError) {
+    return targetYError;
+  }
+
+  const targetPage = input.targetPageNumber ?? existing.targetPageNumber;
+  return validateOptionalEndPage(targetPage, input.endPageNumber);
 }
 
 export function pieceFileMatchesUserParts(

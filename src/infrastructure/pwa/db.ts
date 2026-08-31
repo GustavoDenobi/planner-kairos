@@ -137,6 +137,30 @@ export type NavigationShortcutSyncOutboxRecord = {
   retryCount: number;
 };
 
+export type TocEntrySyncOutboxRecord = {
+  id: string;
+  op: 'toc_create' | 'toc_update' | 'toc_delete' | 'toc_reorder';
+  payloadJson: string;
+  createdAt: string;
+  retryCount: number;
+};
+
+export type CachedTocEntryRecord = {
+  clientId: string;
+  id: string;
+  organizationId: string;
+  pieceFileId: string;
+  label: string;
+  sortOrder: number;
+  targetPageNumber: number;
+  targetX: number | null;
+  targetY: number | null;
+  endPageNumber: number | null;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: import('@/application/ports/offline-toc-entry-store').TocEntrySyncStatus;
+};
+
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
@@ -149,6 +173,8 @@ export class PlannerKairosOfflineDb extends Dexie {
   cachedOrgImages!: Table<CachedOrgImageRecord, string>;
   cachedNavigationShortcuts!: Table<CachedNavigationShortcutRecord, string>;
   navigationShortcutSyncOutbox!: Table<NavigationShortcutSyncOutboxRecord, string>;
+  cachedTocEntries!: Table<CachedTocEntryRecord, string>;
+  tocEntrySyncOutbox!: Table<TocEntrySyncOutboxRecord, string>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -238,6 +264,25 @@ export class PlannerKairosOfflineDb extends Dexie {
       cachedNavigationShortcuts:
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
       navigationShortcutSyncOutbox: 'id, createdAt',
+    });
+    this.version(9).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, annotationSetId, [organizationId+pieceFileId]',
+      cachedAnnotationSets:
+        'id, pieceFileId, organizationId, syncStatus, authorUserId, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedOrgImages: 'storageKey',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
+      cachedTocEntries:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      tocEntrySyncOutbox: 'id, createdAt',
     });
   }
 }

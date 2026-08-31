@@ -1411,6 +1411,63 @@ export type Database = {
           },
         ]
       }
+      piece_file_toc_entries: {
+        Row: {
+          created_at: string
+          end_page_number: number | null
+          id: string
+          label: string
+          organization_id: string
+          piece_file_id: string
+          sort_order: number
+          target_page_number: number
+          target_x: number | null
+          target_y: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_page_number?: number | null
+          id?: string
+          label: string
+          organization_id: string
+          piece_file_id: string
+          sort_order: number
+          target_page_number: number
+          target_x?: number | null
+          target_y?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_page_number?: number | null
+          id?: string
+          label?: string
+          organization_id?: string
+          piece_file_id?: string
+          sort_order?: number
+          target_page_number?: number
+          target_x?: number | null
+          target_y?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_file_toc_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_file_toc_entries_piece_file_id_fkey"
+            columns: ["piece_file_id"]
+            isOneToOne: false
+            referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piece_files: {
         Row: {
           byte_size: number | null
@@ -1422,6 +1479,7 @@ export type Database = {
           organization_id: string
           original_name: string
           piece_id: string
+          sort_order: number
           storage_key: string
           title: string
           updated_at: string
@@ -1436,6 +1494,7 @@ export type Database = {
           organization_id: string
           original_name: string
           piece_id: string
+          sort_order?: number
           storage_key: string
           title: string
           updated_at?: string
@@ -1450,6 +1509,7 @@ export type Database = {
           organization_id?: string
           original_name?: string
           piece_id?: string
+          sort_order?: number
           storage_key?: string
           title?: string
           updated_at?: string
@@ -1660,6 +1720,7 @@ export type Database = {
           file_access_scope:
             | Database["public"]["Enums"]["piece_file_access_scope"]
             | null
+          file_organization: Database["public"]["Enums"]["piece_file_organization"]
           id: string
           notes: string | null
           organization_id: string
@@ -1681,6 +1742,7 @@ export type Database = {
           file_access_scope?:
             | Database["public"]["Enums"]["piece_file_access_scope"]
             | null
+          file_organization?: Database["public"]["Enums"]["piece_file_organization"]
           id?: string
           notes?: string | null
           organization_id: string
@@ -1702,6 +1764,7 @@ export type Database = {
           file_access_scope?:
             | Database["public"]["Enums"]["piece_file_access_scope"]
             | null
+          file_organization?: Database["public"]["Enums"]["piece_file_organization"]
           id?: string
           notes?: string | null
           organization_id?: string
@@ -1867,6 +1930,84 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      program_item_units: {
+        Row: {
+          created_at: string
+          end_page: number | null
+          id: string
+          label: string | null
+          navigation_shortcut_id: string | null
+          organization_id: string
+          piece_file_id: string
+          piece_file_toc_entry_id: string | null
+          program_item_id: string
+          sort_order: number
+          start_page: number | null
+        }
+        Insert: {
+          created_at?: string
+          end_page?: number | null
+          id?: string
+          label?: string | null
+          navigation_shortcut_id?: string | null
+          organization_id: string
+          piece_file_id: string
+          piece_file_toc_entry_id?: string | null
+          program_item_id: string
+          sort_order?: number
+          start_page?: number | null
+        }
+        Update: {
+          created_at?: string
+          end_page?: number | null
+          id?: string
+          label?: string | null
+          navigation_shortcut_id?: string | null
+          organization_id?: string
+          piece_file_id?: string
+          piece_file_toc_entry_id?: string | null
+          program_item_id?: string
+          sort_order?: number
+          start_page?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_item_units_navigation_shortcut_id_fkey"
+            columns: ["navigation_shortcut_id"]
+            isOneToOne: false
+            referencedRelation: "piece_file_navigation_shortcuts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_item_units_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_item_units_piece_file_id_fkey"
+            columns: ["piece_file_id"]
+            isOneToOne: false
+            referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_item_units_piece_file_toc_entry_id_fkey"
+            columns: ["piece_file_toc_entry_id"]
+            isOneToOne: false
+            referencedRelation: "piece_file_toc_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_item_units_program_item_id_fkey"
+            columns: ["program_item_id"]
+            isOneToOne: false
+            referencedRelation: "program_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       program_items: {
         Row: {
@@ -2137,11 +2278,19 @@ export type Database = {
         Args: { p_piece_file_id: string }
         Returns: boolean
       }
+      can_create_annotation_set: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
       can_download_piece_file: {
         Args: { p_piece_file_id: string }
         Returns: boolean
       }
       can_manage_piece_file_navigation_shortcuts: {
+        Args: { p_piece_file_id: string }
+        Returns: boolean
+      }
+      can_manage_piece_file_toc_entries: {
         Args: { p_piece_file_id: string }
         Returns: boolean
       }
@@ -2496,6 +2645,7 @@ export type Database = {
       part_kind: "instrument" | "voice"
       piece_file_access_scope: "own_parts" | "all_files"
       piece_file_kind: "score" | "audio"
+      piece_file_organization: "distributed" | "sequential" | "single"
       program_item_status: "planned" | "performed" | "skipped"
       theme_preference: "light" | "dark"
     }
@@ -2637,6 +2787,7 @@ export const Constants = {
       part_kind: ["instrument", "voice"],
       piece_file_access_scope: ["own_parts", "all_files"],
       piece_file_kind: ["score", "audio"],
+      piece_file_organization: ["distributed", "sequential", "single"],
       program_item_status: ["planned", "performed", "skipped"],
       theme_preference: ["light", "dark"],
     },

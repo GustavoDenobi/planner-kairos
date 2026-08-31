@@ -6,7 +6,7 @@ import { createPieceFileRepository } from './piece-file-repository';
 import { supabase } from './client';
 
 const PIECE_COLUMNS =
-  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download';
+  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_organization, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download';
 
 const CATEGORY_COLUMNS = 'id, organization_id, name, slug, sort_order, color';
 
@@ -167,6 +167,7 @@ async function buildPieceDetail(
     notes: string | null;
     aliases: string[] | null;
     deleted_at: string | null;
+    file_organization: PieceDetail['fileOrganization'];
     file_access_scope: PieceDetail['fileAccessScope'];
     allow_file_download: boolean | null;
     audio_access_scope: PieceDetail['audioAccessScope'];
@@ -190,6 +191,7 @@ async function buildPieceDetail(
     description: pieceRow.description,
     notes: pieceRow.notes,
     aliases: pieceRow.aliases ?? [],
+    fileOrganization: pieceRow.file_organization,
     deletedAt: pieceRow.deleted_at,
     fileAccessScope: pieceRow.file_access_scope,
     allowFileDownload: pieceRow.allow_file_download,
@@ -332,6 +334,7 @@ export function createPieceRepository(): PieceRepository {
           title: row.title,
           composer: row.composer,
           aliases: row.aliases ?? [],
+          fileOrganization: row.file_organization,
           category: {
             id: categoryRow.id,
             name: categoryRow.name,
@@ -378,6 +381,7 @@ export function createPieceRepository(): PieceRepository {
           description: input.description?.trim() || null,
           notes: input.notes?.trim() || null,
           aliases: normalizePieceAliases(input.aliases),
+          file_organization: input.fileOrganization ?? 'single',
         })
         .select(`${PIECE_COLUMNS}, piece_categories (${CATEGORY_COLUMNS})`)
         .single();
@@ -399,16 +403,21 @@ export function createPieceRepository(): PieceRepository {
     },
 
     async update(organizationId, pieceId, input: PieceInput) {
-      const { data, error } = await supabase
-        .from('pieces')
-        .update({
+      const patch: Record<string, unknown> = {
           title: input.title.trim(),
           category_id: input.categoryId,
           composer: input.composer?.trim() || null,
           description: input.description?.trim() || null,
           notes: input.notes?.trim() || null,
           aliases: normalizePieceAliases(input.aliases),
-        })
+      };
+      if (input.fileOrganization !== undefined) {
+        patch.file_organization = input.fileOrganization;
+      }
+
+      const { data, error } = await supabase
+        .from('pieces')
+        .update(patch)
         .eq('organization_id', organizationId)
         .eq('id', pieceId)
         .is('deleted_at', null)

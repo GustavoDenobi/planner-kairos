@@ -25,6 +25,7 @@ import { createPieceCategoryRepository } from '@/infrastructure/supabase/piece-c
 import { createPieceFileAnnotationRepository } from '@/infrastructure/supabase/piece-file-annotation-repository';
 import { createAnnotationSetRepository } from '@/infrastructure/supabase/annotation-set-repository';
 import { createPieceFileNavigationShortcutRepository } from '@/infrastructure/supabase/piece-file-navigation-shortcut-repository';
+import { createPieceFileTocEntryRepository } from '@/infrastructure/supabase/piece-file-toc-entry-repository';
 import { createPieceFileRepository } from '@/infrastructure/supabase/piece-file-repository';
 import { createPieceAccessRepository } from '@/infrastructure/supabase/piece-access-repository';
 import { createPieceRepository } from '@/infrastructure/supabase/piece-repository';
@@ -58,6 +59,7 @@ export function createAppServices() {
   const annotationRepo = createPieceFileAnnotationRepository();
   const annotationSetRepo = createAnnotationSetRepository();
   const navigationShortcutRepo = createPieceFileNavigationShortcutRepository();
+  const tocEntryRepo = createPieceFileTocEntryRepository();
   const playlistRepo = createReadingPlaylistRepository();
   const eventTypeRepo = createEventTypeRepository();
   const eventRepo = createEventRepository();
@@ -93,6 +95,7 @@ export function createAppServices() {
     annotationRepo,
     annotationSetRepo,
     navigationShortcutRepo,
+    tocEntryRepo,
     playlistRepo,
     partRepo,
     fileStorage,
@@ -108,6 +111,7 @@ export function createAppServices() {
     eventRecurrenceRepo,
     eventAbsenceRepo,
     pieceRepo,
+    tocRepo: tocEntryRepo,
     membershipRepo,
     musicianRepo,
     assignmentRepo,
@@ -126,6 +130,7 @@ export function createAppServices() {
     annotationRepo,
     annotationSetRepo,
     navigationShortcutRepo,
+    tocEntryRepo,
     playlistRepo,
     offlineStorage,
     eventRepo,

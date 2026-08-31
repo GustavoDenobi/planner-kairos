@@ -16,6 +16,7 @@ import type { MembershipRepository } from '@/application/ports/membership-reposi
 import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
+import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
 import type { EventInput, ProgramItemInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
 
 import {
@@ -44,6 +45,7 @@ export type AgendaDeps = {
   eventRecurrenceRepo: EventRecurrenceRepository;
   eventAbsenceRepo: EventAbsenceRepository;
   pieceRepo: PieceRepository;
+  tocRepo: PieceFileTocEntryRepository;
   membershipRepo: MembershipRepository;
   musicianRepo: MusicianRepository;
   assignmentRepo: AssignmentRepository;
@@ -223,7 +225,7 @@ export function createAgendaUseCases(deps: AgendaDeps) {
       organizationId: string,
       eventId: string,
       items: ProgramItemInput[],
-    ) => setEventProgram(deps.eventRepo, deps.pieceRepo, organizationId, eventId, items),
+    ) => setEventProgram(deps.eventRepo, deps.pieceRepo, deps.tocRepo, organizationId, eventId, items),
     getPreviousEventProgram: (organizationId: string, eventId: string) =>
       getPreviousEventProgram(deps.eventRepo, organizationId, eventId),
     listEventAbsences: (organizationId: string, userId: string, eventId: string) =>

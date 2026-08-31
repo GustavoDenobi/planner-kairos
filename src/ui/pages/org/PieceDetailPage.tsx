@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { defaultPieceFileTitle, resolvePieceFileMime } from '@/domain/repertoire';
+import { defaultPieceFileTitle, pieceFileOrganizationDescription, pieceFileOrganizationLabel, resolvePieceFileMime } from '@/domain/repertoire';
 import type {
   PieceCategory,
   PieceDetail,
   PieceFileAccessScope,
+  PieceFileOrganization,
   PieceFilePartLink,
   PieceFileWithLinks,
   PieceTheme,
@@ -84,6 +85,7 @@ export function PieceDetailPage() {
   const [composer, setComposer] = useState('');
   const [aliases, setAliases] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState('');
+  const [fileOrganization, setFileOrganization] = useState<PieceFileOrganization>('single');
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedThemeIds, setSelectedThemeIds] = useState<string[]>([]);
@@ -288,6 +290,7 @@ export function PieceDetailPage() {
       setComposer(pieceResult.value.composer ?? '');
       setAliases(pieceResult.value.aliases);
       setCategoryId(pieceResult.value.categoryId);
+      setFileOrganization(pieceResult.value.fileOrganization);
       setDescription(pieceResult.value.description ?? '');
       setNotes(pieceResult.value.notes ?? '');
       setSelectedThemeIds(pieceResult.value.themes.map((theme) => theme.id));
@@ -345,6 +348,7 @@ export function PieceDetailPage() {
     setComposer(piece!.composer ?? '');
     setAliases(piece!.aliases);
     setCategoryId(piece!.categoryId);
+    setFileOrganization(piece!.fileOrganization);
     setDescription(piece!.description ?? '');
     setNotes(piece!.notes ?? '');
     setSelectedThemeIds(piece!.themes.map((theme) => theme.id));
@@ -401,6 +405,7 @@ export function PieceDetailPage() {
       notes: notes || null,
       aliases,
       themeIds: selectedThemeIds,
+      fileOrganization,
     });
 
     setIsSaving(false);
@@ -822,6 +827,7 @@ export function PieceDetailPage() {
       <PieceFilesSection
         files={piece.files}
         parts={parts}
+        fileOrganization={piece.fileOrganization}
         isAdmin={isAdmin}
         userPartIds={userPartIds}
         isConductor={isConductor}
@@ -829,6 +835,28 @@ export function PieceDetailPage() {
         onOpen={handleOpen}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}
+        onReorderScoreFiles={
+          isAdmin
+            ? async (orderedFileIds) => {
+                if (!org) {
+                  return false;
+                }
+                const result = await repertoire.reorderPieceScoreFiles(
+                  org.id,
+                  piece.id,
+                  orderedFileIds,
+                );
+                if (!result.ok) {
+                  setError(repertoireErrorMessage(result.error));
+                  return false;
+                }
+                setPiece((current) =>
+                  current ? { ...current, files: result.value } : current,
+                );
+                return true;
+              }
+            : undefined
+        }
         isAddingFiles={isPreparingUpload}
       />
     </div>
@@ -870,6 +898,21 @@ export function PieceDetailPage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm font-medium text-text">Organização dos arquivos</span>
+            <select
+              value={fileOrganization}
+              onChange={(event) =>
+                setFileOrganization(event.target.value as PieceFileOrganization)
+              }
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+            >
+              <option value="distributed">{pieceFileOrganizationLabel('distributed')}</option>
+              <option value="sequential">{pieceFileOrganizationLabel('sequential')}</option>
+              <option value="single">{pieceFileOrganizationLabel('single')}</option>
+            </select>
+            <p className="text-xs text-muted">{pieceFileOrganizationDescription(fileOrganization)}</p>
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-medium text-text">Descrição</span>

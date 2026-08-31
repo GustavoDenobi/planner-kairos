@@ -5,7 +5,7 @@ import type {
   PdfAnnotation,
   StrokeGeometry,
 } from '@/domain/repertoire';
-import { resolveAnnotationAppearance } from '@/domain/repertoire';
+import { LASER_FADE_OUT_MS, resolveAnnotationAppearance } from '@/domain/repertoire';
 import {
   ERASER_HIT_RADIUS,
   findErasableAnnotationAtPoint,
@@ -13,7 +13,15 @@ import {
 } from '@/ui/features/repertoire/annotation-coordinates';
 import { buildHighlightBrushRects } from '@/ui/features/repertoire/highlight-brush';
 
-export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser';
+export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser' | 'laser';
+
+export type LaserStroke = {
+  id: string;
+  pageNumber: number;
+  geometry: StrokeGeometry;
+  color: string;
+  fading?: boolean;
+};
 
 export type VisibleLayers = {
   personal: boolean;
@@ -28,7 +36,7 @@ function isDirectedLayerVisible(
   if (!annotation.annotationSetId) {
     return false;
   }
-  return visibleLayers.directed[annotation.annotationSetId] ?? false;
+  return visibleLayers.directed[annotation.annotationSetId] ?? true;
 }
 
 function filterPageAnnotations(
@@ -76,6 +84,15 @@ type HighlightLayerProps = SharedProps & {
   showDraft: boolean;
 };
 
+type LaserLayerProps = {
+  pageNumber: number;
+  laserStrokes: LaserStroke[];
+  laserColor: string;
+  laserStrokeWidth: number;
+  draftStroke: NormalizedPoint[] | null;
+  showDraft: boolean;
+};
+
 type InteractionLayerProps = SharedProps & {
   mode: AnnotationInteractionMode;
   readOnly: boolean;
@@ -83,9 +100,11 @@ type InteractionLayerProps = SharedProps & {
   pageAspectRatio: number;
   penStrokeWidth: number;
   highlightStrokeWidth: number;
+  laserStrokeWidth: number;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (geometry: StrokeGeometry) => void;
   onHighlightComplete: (geometry: StrokeGeometry) => void;
+  onLaserStrokeComplete: (geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
   onDraftStrokeChange: (stroke: NormalizedPoint[] | null) => void;
 };
@@ -232,6 +251,49 @@ export function AnnotationHighlightLayer({
   );
 }
 
+export function AnnotationLaserLayer({
+  pageNumber,
+  laserStrokes,
+  laserColor,
+  laserStrokeWidth,
+  draftStroke,
+  showDraft,
+}: LaserLayerProps) {
+  const pageStrokes = laserStrokes.filter((stroke) => stroke.pageNumber === pageNumber);
+
+  return (
+    <svg {...SVG_BASE} style={{ zIndex: 5 }}>
+      {pageStrokes.map((stroke) => (
+        <polyline
+          key={stroke.id}
+          points={stroke.geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
+          fill="none"
+          stroke={stroke.color}
+          strokeWidth={stroke.geometry.strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={stroke.fading ? 'annotation-laser-fade-out' : undefined}
+          style={
+            stroke.fading
+              ? { animationDuration: `${LASER_FADE_OUT_MS}ms` }
+              : undefined
+          }
+        />
+      ))}
+      {showDraft && draftStroke && draftStroke.length >= 1 && (
+        <polyline
+          points={draftStroke.map((point) => `${point.x},${point.y}`).join(' ')}
+          fill="none"
+          stroke={laserColor}
+          strokeWidth={laserStrokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 export function AnnotationInteractionLayer({
   pageNumber,
   annotations,
@@ -242,9 +304,11 @@ export function AnnotationInteractionLayer({
   pageAspectRatio,
   penStrokeWidth,
   highlightStrokeWidth,
+  laserStrokeWidth,
   canEraseAnnotation,
   onStrokeComplete,
   onHighlightComplete,
+  onLaserStrokeComplete,
   onEraseAnnotation,
   onDraftStrokeChange,
 }: InteractionLayerProps) {
@@ -307,7 +371,7 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if (mode === 'pen' || mode === 'highlight') {
+      if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
         draftStrokeRef.current = [point];
         onDraftStrokeChange([point]);
       }
@@ -353,7 +417,7 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if ((mode === 'pen' || mode === 'highlight') && draftStrokeRef.current) {
+      if ((mode === 'pen' || mode === 'highlight' || mode === 'laser') && draftStrokeRef.current) {
         const nextStroke = [...draftStrokeRef.current, point];
         draftStrokeRef.current = nextStroke;
         onDraftStrokeChange(nextStroke);
@@ -385,12 +449,19 @@ export function AnnotationInteractionLayer({
 
     if (mode === 'highlight') {
       onHighlightComplete({ points: stroke, strokeWidth: highlightStrokeWidth });
+      return;
+    }
+
+    if (mode === 'laser') {
+      onLaserStrokeComplete({ points: stroke, strokeWidth: laserStrokeWidth });
     }
   }, [
     clearDraft,
     highlightStrokeWidth,
+    laserStrokeWidth,
     mode,
     onHighlightComplete,
+    onLaserStrokeComplete,
     onStrokeComplete,
     penStrokeWidth,
   ]);
@@ -405,7 +476,7 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if (mode === 'pen' || mode === 'highlight') {
+      if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
         finishStroke();
       }
     },

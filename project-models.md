@@ -474,6 +474,7 @@ Item de repertório. Não é o arquivo.
 | `description` | string | não | Texto livre sobre a obra. Não é filtro |
 | `notes` | string | não | Anotação operacional (maestro/arquivista) |
 | `aliases` | string[] | sim | Apelidos da obra; default `[]`. Máx. 20; deduplicados sem diferenciar maiúsculas |
+| `fileOrganization` | `PieceFileOrganization` | sim | `distributed` \| `sequential` \| `single` — regra de como os arquivos se relacionam |
 | `deletedAt` | datetime | não | Soft-delete; histórico de eventos permanece |
 
 Temas: N:N via `piece_theme_links` → `PieceTheme`. Não há campo `theme` na obra.
@@ -502,6 +503,7 @@ Arquivo de uma obra: partitura (PDF) ou áudio (mp3/wav). Não tem `partId`. Cob
 | `storageKey` | string | sim | Path no Storage; o domínio não fala com o SDK |
 | `mimeType` | string | sim | `application/pdf`, `audio/mpeg`, `audio/wav`… |
 | `title` | string | sim | Nome de exibição na ficha e na listagem de arquivos; editável |
+| `sortOrder` | int | sim | Ordem das lições quando `fileOrganization = sequential` |
 | `originalName` | string | sim | Nome original do upload (auditoria) |
 | `byteSize` | int | não | Útil para cache/offline depois |
 | `contentHash` | string | não | SHA-256 hex do conteúdo; calculado no upload |
@@ -551,6 +553,7 @@ Regras:
 | Nome | Valores | Significado |
 |---|---|---|
 | `PieceFileKind` | `score`, `audio` | Partitura vs. áudio |
+| `PieceFileOrganization` | `distributed`, `sequential`, `single` | Partes por instrumento; lições em sequência; partitura única |
 
 ### 3.6 ReadingPlaylist (conjunto de partituras pessoal)
 
@@ -694,16 +697,30 @@ Obra selecionada para um evento. É o fato que alimenta Insights: cada inclusão
 | `eventId` | UUID | sim | |
 | `pieceId` | UUID | sim | |
 | `sortOrder` | int | sim | Ordem no culto/ensaio |
-| `notes` | string | não | MVP: texto livre. Depois: tonalidade, arranjo |
+| `notes` | string | não | Texto livre (tonalidade, arranjo, etc.) |
+| `status` | `ProgramItemStatus` | sim | `planned` \| `performed` \| `skipped` |
+
+Unidades opcionais (`ProgramItemUnit`): referenciam `pieceFileId` (lição/score), intervalo de páginas e/ou `navigationShortcutId`.
 
 **Tabela:** `program_items`  
-**Unique (MVP):** `(eventId, pieceId)` — a mesma obra não entra duas vezes no mesmo evento  
-**Índice:** `(pieceId)` — “quantas vezes / última vez” barato
+**Índice:** `(pieceId)` — “quantas vezes / última vez” barato  
+**Filhos:** `program_item_units` (`programItemId`, `pieceFileId`, `sortOrder`, `startPage`, `endPage`, `navigationShortcutId`, `pieceFileTocEntryId`, `label`)
+
+### `piece_file_toc_entries`
+
+Sumário pedagógico de um PDF (lições indexadas). Distinto de `piece_file_navigation_shortcuts` (saltos de performance no leitor).
+
+**Campos:** `pieceFileId`, `label`, `sortOrder`, `targetPageNumber`, `targetX`, `targetY`, `endPageNumber`
+
+**Prioridade na abertura de unidade de programação:** TOC → atalho → intervalo de páginas → arquivo inteiro.
 
 Regras:
 
 - Evento e obra da mesma organização.
 - Obra soft-deleted não pode ser adicionada; itens já existentes permanecem.
+- A mesma obra pode aparecer várias vezes no evento (ex.: intercalar lições de um método).
+- `distributed` / `single`: unidades opcionais só na partitura geral (páginas/atalho/sumário).
+- `sequential`: unidades selecionam lições e trechos por arquivo ou entrada do sumário.
 
 ### 4.4 Value objects / enums
 

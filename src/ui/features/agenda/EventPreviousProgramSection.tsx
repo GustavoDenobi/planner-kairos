@@ -74,6 +74,7 @@ export function EventPreviousProgramSection({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isIncluding, setIsIncluding] = useState(false);
+  const [includePerformed, setIncludePerformed] = useState(false);
 
   useEffect(() => {
     if (occurrenceIndex <= 0) {
@@ -98,6 +99,7 @@ export function EventPreviousProgramSection({
         return;
       }
       setPrevious(result.value);
+      setIncludePerformed(false);
       setIsLoading(false);
     }
 
@@ -112,7 +114,10 @@ export function EventPreviousProgramSection({
     return null;
   }
 
-  const copyableItems = previous?.program.filter((item) => !item.pieceDeleted) ?? [];
+  const hasPerformedPieces = previous?.program.some((item) => item.status === 'performed') ?? false;
+  const visibleItems =
+    previous?.program.filter((item) => includePerformed || item.status !== 'performed') ?? [];
+  const copyableItems = visibleItems.filter((item) => !item.pieceDeleted);
 
   async function handleInclude() {
     if (!previous || copyableItems.length === 0) {
@@ -149,6 +154,18 @@ export function EventPreviousProgramSection({
         )}
       </div>
 
+      {hasPerformedPieces && previous && previous.program.length > 0 && (
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={includePerformed}
+            onChange={(event) => setIncludePerformed(event.target.checked)}
+            className="rounded border-border"
+          />
+          Incluir executadas
+        </label>
+      )}
+
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {isLoading ? (
@@ -157,9 +174,13 @@ export function EventPreviousProgramSection({
         <p className="text-sm text-muted">Evento anterior não encontrado.</p>
       ) : previous.program.length === 0 ? (
         <p className="text-sm text-muted text-center">Nenhuma obra na programação do evento anterior.</p>
+      ) : visibleItems.length === 0 ? (
+        <p className="text-sm text-muted text-center">
+          Todas as obras do evento anterior foram executadas.
+        </p>
       ) : (
         <ol className="space-y-2">
-          {previous.program.map((item) => {
+          {visibleItems.map((item) => {
             const cardContent = (
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">

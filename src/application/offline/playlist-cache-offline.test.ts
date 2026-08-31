@@ -271,6 +271,8 @@ describe('cacheReadingPlaylistForOffline', () => {
       { listForFile: vi.fn(async () => []) } as unknown as import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
       { listForFile: vi.fn(async () => []) } as unknown as PieceFileNavigationShortcutRepository,
       { upsert: vi.fn() } as unknown as OfflineNavigationShortcutStore,
+      { listForFile: vi.fn(async () => []) } as unknown as import('@/application/ports/piece-file-toc-entry-repository').PieceFileTocEntryRepository,
+      { upsert: vi.fn() } as unknown as import('@/application/ports/offline-toc-entry-store').OfflineTocEntryStore,
       'org-1',
       'playlist-1',
       'user-1',
@@ -344,6 +346,8 @@ describe('cacheUserReadingPlaylistsForOffline', () => {
       { listForFile: vi.fn(async () => []) } as unknown as import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
       { listForFile: vi.fn(async () => []) } as unknown as PieceFileNavigationShortcutRepository,
       { upsert: vi.fn() } as unknown as OfflineNavigationShortcutStore,
+      { listForFile: vi.fn(async () => []) } as unknown as import('@/application/ports/piece-file-toc-entry-repository').PieceFileTocEntryRepository,
+      { upsert: vi.fn() } as unknown as import('@/application/ports/offline-toc-entry-store').OfflineTocEntryStore,
       'org-1',
       'user-1',
     );

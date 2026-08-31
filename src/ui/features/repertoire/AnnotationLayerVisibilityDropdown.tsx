@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconCheck, IconChevronDown, IconLayers } from '@/ui/components/icons';
+import { IconCheck, IconLayers } from '@/ui/components/icons';
 
 export type LayerVisibilityOption = {
   id: string;
@@ -41,6 +41,10 @@ export function AnnotationLayerVisibilityDropdown({
   }
 
   const visibleCount = options.filter((option) => option.visible).length;
+  const allVisible = visibleCount === options.length;
+  const accessibilityLabel = allVisible
+    ? 'Camadas visíveis'
+    : `Camadas visíveis (${visibleCount}/${options.length})`;
 
   return (
     <div ref={ref} className="relative">
@@ -49,18 +53,14 @@ export function AnnotationLayerVisibilityDropdown({
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label="Camadas visíveis"
-        title="Camadas visíveis"
+        aria-label={accessibilityLabel}
+        title={accessibilityLabel}
         className={
           buttonClassName ??
-          'inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-2.5 text-sm text-text'
+          'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text'
         }
       >
         <IconLayers className="h-4 w-4 shrink-0" />
-        <span className="max-w-32 truncate">
-          {visibleCount === options.length ? 'Camadas' : `${visibleCount}/${options.length}`}
-        </span>
-        <IconChevronDown className={`h-4 w-4 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (

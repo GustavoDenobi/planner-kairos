@@ -1,4 +1,5 @@
 import type { GroupKind } from '@/domain/ensemble';
+import type { PieceFileOrganization } from './piece-file-organization';
 import type { PieceCategory } from './piece-category';
 import type { PieceFileWithLinks } from './piece-file';
 import type { PieceTheme } from './piece-theme';
@@ -26,6 +27,7 @@ export type Piece = {
   description: string | null;
   notes: string | null;
   aliases: string[];
+  fileOrganization: PieceFileOrganization;
   deletedAt: string | null;
 };
 
@@ -36,6 +38,7 @@ export type PieceInput = {
   description?: string | null;
   notes?: string | null;
   aliases?: string[];
+  fileOrganization?: PieceFileOrganization;
   themeIds?: string[];
 };
 
@@ -44,6 +47,7 @@ export type PieceListItem = {
   title: string;
   composer: string | null;
   aliases: string[];
+  fileOrganization: PieceFileOrganization;
   category: Pick<PieceCategory, 'id' | 'name' | 'slug' | 'color'>;
   themeIds: string[];
 };

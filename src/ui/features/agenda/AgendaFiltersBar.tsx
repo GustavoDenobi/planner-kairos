@@ -1,7 +1,8 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { EventKind, EventType } from '@/domain/agenda';
-import { IconFilter, IconCake } from '@/ui/components/icons';
+import { IconCake, IconColumns, IconFilter, IconList } from '@/ui/components/icons';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
+import type { AgendaViewMode } from '@/ui/features/agenda/agenda-view-storage';
 
 export type AgendaFilterScope = 'mine' | 'all';
 
@@ -23,6 +24,8 @@ type AgendaFiltersBarProps = {
   types: EventType[];
   groups: AudienceOption[];
   rangeControls?: ReactNode;
+  viewMode?: AgendaViewMode;
+  onViewModeChange?: (mode: AgendaViewMode) => void;
   showBirthdaysToggle?: boolean;
   showBirthdays?: boolean;
   onShowBirthdaysChange?: (show: boolean) => void;
@@ -46,6 +49,8 @@ export function AgendaFiltersBar({
   types,
   groups,
   rangeControls,
+  viewMode,
+  onViewModeChange,
   showBirthdaysToggle = false,
   showBirthdays = true,
   onShowBirthdaysChange,
@@ -56,10 +61,27 @@ export function AgendaFiltersBar({
   const extraFiltersActive = Boolean(kind || typeId || groupId);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-3">
-        {rangeControls}
-        <div className="ml-auto flex items-stretch justify-end gap-2 md:shrink-0">
+    <div className="flex min-w-0 w-full max-w-full flex-col gap-3">
+      <div className="flex min-w-0 w-full max-w-full flex-col gap-3 md:flex-row md:items-center md:gap-3">
+        <div className="flex min-w-0 shrink items-center gap-2">
+          {rangeControls}
+          {onViewModeChange && viewMode && (
+            <button
+              type="button"
+              onClick={() => onViewModeChange(viewMode === 'list' ? 'columns' : 'list')}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-border bg-surface p-2 text-muted transition-colors hover:bg-bg hover:text-text"
+              aria-label={viewMode === 'list' ? 'Vista em colunas' : 'Vista em lista'}
+              aria-pressed={viewMode === 'columns'}
+            >
+              {viewMode === 'list' ? (
+                <IconColumns className="h-4 w-4" />
+              ) : (
+                <IconList className="h-4 w-4" />
+              )}
+            </button>
+          )}
+        </div>
+        <div className="ml-auto flex shrink-0 items-stretch justify-end gap-2">
           {showScopeToggle && (
             <button
               type="button"

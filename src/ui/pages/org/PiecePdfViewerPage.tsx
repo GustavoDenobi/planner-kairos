@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type * as pdfjs from 'pdfjs-dist';
-import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet, CreatePieceFileTocEntryInput, PieceFileTocEntry, UpdatePieceFileTocEntryInput } from '@/domain/repertoire';
 import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
 import { useRepertoire, useOffline, useEnsemble, useAgenda } from '@/ui/app/AppServicesContext';
 import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
@@ -48,7 +48,9 @@ export function PiecePdfViewerPage() {
   const [preloadedPdf, setPreloadedPdf] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [navigationShortcuts, setNavigationShortcuts] = useState<PdfNavigationShortcut[]>([]);
+  const [tocEntries, setTocEntries] = useState<PieceFileTocEntry[]>([]);
   const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
+  const [canManageToc, setCanManageToc] = useState(false);
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
   const [annotationSets, setAnnotationSets] = useState<AnnotationSet[]>([]);
   const [canEditDirectedLayer, setCanEditDirectedLayer] = useState(false);
@@ -167,7 +169,9 @@ export function PiecePdfViewerPage() {
       setPreloadedPdf(null);
       setAnnotations([]);
       setNavigationShortcuts([]);
+      setTocEntries([]);
       setCanManageNavigationShortcuts(false);
+      setCanManageToc(false);
 
       const pdfLoad = await resolvePdfDocument(
         offline,
@@ -229,6 +233,10 @@ export function PiecePdfViewerPage() {
         resolvedOrganizationId,
         currentFileId,
       );
+      const tocResult = await offline.listTocEntriesForReading(
+        resolvedOrganizationId,
+        currentFileId,
+      );
 
       if (cancelled) {
         return;
@@ -243,6 +251,7 @@ export function PiecePdfViewerPage() {
           storageKey: '',
           mimeType: 'application/pdf',
           title: 'Partitura',
+          sortOrder: 0,
           originalName: 'partitura.pdf',
           byteSize: null,
           contentHash: null,
@@ -260,10 +269,14 @@ export function PiecePdfViewerPage() {
       if (shortcutsResult.ok) {
         setNavigationShortcuts(shortcutsResult.value);
       }
+      if (tocResult.ok) {
+        setTocEntries(tocResult.value);
+      }
 
       if (userId) {
         if (isAdmin) {
           setCanManageNavigationShortcuts(true);
+          setCanManageToc(true);
         } else if (pieceDetailForAccess) {
           const musicianResult = await ensemble.getMyMusician(resolvedOrganizationId, userId);
           let assignments: AssignmentWithDetails[] = [];
@@ -308,6 +321,15 @@ export function PiecePdfViewerPage() {
           }
 
           setCanManageNavigationShortcuts(
+            resolveCanManageNavigationShortcuts({
+              isAdmin: false,
+              assignments,
+              pieceGroupIds: pieceDetailForAccess.groups.map((group) => group.id),
+              filePartLinks: pieceFile.partLinks,
+              sectionPartIdsBySectionLead: [...sectionPartIds],
+            }),
+          );
+          setCanManageToc(
             resolveCanManageNavigationShortcuts({
               isAdmin: false,
               assignments,
@@ -766,6 +788,82 @@ export function PiecePdfViewerPage() {
     [org, fileId, file, offline],
   );
 
+  const handleTocEntryCreate = useCallback(
+    async (input: Omit<CreatePieceFileTocEntryInput, 'pieceFileId'>) => {
+      if (!org || !pieceId || !fileId || !file) {
+        return null;
+      }
+
+      const result = await offline.createPieceFileTocEntry(org.id, pieceId, {
+        ...input,
+        pieceFileId: file.id,
+      });
+
+      if (!result.ok) {
+        return null;
+      }
+
+      setTocEntries((current) =>
+        [...current.filter((item) => item.id !== result.value.id), result.value].sort(
+          (a, b) => a.sortOrder - b.sortOrder,
+        ),
+      );
+      return result.value;
+    },
+    [org, pieceId, fileId, file, offline],
+  );
+
+  const handleTocEntryUpdate = useCallback(
+    async (entryId: string, input: UpdatePieceFileTocEntryInput) => {
+      if (!org || !fileId || !file) {
+        return null;
+      }
+
+      const result = await offline.updatePieceFileTocEntry(org.id, file.id, entryId, input);
+      if (!result.ok) {
+        return null;
+      }
+
+      setTocEntries((current) =>
+        current
+          .map((item) => (item.id === entryId ? result.value : item))
+          .sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+      return result.value;
+    },
+    [org, fileId, file, offline],
+  );
+
+  const handleTocEntryDelete = useCallback(
+    async (entryId: string) => {
+      if (!org || !fileId || !file) {
+        return;
+      }
+
+      const result = await offline.deletePieceFileTocEntry(org.id, file.id, entryId);
+      if (!result.ok) {
+        return;
+      }
+
+      setTocEntries((current) => current.filter((item) => item.id !== entryId));
+    },
+    [org, fileId, file, offline],
+  );
+
+  const handleTocEntryReorder = useCallback(
+    async (orderedIds: string[]) => {
+      if (!org || !fileId || !file) {
+        return;
+      }
+
+      const result = await offline.reorderPieceFileTocEntries(org.id, file.id, orderedIds);
+      if (result.ok) {
+        setTocEntries(result.value);
+      }
+    },
+    [org, fileId, file, offline],
+  );
+
   if (!orgSlug || !pieceId || !fileId) {
     return null;
   }
@@ -845,6 +943,12 @@ export function PiecePdfViewerPage() {
         onNavigationShortcutUpdate={handleNavigationShortcutUpdate}
         onNavigationShortcutDelete={handleNavigationShortcutDelete}
         onNavigationShortcutReorder={handleNavigationShortcutReorder}
+        tocEntries={tocEntries}
+        canManageToc={canManageToc}
+        onTocEntryCreate={handleTocEntryCreate}
+        onTocEntryUpdate={handleTocEntryUpdate}
+        onTocEntryDelete={handleTocEntryDelete}
+        onTocEntryReorder={handleTocEntryReorder}
       />
 
       {org && file && (

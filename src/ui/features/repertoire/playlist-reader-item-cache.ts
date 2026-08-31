@@ -1,5 +1,5 @@
 import type * as pdfjs from 'pdfjs-dist';
-import type { PdfAnnotation, PdfNavigationShortcut, ReadingPlaylistItemDetail } from '@/domain/repertoire';
+import type { PdfAnnotation, PdfNavigationShortcut, PieceFileTocEntry, ReadingPlaylistItemDetail } from '@/domain/repertoire';
 import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
 import type { OfflineUseCases } from '@/application/offline';
 import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
@@ -8,6 +8,7 @@ export type CachedPlaylistItem = {
   downloadUrl: string | null;
   annotations: PdfAnnotation[];
   navigationShortcuts: PdfNavigationShortcut[];
+  tocEntries: PieceFileTocEntry[];
   numPages: number;
   pdfDocument: pdfjs.PDFDocumentProxy;
   isCachedLocally: boolean;
@@ -40,6 +41,7 @@ export async function loadPlaylistItemData(
 
   let annotations: PdfAnnotation[] = [];
   let navigationShortcuts: PdfNavigationShortcut[] = [];
+  let tocEntries: PieceFileTocEntry[] = [];
   try {
     const annotationsResult = await offline.listAnnotationsForReading(
       organizationId,
@@ -57,14 +59,23 @@ export async function loadPlaylistItemData(
     if (shortcutsResult.ok) {
       navigationShortcuts = shortcutsResult.value;
     }
+
+    const tocResult = await offline.listTocEntriesForReading(
+      organizationId,
+      item.pieceFileId,
+    );
+    if (tocResult.ok) {
+      tocEntries = tocResult.value;
+    }
   } catch {
-    /* Open the score even if annotations or shortcuts cannot be loaded. */
+    /* Open the score even if annotations, shortcuts or TOC cannot be loaded. */
   }
 
   return {
     downloadUrl: pdfLoad.downloadUrl,
     annotations,
     navigationShortcuts,
+    tocEntries,
     numPages: pdfLoad.pdfDocument.numPages,
     pdfDocument: pdfLoad.pdfDocument,
     isCachedLocally: pdfLoad.resolved?.source === 'local',

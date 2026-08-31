@@ -17,12 +17,28 @@ export type {
   PieceFilePartLink,
   PieceFileWithLinks,
 } from './piece-file';
+export type { PieceFileOrganization } from './piece-file-organization';
+export {
+  PIECE_FILE_ORGANIZATIONS,
+  inferPieceFileOrganization,
+  isPieceFileOrganization,
+} from './piece-file-organization';
+export {
+  pieceFileOrganizationDescription,
+  pieceFileOrganizationLabel,
+} from './piece-file-organization-labels';
 export type {
   CreatePdfNavigationShortcutInput,
   PdfNavigationShortcut,
   ReorderPdfNavigationShortcutsInput,
   UpdatePdfNavigationShortcutInput,
 } from './piece-file-navigation-shortcut';
+export type {
+  CreatePieceFileTocEntryInput,
+  PieceFileTocEntry,
+  ReorderPieceFileTocEntriesInput,
+  UpdatePieceFileTocEntryInput,
+} from './piece-file-toc-entry';
 export {
   NAVIGATION_SHORTCUT_COLORS,
   navigationShortcutColorForIndex,
@@ -51,6 +67,10 @@ export {
   ANNOTATION_PRESET_PREFIX,
   HIGHLIGHT_COLOR_PRESETS,
   HIGHLIGHT_STROKE_WIDTH,
+  LASER_DEFAULT_PRESET_ID,
+  LASER_FADE_MS,
+  LASER_FADE_OUT_MS,
+  LASER_STROKE_WIDTH,
   PEN_COLOR_PRESETS,
   PEN_STROKE_WIDTH,
   clampStrokeWidth,
@@ -101,6 +121,8 @@ export {
   slugifyName,
   validateCreatePdfNavigationShortcutInput,
   validateUpdatePdfNavigationShortcutInput,
+  validateCreatePieceFileTocEntryInput,
+  validateUpdatePieceFileTocEntryInput,
   validateAnnotationGeometry,
   validateAnnotationLayer,
   validateCreateAnnotationSetInput,

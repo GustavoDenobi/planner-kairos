@@ -44,6 +44,15 @@ export function formatDayHeader(date: Date): string {
   }).format(date);
 }
 
+export function formatKanbanDayHeader(date: Date): string {
+  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' })
+    .format(date)
+    .replace(/\.$/, '')
+    .toUpperCase();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${weekday} - ${pad(date.getMonth() + 1)}/${pad(date.getDate())}`;
+}
+
 export function formatEventDateShort(startsAt: string): string {
   const date = new Date(startsAt);
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -120,6 +129,51 @@ export type AgendaDayGroup = {
   birthdays: MusicianBirthdayItem[];
   events: EventListItem[];
 };
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function getWeekDays(anchor: Date): Date[] {
+  const { from } = getWeekRange(anchor);
+  return Array.from({ length: 7 }, (_, index) => addDays(from, index));
+}
+
+export function defaultStartsAtForDay(day: Date): string {
+  const today = startOfDay(new Date());
+  const target = startOfDay(day);
+
+  if (isSameDay(target, today)) {
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    now.setHours(now.getHours() + 1);
+    return toDatetimeLocalValue(now.toISOString());
+  }
+
+  const atNine = new Date(target);
+  atNine.setHours(9, 0, 0, 0);
+  return toDatetimeLocalValue(atNine.toISOString());
+}
+
+export function buildWeekDayColumns(
+  anchor: Date,
+  events: EventListItem[],
+  birthdays: MusicianBirthdayItem[] = [],
+): AgendaDayGroup[] {
+  const grouped = groupAgendaItemsByDay(events, birthdays);
+  const byKey = new Map(
+    grouped.map((group) => [startOfDay(group.date).toISOString(), group]),
+  );
+
+  return getWeekDays(anchor).map((date) => {
+    const key = startOfDay(date).toISOString();
+    return byKey.get(key) ?? { date, birthdays: [], events: [] };
+  });
+}
 
 export function groupAgendaItemsByDay(
   events: EventListItem[],

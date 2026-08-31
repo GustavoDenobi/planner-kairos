@@ -24,6 +24,7 @@ export type AttachPieceFileInput = {
 export type UpdatePieceFileInput = {
   title: string;
   partLinks?: PieceFilePartLink[];
+  sortOrder?: number;
 };
 
 export async function attachPieceFile(
@@ -206,5 +207,40 @@ export async function getPieceFileDownloadUrl(
     return Result.ok(url);
   } catch {
     return Result.fail('signed_url_failed');
+  }
+}
+
+export async function reorderPieceScoreFiles(
+  pieceRepo: PieceRepository,
+  fileRepo: PieceFileRepository,
+  organizationId: string,
+  pieceId: string,
+  orderedFileIds: string[],
+) {
+  const piece = await pieceRepo.getById(organizationId, pieceId);
+  if (!piece) {
+    return Result.fail('not_found');
+  }
+
+  if (piece.fileOrganization !== 'sequential') {
+    return Result.fail('invalid_file_organization');
+  }
+
+  const scoreIds = new Set(
+    piece.files.filter((file) => file.kind === 'score').map((file) => file.id),
+  );
+
+  if (
+    orderedFileIds.length !== scoreIds.size ||
+    orderedFileIds.some((fileId) => !scoreIds.has(fileId))
+  ) {
+    return Result.fail('invalid_order');
+  }
+
+  try {
+    const files = await fileRepo.reorderScores(organizationId, pieceId, orderedFileIds);
+    return Result.ok(files);
+  } catch {
+    return Result.fail('reorder_failed');
   }
 }

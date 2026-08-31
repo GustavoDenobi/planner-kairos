@@ -11,11 +11,13 @@ export type CreatePieceFileInput = {
   byteSize: number | null;
   contentHash: string;
   partLinks: PieceFilePartLink[];
+  sortOrder?: number;
 };
 
 export type UpdatePieceFileInput = {
   title: string;
   partLinks?: PieceFilePartLink[];
+  sortOrder?: number;
 };
 
 export type PieceFileRepository = {
@@ -38,5 +40,10 @@ export type PieceFileRepository = {
     fileId: string,
     input: UpdatePieceFileInput,
   ): Promise<PieceFileWithLinks | null>;
+  reorderScores(
+    organizationId: string,
+    pieceId: string,
+    orderedFileIds: string[],
+  ): Promise<PieceFileWithLinks[]>;
   remove(organizationId: string, pieceId: string, fileId: string): Promise<PieceFileWithLinks | null>;
 };

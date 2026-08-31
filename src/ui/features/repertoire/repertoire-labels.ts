@@ -51,6 +51,8 @@ export const REPERTOIRE_ERROR_MESSAGES: Record<string, string> = {
   update_failed: 'Não foi possível atualizar. Verifique os campos e tente novamente.',
   not_found: 'Obra não encontrada. Ela pode ter sido removida — atualize a página.',
   reorder_failed: 'Não foi possível reordenar. Tente novamente em instantes.',
+  invalid_file_organization: 'Só é possível reordenar lições em obras com organização sequencial.',
+  invalid_order: 'Ordem de arquivos inválida.',
   load_failed: 'Não foi possível carregar o arquivo. Verifique a conexão e tente novamente.',
 };
 

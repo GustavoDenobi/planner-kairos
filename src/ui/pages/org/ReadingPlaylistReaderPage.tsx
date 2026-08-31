@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
 import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
 
@@ -183,6 +183,7 @@ export function ReadingPlaylistReaderPage() {
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
 
   const [navigationShortcuts, setNavigationShortcuts] = useState<PdfNavigationShortcut[]>([]);
+  const [tocEntries, setTocEntries] = useState<PieceFileTocEntry[]>([]);
 
   const [canManageNavigationShortcuts, setCanManageNavigationShortcuts] = useState(false);
 
@@ -234,6 +235,14 @@ export function ReadingPlaylistReaderPage() {
 
 
   const currentItem = playlist?.items[itemIndex] ?? null;
+  const startPageFromNotes = useMemo(() => {
+    const match = currentItem?.notes?.match(/Abrir na p\.\s*(\d+)/i);
+    if (!match?.[1]) {
+      return null;
+    }
+    const page = Number.parseInt(match[1], 10);
+    return Number.isInteger(page) && page > 0 ? page : null;
+  }, [currentItem?.notes]);
 
   const cachedCurrentItem = itemCacheRef.current.get(itemIndex);
 
@@ -463,6 +472,8 @@ export function ReadingPlaylistReaderPage() {
 
         setNavigationShortcuts([]);
 
+        setTocEntries([]);
+
         setSkipUnavailable(true);
 
         setIsLoadingItem(false);
@@ -482,6 +493,8 @@ export function ReadingPlaylistReaderPage() {
         setAnnotations(cached.annotations);
 
         setNavigationShortcuts(cached.navigationShortcuts);
+
+        setTocEntries(cached.tocEntries);
 
         setIsCachedLocally(cached.isCachedLocally);
 
@@ -555,6 +568,8 @@ export function ReadingPlaylistReaderPage() {
       }
 
       setNavigationShortcuts(result.navigationShortcuts);
+
+      setTocEntries(result.tocEntries);
 
       setIsCachedLocally(result.isCachedLocally);
 
@@ -1932,7 +1947,7 @@ export function ReadingPlaylistReaderPage() {
 
         playlist={playlistContext}
 
-        initialPage={navState.initialPage ?? 1}
+        initialPage={navState.initialPage ?? startPageFromNotes ?? 1}
 
         entryDirection={navState.direction}
 
@@ -1967,6 +1982,8 @@ export function ReadingPlaylistReaderPage() {
         onAnnotationDelete={handleAnnotationDelete}
 
         navigationShortcuts={navigationShortcuts}
+
+        tocEntries={tocEntries}
 
         canManageNavigationShortcuts={canManageNavigationShortcuts}
 

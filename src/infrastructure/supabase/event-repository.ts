@@ -150,7 +150,7 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
   const { data, error } = await supabase
     .from('program_items')
     .select(
-      'id, organization_id, event_id, piece_id, sort_order, notes, status, pieces (title, deleted_at, piece_categories (name, slug, color))',
+      'id, organization_id, event_id, piece_id, sort_order, notes, status, pieces (title, deleted_at, file_organization, piece_categories (name, slug, color))',
     )
     .eq('organization_id', organizationId)
     .eq('event_id', eventId)
@@ -160,10 +160,76 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
     return [];
   }
 
+  const programItemIds = data.map((row) => row.id);
+  const unitsByProgramItem = new Map<
+    string,
+    Array<{
+      id: string;
+      pieceFileId: string;
+      sortOrder: number;
+      startPage: number | null;
+      endPage: number | null;
+      navigationShortcutId: string | null;
+      pieceFileTocEntryId: string | null;
+      label: string | null;
+      pieceFileTitle: string;
+      navigationShortcutLabel: string | null;
+      navigationShortcutTargetPage: number | null;
+      pieceFileTocEntryLabel: string | null;
+      pieceFileTocEntryTargetPage: number | null;
+      pieceFileTocEntryEndPage: number | null;
+    }>
+  >();
+
+  if (programItemIds.length > 0) {
+    const { data: unitRows, error: unitsError } = await supabase
+      .from('program_item_units')
+      .select(
+        'id, program_item_id, piece_file_id, sort_order, start_page, end_page, navigation_shortcut_id, piece_file_toc_entry_id, label, piece_files (title), piece_file_navigation_shortcuts (label, target_page_number), piece_file_toc_entries (label, target_page_number, end_page_number)',
+      )
+      .eq('organization_id', organizationId)
+      .in('program_item_id', programItemIds)
+      .order('sort_order');
+
+    if (!unitsError && unitRows) {
+      for (const row of unitRows) {
+        const file = row.piece_files as unknown as { title: string } | null;
+        const shortcut = row.piece_file_navigation_shortcuts as unknown as {
+          label: string;
+          target_page_number: number;
+        } | null;
+        const tocEntry = row.piece_file_toc_entries as unknown as {
+          label: string;
+          target_page_number: number;
+          end_page_number: number | null;
+        } | null;
+        const list = unitsByProgramItem.get(row.program_item_id) ?? [];
+        list.push({
+          id: row.id,
+          pieceFileId: row.piece_file_id,
+          sortOrder: row.sort_order,
+          startPage: row.start_page,
+          endPage: row.end_page,
+          navigationShortcutId: row.navigation_shortcut_id,
+          pieceFileTocEntryId: row.piece_file_toc_entry_id,
+          label: row.label,
+          pieceFileTitle: file?.title ?? 'Arquivo removido',
+          navigationShortcutLabel: shortcut?.label ?? null,
+          navigationShortcutTargetPage: shortcut?.target_page_number ?? null,
+          pieceFileTocEntryLabel: tocEntry?.label ?? null,
+          pieceFileTocEntryTargetPage: tocEntry?.target_page_number ?? null,
+          pieceFileTocEntryEndPage: tocEntry?.end_page_number ?? null,
+        });
+        unitsByProgramItem.set(row.program_item_id, list);
+      }
+    }
+  }
+
   return data.map((row) => {
     const piece = row.pieces as unknown as {
       title: string;
       deleted_at: string | null;
+      file_organization: 'distributed' | 'sequential' | 'single';
       piece_categories: { name: string; slug: string; color: string | null } | null;
     } | null;
     const category = piece?.piece_categories;
@@ -177,9 +243,11 @@ async function loadProgramForEvent(organizationId: string, eventId: string) {
       status: row.status,
       pieceTitle: piece?.title ?? 'Obra removida',
       pieceDeleted: piece?.deleted_at != null,
+      fileOrganization: piece?.file_organization ?? 'single',
       pieceCategory: category
         ? { name: category.name, slug: category.slug, color: category.color }
         : null,
+      units: unitsByProgramItem.get(row.id) ?? [],
     };
   });
 }
@@ -504,19 +572,61 @@ export function createEventRepository(): EventRepository {
       }
 
       if (items.length > 0) {
-        const { error: insertError } = await supabase.from('program_items').insert(
-          items.map((item, index) => ({
-            organization_id: organizationId,
-            event_id: eventId,
-            piece_id: item.pieceId,
-            sort_order: index,
-            notes: normalizeOptionalText(item.notes),
-            status: item.status ?? 'planned',
-          })),
-        );
+        const { data: insertedItems, error: insertError } = await supabase
+          .from('program_items')
+          .insert(
+            items.map((item, index) => ({
+              organization_id: organizationId,
+              event_id: eventId,
+              piece_id: item.pieceId,
+              sort_order: index,
+              notes: normalizeOptionalText(item.notes),
+              status: item.status ?? 'planned',
+            })),
+          )
+          .select('id');
 
-        if (insertError) {
-          throw new Error(insertError.message);
+        if (insertError || !insertedItems) {
+          throw new Error(insertError?.message ?? 'program_failed');
+        }
+
+        const unitRows: Array<{
+          organization_id: string;
+          program_item_id: string;
+          piece_file_id: string;
+          sort_order: number;
+          start_page: number | null;
+          end_page: number | null;
+          navigation_shortcut_id: string | null;
+          piece_file_toc_entry_id: string | null;
+          label: string | null;
+        }> = [];
+
+        insertedItems.forEach((inserted, index) => {
+          const item = items[index];
+          if (!item?.units?.length) {
+            return;
+          }
+          item.units.forEach((unit, unitIndex) => {
+            unitRows.push({
+              organization_id: organizationId,
+              program_item_id: inserted.id,
+              piece_file_id: unit.pieceFileId,
+              sort_order: unit.sortOrder ?? unitIndex,
+              start_page: unit.startPage ?? null,
+              end_page: unit.endPage ?? null,
+              navigation_shortcut_id: unit.navigationShortcutId ?? null,
+              piece_file_toc_entry_id: unit.pieceFileTocEntryId ?? null,
+              label: unit.label?.trim() || null,
+            });
+          });
+        });
+
+        if (unitRows.length > 0) {
+          const { error: unitsError } = await supabase.from('program_item_units').insert(unitRows);
+          if (unitsError) {
+            throw new Error(unitsError.message);
+          }
         }
       }
 

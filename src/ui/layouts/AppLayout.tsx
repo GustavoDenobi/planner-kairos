@@ -40,7 +40,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-dvh bg-bg">
       <Sidebar orgSlug={orgSlug} />
-      <div className="flex min-h-dvh flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <MobileHeader orgSlug={orgSlug} />
         <div
           className="shrink-0 md:hidden"
@@ -49,7 +49,7 @@ export function AppLayout() {
         />
         <OfflineBanner />
         <main
-          className="flex-1 px-4 py-4 md:p-6"
+          className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 md:p-6"
           style={{ paddingBottom: `calc(${spacing.bottomNavOffset} + 1rem)` }}
         >
           {showOfflineFallback ? <OfflineUnavailableMessage /> : <Outlet />}

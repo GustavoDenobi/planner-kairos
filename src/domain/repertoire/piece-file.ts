@@ -13,6 +13,7 @@ export type PieceFile = {
   storageKey: string;
   mimeType: string;
   title: string;
+  sortOrder: number;
   originalName: string;
   byteSize: number | null;
   contentHash: string | null;

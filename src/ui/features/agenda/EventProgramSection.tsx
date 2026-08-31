@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { PreviousEventProgram } from '@/application/agenda';
-import type { EventDetail, ProgramItemDetail, ProgramItemStatus } from '@/domain/agenda';
+import type { EventDetail, ProgramItemDetail, ProgramItemStatus, ProgramItemUnitInput } from '@/domain/agenda';
+import { formatProgramUnitsSummary } from '@/domain/agenda';
 import type { Result } from '@/domain/shared';
-import type { PieceListItem, ReadingPlaylist } from '@/domain/repertoire';
+import type { PieceFileOrganization, PieceFileWithLinks, PieceListItem, PdfNavigationShortcut, PieceFileTocEntry, ReadingPlaylist } from '@/domain/repertoire';
 import { useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
@@ -19,6 +20,7 @@ import {
   agendaErrorMessage,
   programItemStatusLabel,
 } from '@/ui/features/agenda/agenda-labels';
+import { EventProgramUnitsEditor } from '@/ui/features/agenda/EventProgramUnitsEditor';
 import { EventProgramPiecePicker } from '@/ui/features/agenda/EventProgramPiecePicker';
 import { EventPreviousProgramSection } from '@/ui/features/agenda/EventPreviousProgramSection';
 
@@ -29,6 +31,7 @@ type ProgramRow = {
   pieceId: string;
   pieceTitle: string;
   pieceDeleted: boolean;
+  fileOrganization: PieceFileOrganization;
   pieceCategory: {
     name: string;
     slug: string;
@@ -36,6 +39,7 @@ type ProgramRow = {
   } | null;
   notes: string;
   status: ProgramItemStatus;
+  units: ProgramItemUnitInput[];
 };
 
 type EventProgramSectionProps = {
@@ -51,7 +55,12 @@ type EventProgramSectionProps = {
   setEventProgram: (
     organizationId: string,
     eventId: string,
-    items: { pieceId: string; notes?: string | null; status?: ProgramItemStatus }[],
+    items: {
+      pieceId: string;
+      notes?: string | null;
+      status?: ProgramItemStatus;
+      units?: ProgramItemUnitInput[];
+    }[],
   ) => Promise<Result<EventDetail>>;
   getPreviousEventProgram?: (
     organizationId: string,
@@ -65,9 +74,18 @@ function toRows(program: ProgramItemDetail[]): ProgramRow[] {
     pieceId: item.pieceId,
     pieceTitle: item.pieceTitle,
     pieceDeleted: item.pieceDeleted,
+    fileOrganization: item.fileOrganization,
     pieceCategory: item.pieceCategory,
     notes: item.notes ?? '',
     status: item.status,
+    units: item.units.map((unit) => ({
+      pieceFileId: unit.pieceFileId,
+      sortOrder: unit.sortOrder,
+      startPage: unit.startPage,
+      endPage: unit.endPage,
+      navigationShortcutId: unit.navigationShortcutId,
+      label: unit.label,
+    })),
   }));
 }
 
@@ -157,6 +175,17 @@ export function EventProgramSection({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [unitsEditorOpen, setUnitsEditorOpen] = useState(false);
+  const [unitsEditorRowId, setUnitsEditorRowId] = useState<string | null>(null);
+  const [pendingPiece, setPendingPiece] = useState<PieceListItem | null>(null);
+  const [editorScoreFiles, setEditorScoreFiles] = useState<PieceFileWithLinks[]>([]);
+  const [editorShortcuts, setEditorShortcuts] = useState<Map<string, PdfNavigationShortcut[]>>(
+    new Map(),
+  );
+  const [editorTocEntries, setEditorTocEntries] = useState<Map<string, PieceFileTocEntry[]>>(
+    new Map(),
+  );
+  const [isLoadingUnitsEditor, setIsLoadingUnitsEditor] = useState(false);
 
   useEffect(() => {
     setRows(toRows(program));
@@ -187,6 +216,7 @@ export function EventProgramSection({
         pieceId: row.pieceId,
         notes: row.notes.trim() || null,
         status: row.status,
+        units: row.units,
       })),
     );
     setIsSaving(false);
@@ -207,10 +237,57 @@ export function EventProgramSection({
     await saveProgram(nextRows);
   }
 
-  async function handleRemove(pieceId: string) {
-    const nextRows = rows.filter((row) => row.pieceId !== pieceId);
+  async function handleRemove(rowId: string) {
+    const nextRows = rows.filter((row) => row.id !== rowId);
     setRows(nextRows);
     await saveProgram(nextRows);
+  }
+
+  async function loadPieceEditorData(pieceId: string) {
+    setIsLoadingUnitsEditor(true);
+    const result = await repertoire.getPiece(organizationId, pieceId);
+    setIsLoadingUnitsEditor(false);
+
+    if (!result.ok) {
+      setError('Não foi possível carregar os arquivos desta obra.');
+      return null;
+    }
+
+    const scoreFiles = result.value.files
+      .filter((file) => file.kind === 'score')
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'pt-BR'));
+
+    const shortcutsByFile = new Map<string, PdfNavigationShortcut[]>();
+    const tocByFile = new Map<string, PieceFileTocEntry[]>();
+    await Promise.all(
+      scoreFiles.map(async (file) => {
+        const [shortcutsResult, tocResult] = await Promise.all([
+          repertoire.listPieceFileNavigationShortcuts(organizationId, file.id),
+          repertoire.listPieceFileTocEntries(organizationId, file.id),
+        ]);
+        if (shortcutsResult.ok) {
+          shortcutsByFile.set(file.id, shortcutsResult.value);
+        }
+        if (tocResult.ok) {
+          tocByFile.set(file.id, tocResult.value);
+        }
+      }),
+    );
+
+    setEditorScoreFiles(scoreFiles);
+    setEditorShortcuts(shortcutsByFile);
+    setEditorTocEntries(tocByFile);
+    return result.value;
+  }
+
+  async function openUnitsEditorForRow(row: ProgramRow) {
+    const piece = await loadPieceEditorData(row.pieceId);
+    if (!piece) {
+      return;
+    }
+    setUnitsEditorRowId(row.id);
+    setPendingPiece(null);
+    setUnitsEditorOpen(true);
   }
 
   async function handleAdd(pieceId: string) {
@@ -218,30 +295,58 @@ export function EventProgramSection({
     if (!piece) {
       return;
     }
-    const nextRows: ProgramRow[] = [
-      ...rows,
-      {
-        id: `draft-${pieceId}-${Date.now()}`,
-        pieceId: piece.id,
-        pieceTitle: piece.title,
-        pieceDeleted: false,
-        pieceCategory: {
-          name: piece.category.name,
-          slug: piece.category.slug,
-          color: piece.category.color,
-        },
-        notes: '',
-        status: 'planned',
-      },
-    ];
-    setRows(nextRows);
-    await saveProgram(nextRows);
+
+    setPickerOpen(false);
+    setPendingPiece(piece);
+    const detail = await loadPieceEditorData(piece.id);
+    if (!detail) {
+      return;
+    }
+
+    setUnitsEditorRowId(null);
+    setUnitsEditorOpen(true);
   }
 
-  async function handleNotesChange(pieceId: string, notes: string) {
+  function handleUnitsEditorConfirm(units: ProgramItemUnitInput[]) {
+    if (pendingPiece) {
+      const nextRows: ProgramRow[] = [
+        ...rows,
+        {
+          id: `draft-${pendingPiece.id}-${Date.now()}`,
+          pieceId: pendingPiece.id,
+          pieceTitle: pendingPiece.title,
+          pieceDeleted: false,
+          fileOrganization: pendingPiece.fileOrganization,
+          pieceCategory: {
+            name: pendingPiece.category.name,
+            slug: pendingPiece.category.slug,
+            color: pendingPiece.category.color,
+          },
+          notes: '',
+          status: 'planned',
+          units,
+        },
+      ];
+      setPendingPiece(null);
+      setRows(nextRows);
+      void saveProgram(nextRows);
+      return;
+    }
+
+    if (!unitsEditorRowId) {
+      return;
+    }
+
     const nextRows = rows.map((row) =>
-      row.pieceId === pieceId ? { ...row, notes } : row,
+      row.id === unitsEditorRowId ? { ...row, units } : row,
     );
+    setUnitsEditorRowId(null);
+    setRows(nextRows);
+    void saveProgram(nextRows);
+  }
+
+  async function handleNotesChange(rowId: string, notes: string) {
+    const nextRows = rows.map((row) => (row.id === rowId ? { ...row, notes } : row));
     setRows(nextRows);
     setDirty(true);
   }
@@ -253,10 +358,8 @@ export function EventProgramSection({
     await saveProgram(rows);
   }
 
-  async function handleStatusChange(pieceId: string, status: ProgramItemStatus) {
-    const nextRows = rows.map((row) =>
-      row.pieceId === pieceId ? { ...row, status } : row,
-    );
+  async function handleStatusChange(rowId: string, status: ProgramItemStatus) {
+    const nextRows = rows.map((row) => (row.id === rowId ? { ...row, status } : row));
     setRows(nextRows);
     await saveProgram(nextRows);
   }
@@ -267,9 +370,18 @@ export function EventProgramSection({
       pieceId: item.pieceId,
       pieceTitle: item.pieceTitle,
       pieceDeleted: false,
+      fileOrganization: item.fileOrganization,
       pieceCategory: item.pieceCategory,
       notes: item.notes ?? '',
       status: 'planned',
+      units: item.units.map((unit) => ({
+        pieceFileId: unit.pieceFileId,
+        sortOrder: unit.sortOrder,
+        startPage: unit.startPage,
+        endPage: unit.endPage,
+        navigationShortcutId: unit.navigationShortcutId,
+        label: unit.label,
+      })),
     }));
     setRows(nextRows);
     return saveProgram(nextRows);
@@ -387,7 +499,7 @@ export function EventProgramSection({
                   </div>
                   <button
                     type="button"
-                    onClick={() => void handleRemove(row.pieceId)}
+                    onClick={() => void handleRemove(row.id)}
                     className="shrink-0 text-muted hover:text-red-600"
                     aria-label="Remover obra"
                   >
@@ -397,17 +509,36 @@ export function EventProgramSection({
                 {row.pieceDeleted && (
                   <p className="mt-0.5 text-xs text-muted">Obra removida do catálogo</p>
                 )}
-                <div className="mt-2">
+                {(() => {
+                  const item = program.find((entry) => entry.id === row.id);
+                  const summary = item ? formatProgramUnitsSummary(item.units) : null;
+                  return summary ? (
+                    <p className="mt-1 text-xs text-muted">{summary}</p>
+                  ) : null;
+                })()}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <ProgramItemStatusControl
                     status={row.status}
                     disabled={isSaving}
-                    onChange={(status) => void handleStatusChange(row.pieceId, status)}
+                    onChange={(status) => void handleStatusChange(row.id, status)}
                   />
+                  {(row.fileOrganization === 'sequential' ||
+                    row.fileOrganization === 'single' ||
+                    row.fileOrganization === 'distributed') && (
+                    <button
+                      type="button"
+                      onClick={() => void openUnitsEditorForRow(row)}
+                      disabled={isLoadingUnitsEditor || isSaving}
+                      className="rounded-lg border border-border px-2 py-0.5 text-xs font-medium text-text hover:bg-bg"
+                    >
+                      {row.units.length > 0 ? 'Selecionar trecho' : 'Selecionar trecho'}
+                    </button>
+                  )}
                 </div>
                 <input
                   type="text"
                   value={row.notes}
-                  onChange={(event) => void handleNotesChange(row.pieceId, event.target.value)}
+                  onChange={(event) => void handleNotesChange(row.id, event.target.value)}
                   onBlur={() => void handleNotesBlur()}
                   placeholder="Notas (opcional)"
                   className="mt-2 w-full rounded-lg border border-border bg-bg px-2 py-1 text-sm text-text"
@@ -419,6 +550,8 @@ export function EventProgramSection({
       ) : (
         <ol className="space-y-2">
           {rows.map((row) => {
+            const item = program.find((entry) => entry.id === row.id);
+            const unitsSummary = item ? formatProgramUnitsSummary(item.units) : null;
             const cardContent = (
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -433,6 +566,7 @@ export function EventProgramSection({
                   {row.pieceDeleted && (
                     <p className="mt-0.5 text-xs text-muted">Obra removida do catálogo</p>
                   )}
+                  {unitsSummary && <p className="mt-1 text-xs text-muted">{unitsSummary}</p>}
                   {row.notes && <p className="mt-1 text-sm text-muted">{row.notes}</p>}
                 </div>
                 {row.pieceCategory && (
@@ -481,10 +615,33 @@ export function EventProgramSection({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         pieces={searchResults}
-        excludedPieceIds={rows.map((row) => row.pieceId)}
         onSearch={searchPieces}
         isSearching={isSearching}
         onSelect={(pieceId) => void handleAdd(pieceId)}
+      />
+
+      <EventProgramUnitsEditor
+        open={unitsEditorOpen}
+        onClose={() => {
+          setUnitsEditorOpen(false);
+          setPendingPiece(null);
+          setUnitsEditorRowId(null);
+        }}
+        pieceTitle={pendingPiece?.title ?? rows.find((row) => row.id === unitsEditorRowId)?.pieceTitle ?? ''}
+        fileOrganization={
+          pendingPiece?.fileOrganization ??
+          rows.find((row) => row.id === unitsEditorRowId)?.fileOrganization ??
+          'single'
+        }
+        scoreFiles={editorScoreFiles}
+        shortcutsByFileId={editorShortcuts}
+        tocEntriesByFileId={editorTocEntries}
+        initialUnits={
+          unitsEditorRowId
+            ? rows.find((row) => row.id === unitsEditorRowId)?.units ?? []
+            : []
+        }
+        onConfirm={handleUnitsEditorConfirm}
       />
 
       {showPreviousSection && (

@@ -1,10 +1,12 @@
 import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
 import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
+import type { OfflineTocEntryStore } from '@/application/ports/offline-toc-entry-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
 import type { OfflinePlaylistCache } from '@/application/ports/offline-playlist-cache';
 import type { FileStorage } from '@/application/ports/file-storage';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type { PieceFileNavigationShortcutRepository } from '@/application/ports/piece-file-navigation-shortcut-repository';
+import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
@@ -45,12 +47,14 @@ async function removeUnreferencedFiles(
   }
 }
 
-async function cacheAnnotationsAndShortcutsForFile(
+async function cacheAnnotationsShortcutsAndTocForFile(
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
   setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
+  tocRepo: PieceFileTocEntryRepository,
+  tocStore: OfflineTocEntryStore,
   organizationId: string,
   pieceFileId: string,
 ): Promise<void> {
@@ -99,6 +103,15 @@ async function cacheAnnotationsAndShortcutsForFile(
       syncStatus: 'synced',
     });
   }
+
+  const tocEntries = await tocRepo.listForFile(organizationId, pieceFileId);
+  for (const entry of tocEntries) {
+    await tocStore.upsert({
+      clientId: entry.id,
+      ...entry,
+      syncStatus: 'synced',
+    });
+  }
 }
 
 export async function cacheReadingPlaylistForOffline(
@@ -113,6 +126,8 @@ export async function cacheReadingPlaylistForOffline(
   setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
+  tocRepo: PieceFileTocEntryRepository,
+  tocStore: OfflineTocEntryStore,
   organizationId: string,
   playlistId: string,
   userId: string,
@@ -151,12 +166,14 @@ export async function cacheReadingPlaylistForOffline(
     if (!fileResult.ok) {
       progress.errors.push(`${item.fileTitle}: ${fileResult.error}`);
     } else {
-      await cacheAnnotationsAndShortcutsForFile(
+      await cacheAnnotationsShortcutsAndTocForFile(
         annotationRepo,
         annotationStore,
         setRepo,
         navigationShortcutRepo,
         navigationShortcutStore,
+        tocRepo,
+        tocStore,
         organizationId,
         item.pieceFileId,
       );
@@ -207,6 +224,8 @@ export async function cacheUserReadingPlaylistsForOffline(
   setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
+  tocRepo: PieceFileTocEntryRepository,
+  tocStore: OfflineTocEntryStore,
   organizationId: string,
   userId: string,
   onProgress?: (progress: CachePlaylistProgress) => void,
@@ -229,6 +248,8 @@ export async function cacheUserReadingPlaylistsForOffline(
     setRepo,
     navigationShortcutRepo,
     navigationShortcutStore,
+    tocRepo,
+    tocStore,
     organizationId,
     userId,
     onProgress,
@@ -255,6 +276,8 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
   setRepo: import('@/application/ports/annotation-set-repository').AnnotationSetRepository,
   navigationShortcutRepo: PieceFileNavigationShortcutRepository,
   navigationShortcutStore: OfflineNavigationShortcutStore,
+  tocRepo: PieceFileTocEntryRepository,
+  tocStore: OfflineTocEntryStore,
   organizationId: string,
   userId: string,
   onProgress?: (progress: CachePlaylistProgress) => void,
@@ -292,6 +315,8 @@ async function cacheUserReadingPlaylistsForOfflineOnce(
       setRepo,
       navigationShortcutRepo,
       navigationShortcutStore,
+      tocRepo,
+      tocStore,
       organizationId,
       playlist.id,
       userId,

@@ -3,7 +3,7 @@ import type { PieceFilePartLink, PieceFileWithLinks } from '@/domain/repertoire'
 import { supabase } from './client';
 
 const FILE_COLUMNS =
-  'id, organization_id, piece_id, kind, storage_key, mime_type, title, original_name, byte_size, content_hash';
+  'id, organization_id, piece_id, kind, storage_key, mime_type, title, original_name, byte_size, content_hash, sort_order';
 
 function mapFile(row: {
   id: string;
@@ -16,6 +16,7 @@ function mapFile(row: {
   original_name: string;
   byte_size: number | null;
   content_hash: string | null;
+  sort_order: number;
 }): Omit<PieceFileWithLinks, 'partLinks'> {
   return {
     id: row.id,
@@ -28,6 +29,7 @@ function mapFile(row: {
     originalName: row.original_name,
     byteSize: row.byte_size,
     contentHash: row.content_hash,
+    sortOrder: row.sort_order,
   };
 }
 
@@ -60,6 +62,33 @@ async function loadPartLinksForFiles(
   return linksByFile;
 }
 
+function comparePieceFiles(a: PieceFileWithLinks, b: PieceFileWithLinks): number {
+  if (a.kind !== b.kind) {
+    return a.kind === 'audio' ? 1 : -1;
+  }
+  if (a.kind === 'score' && b.kind === 'score') {
+    return a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'pt-BR');
+  }
+  return a.title.localeCompare(b.title, 'pt-BR');
+}
+
+async function nextScoreSortOrder(organizationId: string, pieceId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('piece_files')
+    .select('sort_order')
+    .eq('organization_id', organizationId)
+    .eq('piece_id', pieceId)
+    .eq('kind', 'score')
+    .order('sort_order', { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return 0;
+  }
+
+  return (data[0]?.sort_order ?? -1) + 1;
+}
+
 export function createPieceFileRepository(): PieceFileRepository {
   return {
     async listForPiece(organizationId, pieceId) {
@@ -69,6 +98,7 @@ export function createPieceFileRepository(): PieceFileRepository {
         .eq('organization_id', organizationId)
         .eq('piece_id', pieceId)
         .order('kind')
+        .order('sort_order')
         .order('title');
 
       if (error || !data) {
@@ -80,10 +110,12 @@ export function createPieceFileRepository(): PieceFileRepository {
         data.map((row) => row.id),
       );
 
-      return data.map((row) => ({
-        ...mapFile(row),
-        partLinks: linksByFile.get(row.id) ?? [],
-      }));
+      return data
+        .map((row) => ({
+          ...mapFile(row),
+          partLinks: linksByFile.get(row.id) ?? [],
+        }))
+        .sort(comparePieceFiles);
     },
 
     async getById(organizationId, pieceId, fileId) {
@@ -149,6 +181,10 @@ export function createPieceFileRepository(): PieceFileRepository {
     },
 
     async create(organizationId, input: CreatePieceFileInput) {
+      const sortOrder =
+        input.sortOrder ??
+        (input.kind === 'score' ? await nextScoreSortOrder(organizationId, input.pieceId) : 0);
+
       const { data, error } = await supabase
         .from('piece_files')
         .insert({
@@ -162,6 +198,7 @@ export function createPieceFileRepository(): PieceFileRepository {
           original_name: input.originalName,
           byte_size: input.byteSize,
           content_hash: input.contentHash,
+          sort_order: sortOrder,
         })
         .select(FILE_COLUMNS)
         .single();
@@ -194,9 +231,14 @@ export function createPieceFileRepository(): PieceFileRepository {
     },
 
     async update(organizationId, pieceId, fileId, input: UpdatePieceFileInput) {
+      const patch: Record<string, unknown> = { title: input.title };
+      if (input.sortOrder !== undefined) {
+        patch.sort_order = input.sortOrder;
+      }
+
       const { data, error } = await supabase
         .from('piece_files')
-        .update({ title: input.title })
+        .update(patch)
         .eq('organization_id', organizationId)
         .eq('piece_id', pieceId)
         .eq('id', fileId)
@@ -240,6 +282,28 @@ export function createPieceFileRepository(): PieceFileRepository {
         ...mapFile(data),
         partLinks: linksByFile.get(data.id) ?? [],
       };
+    },
+
+    async reorderScores(organizationId, pieceId, orderedFileIds) {
+      for (let index = 0; index < orderedFileIds.length; index += 1) {
+        const fileId = orderedFileIds[index];
+        if (!fileId) {
+          continue;
+        }
+        const { error } = await supabase
+          .from('piece_files')
+          .update({ sort_order: index })
+          .eq('organization_id', organizationId)
+          .eq('piece_id', pieceId)
+          .eq('id', fileId)
+          .eq('kind', 'score');
+
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
+
+      return this.listForPiece(organizationId, pieceId);
     },
 
     async remove(organizationId, pieceId, fileId) {

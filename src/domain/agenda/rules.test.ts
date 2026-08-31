@@ -70,13 +70,68 @@ describe('validateProgramItems', () => {
     expect(validateProgramItems([])).toBeNull();
   });
 
-  it('rejects duplicate pieces', () => {
+  it('allows duplicate pieces in program', () => {
     expect(
-      validateProgramItems([
-        { pieceId: 'piece-1' },
-        { pieceId: 'piece-1' },
-      ]),
-    ).toBe('duplicate_piece');
+      validateProgramItems(
+        [
+          { pieceId: 'method-1', units: [{ pieceFileId: 'lesson-1' }] },
+          { pieceId: 'method-1', units: [{ pieceFileId: 'lesson-2' }] },
+        ],
+        {
+          piecesById: new Map([
+            [
+              'method-1',
+              {
+                fileOrganization: 'sequential',
+                files: [
+                  { id: 'lesson-1', kind: 'score', partLinkCount: 0, tocEntryIds: new Set() },
+                  { id: 'lesson-2', kind: 'score', partLinkCount: 0, tocEntryIds: new Set() },
+                ],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBeNull();
+
+    expect(
+      validateProgramItems(
+        [{ pieceId: 'piece-1' }, { pieceId: 'piece-1' }],
+        {
+          piecesById: new Map([
+            [
+              'piece-1',
+              {
+                fileOrganization: 'distributed',
+                files: [{ id: 'score-1', kind: 'score', partLinkCount: 1, tocEntryIds: new Set() }],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects distributed unit on part-linked file', () => {
+    expect(
+      validateProgramItems(
+        [{ pieceId: 'piece-1', units: [{ pieceFileId: 'violin' }] }],
+        {
+          piecesById: new Map([
+            [
+              'piece-1',
+              {
+                fileOrganization: 'distributed',
+                files: [
+                  { id: 'violin', kind: 'score', partLinkCount: 1, tocEntryIds: new Set() },
+                  { id: 'general', kind: 'score', partLinkCount: 0, tocEntryIds: new Set() },
+                ],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBe('distributed_general_score_only');
   });
 
   it('accepts items without explicit status', () => {
@@ -99,6 +154,81 @@ describe('validateProgramItems', () => {
         { pieceId: 'piece-1', status: 'cancelled' as 'planned' },
       ]),
     ).toBe('invalid_status');
+  });
+
+  it('allows multiple TOC units on the same file', () => {
+    const tocIds = new Set(['toc-1', 'toc-2']);
+    expect(
+      validateProgramItems(
+        [
+          {
+            pieceId: 'method-1',
+            units: [
+              { pieceFileId: 'pdf-1', pieceFileTocEntryId: 'toc-1' },
+              { pieceFileId: 'pdf-1', pieceFileTocEntryId: 'toc-2' },
+            ],
+          },
+        ],
+        {
+          piecesById: new Map([
+            [
+              'method-1',
+              {
+                fileOrganization: 'sequential',
+                files: [{ id: 'pdf-1', kind: 'score', partLinkCount: 0, tocEntryIds: tocIds }],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects duplicate TOC entries in the same program item', () => {
+    const tocIds = new Set(['toc-1']);
+    expect(
+      validateProgramItems(
+        [
+          {
+            pieceId: 'method-1',
+            units: [
+              { pieceFileId: 'pdf-1', pieceFileTocEntryId: 'toc-1' },
+              { pieceFileId: 'pdf-1', pieceFileTocEntryId: 'toc-1' },
+            ],
+          },
+        ],
+        {
+          piecesById: new Map([
+            [
+              'method-1',
+              {
+                fileOrganization: 'sequential',
+                files: [{ id: 'pdf-1', kind: 'score', partLinkCount: 0, tocEntryIds: tocIds }],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBe('duplicate_toc_entry');
+  });
+
+  it('rejects invalid toc entry reference', () => {
+    expect(
+      validateProgramItems(
+        [{ pieceId: 'method-1', units: [{ pieceFileId: 'pdf-1', pieceFileTocEntryId: 'toc-x' }] }],
+        {
+          piecesById: new Map([
+            [
+              'method-1',
+              {
+                fileOrganization: 'single',
+                files: [{ id: 'pdf-1', kind: 'score', partLinkCount: 0, tocEntryIds: new Set() }],
+              },
+            ],
+          ]),
+        },
+      ),
+    ).toBe('invalid_toc_entry');
   });
 });
 

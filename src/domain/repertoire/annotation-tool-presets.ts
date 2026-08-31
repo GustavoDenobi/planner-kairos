@@ -31,6 +31,16 @@ export const HIGHLIGHT_STROKE_WIDTH: StrokeWidthRange = {
   step: 0.0025,
 };
 
+export const LASER_STROKE_WIDTH = PEN_STROKE_WIDTH.default;
+
+export const LASER_DEFAULT_PRESET_ID = 'red';
+
+/** Time at full opacity after pointer-up before the fade-out begins. */
+export const LASER_FADE_MS = 3000;
+
+/** Duration of the opacity fade-out before removal. */
+export const LASER_FADE_OUT_MS = 500;
+
 /** Pen inside CSS invert — inverted values pre-compensate the filter. */
 export const PEN_COLOR_PRESETS: AnnotationToolPreset[] = [
   { id: 'blue', label: 'Azul', light: '#2563eb', inverted: '#d96214' },

@@ -1,8 +1,9 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { partitionPieceFilesForViewer } from '@/domain/repertoire';
-import type { PieceFileKind, PieceFileWithLinks } from '@/domain/repertoire';
+import type { PieceFileKind, PieceFileOrganization, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconFilter, IconPencil, IconPlus, IconScoreSheet, IconPlay } from '@/ui/components/icons';
+import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconScoreSheet, IconPlay } from '@/ui/components/icons';
+import { SortableList } from '@/ui/components/SortableList';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
@@ -20,6 +21,7 @@ type DivisionFilterOption = {
 type PieceFilesSectionProps = {
   files: PieceFileWithLinks[];
   parts: PartWithDivisions[];
+  fileOrganization?: PieceFileOrganization;
   isAdmin: boolean;
   userPartIds: string[];
   isConductor?: boolean;
@@ -27,6 +29,7 @@ type PieceFilesSectionProps = {
   onOpen: (file: PieceFileWithLinks) => void;
   onEdit: (file: PieceFileWithLinks) => void;
   onAddFiles: (files: File[]) => void;
+  onReorderScoreFiles?: (orderedFileIds: string[]) => Promise<boolean>;
   isAddingFiles?: boolean;
 };
 
@@ -163,6 +166,7 @@ function FileList({
 export function PieceFilesSection({
   files,
   parts,
+  fileOrganization = 'single',
   isAdmin,
   userPartIds,
   isConductor = false,
@@ -170,6 +174,7 @@ export function PieceFilesSection({
   onOpen,
   onEdit,
   onAddFiles,
+  onReorderScoreFiles,
   isAddingFiles = false,
 }: PieceFilesSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -250,6 +255,18 @@ export function PieceFilesSection({
     }
     return Array.from(kinds);
   }, [files]);
+
+  const scoreFiles = useMemo(
+    () =>
+      files
+        .filter((file) => file.kind === 'score')
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'pt-BR')),
+    [files],
+  );
+  const audioFilesOnly = useMemo(
+    () => files.filter((file) => file.kind === 'audio'),
+    [files],
+  );
 
   const filteredFiles = useMemo(
     () =>
@@ -409,6 +426,79 @@ export function PieceFilesSection({
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3">
         {filteredFiles.length === 0 ? (
           <p className="text-sm text-muted">Nenhum arquivo.</p>
+        ) : fileOrganization === 'sequential' ? (
+          <div className="space-y-4">
+            {scoreFiles.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-text">Lições</h3>
+                {isAdmin && onReorderScoreFiles ? (
+                  <SortableList
+                    items={scoreFiles}
+                    onReorder={(nextScores) => {
+                      void onReorderScoreFiles(nextScores.map((file) => file.id));
+                    }}
+                    ariaLabel="Ordem das lições"
+                    renderItem={(file, handle) => (
+                      <div className="flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-3">
+                        <button
+                          type="button"
+                          className="mt-0.5 shrink-0 touch-none text-muted hover:text-text"
+                          aria-label={`Reordenar ${file.title}`}
+                          ref={handle.setActivatorNodeRef}
+                          {...handle.attributes}
+                          {...handle.listeners}
+                        >
+                          <IconGripVertical className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpen(file)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <p className="font-medium text-text">{file.title}</p>
+                          <p className="mt-0.5 text-sm text-muted">Lição {file.sortOrder + 1}</p>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onEdit(file)}
+                              aria-label={`Editar ${file.title}`}
+                              className="rounded-lg border border-border p-2 text-muted hover:text-text"
+                            >
+                              <IconPencil className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  />
+                ) : (
+                  <FileList
+                    files={scoreFiles}
+                    parts={parts}
+                    isAdmin={isAdmin}
+                    allowDownload={allowDownload}
+                    onOpen={onOpen}
+                    onEdit={onEdit}
+                  />
+                )}
+              </div>
+            )}
+            {audioFilesOnly.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-text">Áudios</h3>
+                <FileList
+                  files={audioFilesOnly}
+                  parts={parts}
+                  isAdmin={isAdmin}
+                  allowDownload={allowDownload}
+                  onOpen={onOpen}
+                  onEdit={onEdit}
+                />
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-4">
             {userFiles.length > 0 && (

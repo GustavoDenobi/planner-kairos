@@ -6,7 +6,6 @@ type EventProgramPiecePickerProps = {
   open: boolean;
   onClose: () => void;
   pieces: PieceListItem[];
-  excludedPieceIds: string[];
   onSearch: (query: string) => void;
   isSearching: boolean;
   onSelect: (pieceId: string) => void;
@@ -16,7 +15,6 @@ export function EventProgramPiecePicker({
   open,
   onClose,
   pieces,
-  excludedPieceIds,
   onSearch,
   isSearching,
   onSelect,
@@ -34,9 +32,6 @@ export function EventProgramPiecePicker({
     return () => window.clearTimeout(timeout);
   }, [open, query, onSearch]);
 
-  const excluded = new Set(excludedPieceIds);
-  const available = pieces.filter((piece) => !excluded.has(piece.id));
-
   return (
     <Modal open={open} onClose={onClose} title="Selecionar peça">
       <div className="space-y-3">
@@ -51,11 +46,11 @@ export function EventProgramPiecePicker({
 
         {isSearching ? (
           <p className="text-sm text-muted">Buscando…</p>
-        ) : available.length === 0 ? (
+        ) : pieces.length === 0 ? (
           <p className="text-sm text-muted">Nenhuma obra disponível.</p>
         ) : (
           <ul className="max-h-64 space-y-1 overflow-y-auto">
-            {available.map((piece) => (
+            {pieces.map((piece) => (
               <li key={piece.id}>
                 <button
                   type="button"

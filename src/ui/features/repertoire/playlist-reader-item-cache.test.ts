@@ -21,6 +21,7 @@ function fakeItem(numPages: number): CachedPlaylistItem {
     downloadUrl: null,
     annotations: [],
     navigationShortcuts: [],
+    tocEntries: [],
     numPages,
     pdfDocument: { numPages } as CachedPlaylistItem['pdfDocument'],
     isCachedLocally: true,

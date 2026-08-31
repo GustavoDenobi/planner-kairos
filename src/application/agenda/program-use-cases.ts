@@ -1,7 +1,8 @@
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
+import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
 import type { ProgramItemDetail, ProgramItemInput } from '@/domain/agenda';
-import { validateProgramItems } from '@/domain/agenda';
+import { buildProgramItemValidationContext, validateProgramItems } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
 
 export type PreviousEventProgram = {
@@ -46,6 +47,7 @@ export async function getPreviousEventProgram(
 export async function setEventProgram(
   eventRepo: EventRepository,
   pieceRepo: PieceRepository,
+  tocRepo: PieceFileTocEntryRepository,
   organizationId: string,
   eventId: string,
   items: ProgramItemInput[],
@@ -55,19 +57,33 @@ export async function setEventProgram(
     return Result.fail('not_found');
   }
 
-  const validationError = validateProgramItems(items);
-  if (validationError) {
-    return Result.fail(validationError);
-  }
+  const pieceIds = [...new Set(items.map((item) => item.pieceId))];
+  const pieces = await Promise.all(
+    pieceIds.map((pieceId) => pieceRepo.getById(organizationId, pieceId)),
+  );
 
-  for (const item of items) {
-    const piece = await pieceRepo.getById(organizationId, item.pieceId);
+  for (const piece of pieces) {
     if (!piece) {
       return Result.fail('piece_not_found');
     }
     if (piece.deletedAt) {
       return Result.fail('piece_deleted');
     }
+  }
+
+  const validPieces = pieces.filter((piece): piece is NonNullable<typeof piece> => piece != null);
+  const tocEntriesByPieceId = new Map<string, Awaited<ReturnType<PieceFileTocEntryRepository['listForPiece']>>>();
+  await Promise.all(
+    validPieces.map(async (piece) => {
+      const entries = await tocRepo.listForPiece(organizationId, piece.id);
+      tocEntriesByPieceId.set(piece.id, entries);
+    }),
+  );
+
+  const validationContext = buildProgramItemValidationContext(validPieces, tocEntriesByPieceId);
+  const validationError = validateProgramItems(items, validationContext);
+  if (validationError) {
+    return Result.fail(validationError);
   }
 
   try {
