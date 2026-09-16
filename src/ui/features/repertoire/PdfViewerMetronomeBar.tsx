@@ -13,13 +13,6 @@ import {
 } from '@/ui/features/repertoire/metronome-engine';
 import { useMetronome } from '@/ui/features/repertoire/useMetronome';
 
-const TIME_SIGNATURE_LABELS: Record<MetronomeBeatsPerMeasure, string> = {
-  2: '2/4',
-  3: '3/4',
-  4: '4/4',
-  6: '6/8',
-};
-
 type PdfViewerMetronomeBarProps = {
   userId: string | null;
   onClose: () => void;
@@ -88,21 +81,21 @@ export function PdfViewerMetronomeBar({ userId, onClose }: PdfViewerMetronomeBar
         </button>
       </div>
 
-      <label className="sr-only" htmlFor="metronome-time-signature">
-        Compasso
+      <label className="sr-only" htmlFor="metronome-beats-per-measure">
+        Tempos por compasso
       </label>
       <select
-        id="metronome-time-signature"
+        id="metronome-beats-per-measure"
         value={beatsPerMeasure}
         onChange={(event) =>
           setBeatsPerMeasure(Number(event.target.value) as MetronomeBeatsPerMeasure)
         }
-        aria-label="Compasso"
+        aria-label="Tempos por compasso"
         className="shrink-0 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text"
       >
         {METRONOME_BEATS_OPTIONS.map((option) => (
           <option key={option} value={option}>
-            {TIME_SIGNATURE_LABELS[option]}
+            {option}
           </option>
         ))}
       </select>

@@ -133,13 +133,17 @@ async function copyAudienceToEvent(
   const uniqueGroupIds = uniqueIds(groupIds);
   const uniqueMusicianIds = uniqueIds(musicianIds);
 
+  // The trigger `add_event_creator_musician` already inserts the creator after
+  // each event insert. A plain INSERT then violates UNIQUE (event_id, musician_id)
+  // and surfaces as create_failed even though the occurrences already exist.
   if (uniqueGroupIds.length > 0) {
-    const { error } = await supabase.from('event_groups').insert(
+    const { error } = await supabase.from('event_groups').upsert(
       uniqueGroupIds.map((groupId) => ({
         organization_id: organizationId,
         event_id: eventId,
         group_id: groupId,
       })),
+      { onConflict: 'event_id,group_id', ignoreDuplicates: true },
     );
     if (error) {
       throw new Error(error.message);
@@ -147,12 +151,13 @@ async function copyAudienceToEvent(
   }
 
   if (uniqueMusicianIds.length > 0) {
-    const { error } = await supabase.from('event_musicians').insert(
+    const { error } = await supabase.from('event_musicians').upsert(
       uniqueMusicianIds.map((musicianId) => ({
         organization_id: organizationId,
         event_id: eventId,
         musician_id: musicianId,
       })),
+      { onConflict: 'event_id,musician_id', ignoreDuplicates: true },
     );
     if (error) {
       throw new Error(error.message);

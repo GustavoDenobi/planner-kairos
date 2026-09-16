@@ -6,6 +6,7 @@ export type {
   EventAudienceGroup,
   EventAudienceMusician,
 } from './event';
+export { isEventCancelled } from './event';
 export type {
   ProgramItem,
   ProgramItemInput,

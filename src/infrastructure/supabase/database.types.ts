@@ -609,6 +609,7 @@ export type Database = {
       }
       events: {
         Row: {
+          cancelled_at: string | null
           created_at: string
           created_by: string | null
           ends_at: string | null
@@ -626,6 +627,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancelled_at?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -643,6 +645,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancelled_at?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null

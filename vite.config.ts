@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { inviteOgPlugin } from './src/og/inviteOgPlugin';
+import { pdfjsAssetsPlugin } from './vite.pdfjs-assets';
 
 const pwaManifest = JSON.parse(
   readFileSync(path.resolve(__dirname, 'public/manifest.webmanifest'), 'utf-8'),
@@ -19,6 +20,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       inviteOgPlugin(env),
+      pdfjsAssetsPlugin(),
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['logo.svg', 'logo.png'],
@@ -27,7 +29,7 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2,webmanifest,wasm}'],
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           navigateFallback: 'index.html',
-          navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackDenylist: [/^\/api\//, /^\/pdfjs\//],
         },
       }),
     ],

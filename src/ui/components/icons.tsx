@@ -229,6 +229,15 @@ export function IconGroups(props: IconProps) {
   );
 }
 
+export function IconHome(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+      <path d="M3 10a1 1 0 0 1 .4-.8l8-6a1 1 0 0 1 1.2 0l8 6A1 1 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
 export function IconChevronLeft(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -265,10 +274,12 @@ export function IconPencil(props: IconProps) {
 export function IconPen(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
-      <path d="M12 19l7-7 3 3-7 7-3-3z" />
-      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-      <path d="m2 2 7.586 7.586" />
-      <circle cx="11" cy="11" r="2" />
+      <g transform="rotate(180 12 12) translate(24 0) scale(-1 1)">
+        <path d="M12 19l7-7 3 3-7 7-3-3z" />
+        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+        <path d="m2 2 7.586 7.586" />
+        <circle cx="11" cy="11" r="2" />
+      </g>
     </svg>
   );
 }
@@ -557,6 +568,21 @@ export function IconCheck(props: IconProps) {
   );
 }
 
+export function IconLoader(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 2v4" />
+      <path d="m16.24 7.76 2.83-2.83" />
+      <path d="M18 12h4" />
+      <path d="m16.24 16.24 2.83 2.83" />
+      <path d="M12 18v4" />
+      <path d="m7.76 16.24-2.83 2.83" />
+      <path d="M2 12h4" />
+      <path d="m7.76 7.76-2.83-2.83" />
+    </svg>
+  );
+}
+
 export function IconAlertCircle(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -577,10 +603,29 @@ export function IconAlertTriangle(props: IconProps) {
   );
 }
 
+export function IconPrint(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" />
+      <rect x="6" y="14" width="12" height="8" rx="1" />
+    </svg>
+  );
+}
+
 export function IconUndo(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
       <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C20.08 11.03 16.55 8 12.5 8z"/>
+    </svg>
+  );
+}
+
+export function IconReturn(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 5 5v3" />
     </svg>
   );
 }

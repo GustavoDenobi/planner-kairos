@@ -94,6 +94,20 @@ export class PlaylistItemCache {
     this.entries.set(index, item);
   }
 
+  updateAnnotations(
+    index: number,
+    updater: (current: PdfAnnotation[]) => PdfAnnotation[],
+  ): void {
+    const cached = this.entries.get(index);
+    if (!cached) {
+      return;
+    }
+    this.entries.set(index, {
+      ...cached,
+      annotations: updater(cached.annotations),
+    });
+  }
+
   async load(
     index: number,
     loader: () => Promise<CachedPlaylistItem | null>,

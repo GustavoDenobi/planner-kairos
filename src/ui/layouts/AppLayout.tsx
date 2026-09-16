@@ -38,7 +38,7 @@ export function AppLayout() {
   const showOfflineFallback = !online && !isOfflineAllowedPath(location.pathname);
 
   return (
-    <div className="flex min-h-dvh bg-bg">
+    <div className="flex min-h-dvh overflow-x-hidden bg-bg">
       <Sidebar orgSlug={orgSlug} />
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <MobileHeader orgSlug={orgSlug} />

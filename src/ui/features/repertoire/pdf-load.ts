@@ -2,14 +2,15 @@ import type { OfflineUseCases } from '@/application/offline';
 import { OFFLINE_SIZE_WARNING_BYTES } from '@/application/offline/types';
 import type { ResolvedPieceFile } from '@/application/offline';
 import * as pdfjs from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+const pdfjsAssetBase = `${import.meta.env.BASE_URL}pdfjs/`;
+
+pdfjs.GlobalWorkerOptions.workerSrc = `${pdfjsAssetBase}pdf.worker.min.mjs`;
 
 const PDFJS_LOAD_OPTIONS = {
-  // Avoid extra wasm/cmap fetches that fail when the app is offline.
-  useWasm: false,
-  useWorkerFetch: false,
+  useWasm: true,
+  useWorkerFetch: true,
+  wasmUrl: `${pdfjsAssetBase}wasm/`,
 } as const;
 
 export function revokePdfObjectUrl(url: string | null | undefined): void {
@@ -103,4 +104,56 @@ export function formatBytes(bytes: number): string {
 
 export function shouldWarnDownloadSize(bytes: number): boolean {
   return bytes > OFFLINE_SIZE_WARNING_BYTES;
+}
+
+export async function printPdfDocument(pdf: pdfjs.PDFDocumentProxy): Promise<void> {
+  const data = await pdf.getData();
+  const blobUrl = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+
+  await new Promise<void>((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      width: '0',
+      height: '0',
+      border: 'none',
+      visibility: 'hidden',
+    });
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      iframe.remove();
+      revokePdfObjectUrl(blobUrl);
+      resolve();
+    };
+
+    iframe.onerror = () => {
+      iframe.remove();
+      revokePdfObjectUrl(blobUrl);
+      reject(new Error('print_load_failed'));
+    };
+
+    iframe.onload = () => {
+      const printWindow = iframe.contentWindow;
+      if (!printWindow) {
+        iframe.remove();
+        revokePdfObjectUrl(blobUrl);
+        reject(new Error('print_unavailable'));
+        return;
+      }
+
+      printWindow.addEventListener('afterprint', cleanup, { once: true });
+      printWindow.focus();
+      printWindow.print();
+      window.setTimeout(cleanup, 120_000);
+    };
+
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+  });
 }

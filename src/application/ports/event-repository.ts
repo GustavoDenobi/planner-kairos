@@ -43,6 +43,21 @@ export type EventRepository = {
     items: ProgramItemInput[],
   ): Promise<EventDetail>;
   delete(organizationId: string, eventId: string): Promise<void>;
+  setCancelledAt(organizationId: string, eventId: string, cancelledAt: string | null): Promise<EventDetail>;
+  bulkCancelFutureOccurrences(
+    organizationId: string,
+    recurrenceId: string,
+    fromIndex: number,
+    cancelledAt: string,
+    skipExceptions: boolean,
+  ): Promise<void>;
+  bulkCancelOccurrencesFromInstant(
+    organizationId: string,
+    recurrenceId: string,
+    fromInstant: string,
+    cancelledAt: string,
+    skipExceptions: boolean,
+  ): Promise<void>;
   markAsException(organizationId: string, eventId: string): Promise<void>;
   bulkUpdateFutureOccurrences(
     organizationId: string,

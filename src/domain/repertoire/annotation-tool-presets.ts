@@ -26,12 +26,12 @@ export const PEN_STROKE_WIDTH: StrokeWidthRange = {
 
 export const HIGHLIGHT_STROKE_WIDTH: StrokeWidthRange = {
   min: 0.005,
-  max: 0.05,
+  max: 0.03,
   default: 0.015,
   step: 0.0025,
 };
 
-export const LASER_STROKE_WIDTH = PEN_STROKE_WIDTH.default;
+export const LASER_STROKE_WIDTH = 0.003;
 
 export const LASER_DEFAULT_PRESET_ID = 'red';
 

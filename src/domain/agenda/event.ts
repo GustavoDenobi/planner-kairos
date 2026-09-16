@@ -27,7 +27,12 @@ export type Event = {
   occurrenceIndex: number | null;
   originalStartsAt: string | null;
   isException: boolean;
+  cancelledAt: string | null;
 };
+
+export function isEventCancelled(event: { cancelledAt: string | null }): boolean {
+  return event.cancelledAt != null;
+}
 
 export type EventInput = {
   typeId: string;
@@ -57,4 +62,5 @@ export type EventListItem = {
   musicians: EventAudienceMusician[];
   recurrenceId: string | null;
   isException: boolean;
+  cancelledAt: string | null;
 };

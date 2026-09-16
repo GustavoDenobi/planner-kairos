@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHighlightBrushRects,
-  fitRectToBounds,
+  constrainHighlightStrokeToHorizontalAxis,
   highlightBrushDimensions,
+  highlightBrushPreviewPixels,
   highlightBrushRectAtPoint,
   highlightStrokeHitDistance,
   HIGHLIGHT_BRUSH_HEIGHT_RATIO,
   HIGHLIGHT_BRUSH_WIDTH_SCALE,
-  strokeWidthToPreviewPixels,
+  penStrokePreviewPixels,
 } from './highlight-brush';
 
 describe('highlight-brush', () => {
@@ -53,13 +54,26 @@ describe('highlight-brush', () => {
     expect(rect.x).toBeCloseTo(0.5 - 0.02 * HIGHLIGHT_BRUSH_WIDTH_SCALE / 2);
   });
 
-  it('maps stroke width to preview pixels', () => {
-    expect(strokeWidthToPreviewPixels(0.003, 0.001, 0.008, 4, 16)).toBeCloseTo(7.43, 1);
-    expect(strokeWidthToPreviewPixels(0.008, 0.001, 0.008, 4, 16)).toBe(16);
+  it('constrains highlight strokes to the initial y coordinate', () => {
+    expect(
+      constrainHighlightStrokeToHorizontalAxis([
+        { x: 0.2, y: 0.4 },
+        { x: 0.5, y: 0.55 },
+        { x: 0.8, y: 0.3 },
+      ]),
+    ).toEqual([
+      { x: 0.2, y: 0.4 },
+      { x: 0.5, y: 0.4 },
+      { x: 0.8, y: 0.4 },
+    ]);
   });
 
-  it('scales preview rect down to fit bounds', () => {
-    expect(fitRectToBounds(28, 84, 72, 48)).toEqual({ width: 16, height: 48 });
-    expect(fitRectToBounds(10, 30, 72, 48)).toEqual({ width: 10, height: 30 });
+  it('maps stroke width to on-screen preview pixels', () => {
+    expect(penStrokePreviewPixels(0.003, 800)).toBeCloseTo(2.4);
+    expect(penStrokePreviewPixels(0.008, 800)).toBeCloseTo(6.4);
+    expect(highlightBrushPreviewPixels(0.03, 800)).toEqual({
+      width: 0.03 * HIGHLIGHT_BRUSH_WIDTH_SCALE * 800,
+      height: 0.03 * HIGHLIGHT_BRUSH_HEIGHT_RATIO * 800,
+    });
   });
 });

@@ -48,6 +48,10 @@ export const AGENDA_ERROR_MESSAGES: Record<string, string> = {
   invalid_recurrence_nth: 'Ocorrência mensal inválida.',
   recurrence_no_occurrences: 'A recorrência não gera nenhum evento no período informado.',
   not_recurrence_event: 'Este evento não faz parte de uma série.',
+  cancel_failed: 'Não foi possível cancelar o evento. Tente novamente.',
+  restore_failed: 'Não foi possível restaurar o evento. Tente novamente.',
+  already_cancelled: 'Este evento já está cancelado.',
+  not_cancelled: 'Este evento não está cancelado.',
 };
 
 export const RECURRENCE_SCOPE_SAVE_LABELS: Record<
@@ -85,6 +89,26 @@ export const RECURRENCE_SCOPE_DELETE_LABELS: Record<
     description: 'Cancela a série e remove todos os eventos futuros.',
   },
 };
+
+export const RECURRENCE_SCOPE_CANCEL_LABELS: Record<
+  'this' | 'following' | 'all_future',
+  { title: string; description: string }
+> = {
+  this: {
+    title: 'Só este evento',
+    description: 'Marca apenas esta ocorrência como cancelada.',
+  },
+  following: {
+    title: 'Este e os futuros',
+    description: 'Marca este evento e todas as ocorrências futuras como cancelados.',
+  },
+  all_future: {
+    title: 'Toda a série (futuros)',
+    description: 'Marca este evento e todos os futuros da série como cancelados.',
+  },
+};
+
+export const EVENT_CANCELLED_LABEL = 'Cancelado';
 
 export function agendaErrorMessage(code: string): string {
   return AGENDA_ERROR_MESSAGES[code] ?? 'Algo deu errado. Verifique sua conexão e tente novamente.';

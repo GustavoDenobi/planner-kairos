@@ -16,8 +16,11 @@ type AnnotationToolOptionsProps = {
   inverted: boolean;
   selectedPresetId: string;
   strokeWidth: number;
+  pageRenderWidth: number;
+  highlightHorizontal?: boolean;
   onPresetChange: (presetId: string) => void;
   onStrokeWidthChange: (strokeWidth: number) => void;
+  onHighlightHorizontalChange?: (horizontal: boolean) => void;
 };
 
 function presetsForTool(tool: AnnotationToolKind) {
@@ -37,8 +40,11 @@ export function AnnotationToolOptions({
   inverted,
   selectedPresetId,
   strokeWidth,
+  pageRenderWidth,
+  highlightHorizontal = false,
   onPresetChange,
   onStrokeWidthChange,
+  onHighlightHorizontalChange,
 }: AnnotationToolOptionsProps) {
   const presets = presetsForTool(tool);
   const range = strokeRangeForTool(tool);
@@ -95,7 +101,7 @@ export function AnnotationToolOptions({
               tool={tool}
               color={previewColor}
               strokeWidth={strokeWidth}
-              range={range}
+              pageRenderWidth={pageRenderWidth}
               inverted={inverted}
             />
           </div>
@@ -118,6 +124,22 @@ export function AnnotationToolOptions({
           />
         </label>
       </div>
+      {tool === 'highlight' && onHighlightHorizontalChange ? (
+        <button
+          type="button"
+          onClick={() => onHighlightHorizontalChange(!highlightHorizontal)}
+          aria-pressed={highlightHorizontal}
+          aria-label={highlightHorizontal ? 'Traço horizontal' : 'Traço livre'}
+          title={highlightHorizontal ? 'Traço horizontal' : 'Traço livre'}
+          className={`rounded-lg border px-3 py-1 text-sm ${
+            highlightHorizontal
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-text'
+          }`}
+        >
+          {highlightHorizontal ? 'Horizontal' : 'Livre'}
+        </button>
+      ) : null}
     </div>
   );
 }

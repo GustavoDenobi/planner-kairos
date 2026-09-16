@@ -17,11 +17,13 @@ export type AnnotationToolPreferences = {
   penStrokeWidth: number;
   highlightPresetId: string;
   highlightStrokeWidth: number;
+  highlightHorizontal: boolean;
 };
 
 export type PdfReaderPreferences = {
   inverted: boolean;
   navigation: PdfNavigationMode;
+  navigationShortcutsVisible?: boolean;
   metronomeBpm?: number;
   metronomeBeatsPerMeasure?: number;
   metronomeVolume?: number;
@@ -32,7 +34,7 @@ const STORAGE_KEY = 'planner-kairos:pdf-reader';
 const LEGACY_INVERT_KEY = 'planner-kairos:pdf-invert';
 
 export const DEFAULT_METRONOME_BPM = 120;
-export const DEFAULT_METRONOME_BEATS = 4;
+export const DEFAULT_METRONOME_BEATS = 1;
 export const DEFAULT_METRONOME_VOLUME = 0.8;
 
 export const DEFAULT_ANNOTATION_TOOL_PREFERENCES: AnnotationToolPreferences = {
@@ -40,11 +42,13 @@ export const DEFAULT_ANNOTATION_TOOL_PREFERENCES: AnnotationToolPreferences = {
   penStrokeWidth: PEN_STROKE_WIDTH.default,
   highlightPresetId: 'yellow',
   highlightStrokeWidth: HIGHLIGHT_STROKE_WIDTH.default,
+  highlightHorizontal: false,
 };
 
 const DEFAULT_PREFERENCES: PdfReaderPreferences = {
   inverted: false,
   navigation: 'horizontal',
+  navigationShortcutsVisible: true,
   metronomeBpm: DEFAULT_METRONOME_BPM,
   metronomeBeatsPerMeasure: DEFAULT_METRONOME_BEATS,
   metronomeVolume: DEFAULT_METRONOME_VOLUME,
@@ -113,6 +117,7 @@ function parseAnnotationToolPreferences(
         : DEFAULT_ANNOTATION_TOOL_PREFERENCES.highlightStrokeWidth,
       HIGHLIGHT_STROKE_WIDTH,
     ),
+    highlightHorizontal: raw?.highlightHorizontal === true,
   };
 }
 
@@ -124,6 +129,7 @@ export function loadPdfReaderPreferences(userId: string): PdfReaderPreferences {
       return {
         inverted: parsed.inverted === true,
         navigation: parsed.navigation === 'horizontal' ? 'horizontal' : 'vertical',
+        navigationShortcutsVisible: parsed.navigationShortcutsVisible !== false,
         ...parseMetronomePreferences(parsed),
         annotationTools: parseAnnotationToolPreferences(parsed),
       };
@@ -164,6 +170,15 @@ export function loadPdfNavigationPreference(userId: string): PdfNavigationMode {
 export function savePdfNavigationPreference(userId: string, navigation: PdfNavigationMode): void {
   const current = loadPdfReaderPreferences(userId);
   savePdfReaderPreferences(userId, { ...current, navigation });
+}
+
+export function loadNavigationShortcutsVisible(userId: string): boolean {
+  return loadPdfReaderPreferences(userId).navigationShortcutsVisible !== false;
+}
+
+export function saveNavigationShortcutsVisible(userId: string, visible: boolean): void {
+  const current = loadPdfReaderPreferences(userId);
+  savePdfReaderPreferences(userId, { ...current, navigationShortcutsVisible: visible });
 }
 
 export function loadMetronomePreferences(userId: string): Pick<
@@ -218,6 +233,7 @@ export function saveAnnotationToolPreferences(
         merged.highlightStrokeWidth,
         HIGHLIGHT_STROKE_WIDTH,
       ),
+      highlightHorizontal: merged.highlightHorizontal === true,
     },
   });
 }

@@ -116,6 +116,24 @@ function rectHitDistance(rect: NormalizedRect, point: NormalizedPoint): number {
   return Math.hypot(point.x - closestX, point.y - closestY);
 }
 
+export function constrainHighlightPointToHorizontalAxis(
+  point: NormalizedPoint,
+  anchorY: number,
+): NormalizedPoint {
+  return { x: point.x, y: anchorY };
+}
+
+export function constrainHighlightStrokeToHorizontalAxis(
+  points: NormalizedPoint[],
+): NormalizedPoint[] {
+  if (points.length === 0) {
+    return points;
+  }
+
+  const anchorY = points[0]!.y;
+  return points.map((point) => constrainHighlightPointToHorizontalAxis(point, anchorY));
+}
+
 export function highlightStrokeHitDistance(
   geometry: StrokeGeometry,
   point: NormalizedPoint,
@@ -131,35 +149,25 @@ export function highlightStrokeHitDistance(
   return minDistance;
 }
 
-export function strokeWidthToPreviewPixels(
-  strokeWidth: number,
-  min: number,
-  max: number,
-  minPx: number,
-  maxPx: number,
-): number {
-  if (max <= min) {
-    return minPx;
+/** On-screen pen stroke diameter in CSS pixels (matches SVG overlay rendering). */
+export function penStrokePreviewPixels(strokeWidth: number, pageRenderWidth: number): number {
+  if (pageRenderWidth <= 0 || strokeWidth <= 0) {
+    return 0;
   }
-  const t = (strokeWidth - min) / (max - min);
-  return minPx + t * (maxPx - minPx);
+  return strokeWidth * pageRenderWidth;
 }
 
-export function fitRectToBounds(
-  width: number,
-  height: number,
-  maxWidth: number,
-  maxHeight: number,
+/** On-screen highlight brush stamp size in CSS pixels (matches SVG overlay rendering). */
+export function highlightBrushPreviewPixels(
+  strokeWidth: number,
+  pageRenderWidth: number,
 ): { width: number; height: number } {
-  if (width <= 0 || height <= 0 || maxWidth <= 0 || maxHeight <= 0) {
+  if (pageRenderWidth <= 0 || strokeWidth <= 0) {
     return { width: 0, height: 0 };
   }
-  if (width <= maxWidth && height <= maxHeight) {
-    return { width, height };
-  }
-  const scale = Math.min(maxWidth / width, maxHeight / height);
+
   return {
-    width: width * scale,
-    height: height * scale,
+    width: strokeWidth * HIGHLIGHT_BRUSH_WIDTH_SCALE * pageRenderWidth,
+    height: strokeWidth * HIGHLIGHT_BRUSH_HEIGHT_RATIO * pageRenderWidth,
   };
 }

@@ -48,12 +48,12 @@ export function DirectedAnnotationSetManageModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="Conjuntos para alunos" size="lg">
+      <Modal open={open} onClose={onClose} title="Camadas personalizadas" size="lg">
         <div className="space-y-4">
           {resolvedSets.length === 0 ? (
             <p className="text-sm text-muted">
-              Nenhum conjunto criado ainda. Crie um conjunto para anotar para turmas ou alunos
-              específicos.
+              Nenhuma camada criada personalizada ainda. Crie uma camada para criar anotações para turmas, alunos ou outros
+              grupos específicos.
             </p>
           ) : (
             <ul className="divide-y divide-border rounded-lg border border-border">
@@ -100,21 +100,14 @@ export function DirectedAnnotationSetManageModal({
             </ul>
           )}
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border px-3 py-2 text-sm text-text"
-            >
-              Fechar
-            </button>
+          <div className="flex justify-center gap-2">
             <button
               type="button"
               onClick={onCreate}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-fg"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-white"
             >
               <IconPlus className="h-4 w-4" />
-              Novo conjunto
+              Camada
             </button>
           </div>
         </div>

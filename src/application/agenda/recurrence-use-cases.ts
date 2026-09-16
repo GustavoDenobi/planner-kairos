@@ -15,6 +15,7 @@ import type {
 import {
   canWriteEvent,
   generateOccurrenceDates,
+  isEventCancelled,
   uniqueIds,
   validateEventInput,
   validateRecurrenceEndDate,
@@ -539,6 +540,93 @@ export async function updateRecurrenceOccurrence(
     return event ? Result.ok(event) : Result.fail('update_failed');
   } catch {
     return Result.fail('update_failed');
+  }
+}
+
+export async function cancelRecurrenceOccurrence(
+  eventRepo: EventRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+  eventId: string,
+  scope: RecurrenceEditScope,
+) {
+  const contextResult = await loadWriterContext(
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
+    organizationId,
+    userId,
+  );
+  if (!contextResult.ok) {
+    return contextResult;
+  }
+
+  const existing = await eventRepo.getById(organizationId, eventId);
+  if (!existing) {
+    return Result.fail('not_found');
+  }
+
+  if (!existing.recurrenceId) {
+    return Result.fail('not_recurrence_event');
+  }
+
+  if (
+    !canWriteEvent({
+      isPrivileged: contextResult.value.isPrivileged,
+      isGroupWriter: contextResult.value.isGroupWriter,
+      userId,
+      createdBy: existing.createdBy,
+      eventGroupIds: existing.groups.map((group) => group.id),
+      writableGroupIds: contextResult.value.writableGroupIds,
+    })
+  ) {
+    return Result.fail('not_allowed' as const);
+  }
+
+  const cancelledAt = new Date().toISOString();
+
+  try {
+    if (scope === 'this') {
+      if (isEventCancelled(existing)) {
+        return Result.fail('already_cancelled' as const);
+      }
+      const event = await eventRepo.setCancelledAt(organizationId, eventId, cancelledAt);
+      return Result.ok(event);
+    }
+
+    if (scope === 'all_future') {
+      await eventRepo.bulkCancelOccurrencesFromInstant(
+        organizationId,
+        existing.recurrenceId,
+        existing.startsAt,
+        cancelledAt,
+        true,
+      );
+      const event = await eventRepo.getById(organizationId, eventId);
+      return event ? Result.ok(event) : Result.fail('cancel_failed');
+    }
+
+    if (existing.occurrenceIndex == null) {
+      return Result.fail('not_recurrence_event');
+    }
+
+    await eventRepo.bulkCancelFutureOccurrences(
+      organizationId,
+      existing.recurrenceId,
+      existing.occurrenceIndex,
+      cancelledAt,
+      true,
+    );
+
+    const event = await eventRepo.getById(organizationId, eventId);
+    return event ? Result.ok(event) : Result.fail('cancel_failed');
+  } catch {
+    return Result.fail('cancel_failed');
   }
 }
 

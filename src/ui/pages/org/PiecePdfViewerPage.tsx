@@ -27,6 +27,7 @@ import { PdfViewerInlineAudioBar } from '@/ui/features/repertoire/PdfViewerInlin
 import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-viewer-audio';
 import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
 import type { PieceDetail } from '@/domain/repertoire';
+import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
 import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
 import type { AssignmentWithDetails, GroupFileAccessSettings } from '@/domain/ensemble';
 
@@ -42,6 +43,7 @@ export function PiecePdfViewerPage() {
   const organizationId = org?.id;
   const online = useOnlineStatus();
   const loadedKeyRef = useRef<string | null>(null);
+  const annotationsViewerKeyRef = useRef<string | null>(null);
 
   const [file, setFile] = useState<PieceFileWithLinks | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -68,6 +70,9 @@ export function PiecePdfViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCachedLocally, setIsCachedLocally] = useState(false);
   const [allowFileDownload, setAllowFileDownload] = useState(true);
+  const [pieceDetail, setPieceDetail] = useState<PieceDetail | null>(null);
+  const [parts, setParts] = useState<PartWithDivisions[]>([]);
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
   const [accessibleAudios, setAccessibleAudios] = useState<PieceFileWithLinks[]>([]);
   const [audioParts, setAudioParts] = useState<PartWithDivisions[]>([]);
   const [audioPickerOpen, setAudioPickerOpen] = useState(false);
@@ -165,6 +170,7 @@ export function PiecePdfViewerPage() {
       setIsLoading(true);
       setError(null);
       setFile(null);
+      setPieceDetail(null);
       setDownloadUrl(null);
       setPreloadedPdf(null);
       setAnnotations([]);
@@ -218,17 +224,18 @@ export function PiecePdfViewerPage() {
             return;
           }
           pieceFile = found;
+          setPieceDetail(pieceResult.value);
           await resolveDownloadAccess(pieceResult.value, resolvedOrganizationId, cancelled);
         }
       }
 
-      const viewer = viewerContext ?? undefined;
+      if (online) {
+        const partsResult = await ensemble.listParts(resolvedOrganizationId);
+        if (!cancelled && partsResult.ok) {
+          setParts(partsResult.value);
+        }
+      }
 
-      const annotationsResult = await offline.listAnnotationsForReading(
-        resolvedOrganizationId,
-        currentFileId,
-        viewer,
-      );
       const shortcutsResult = await offline.listNavigationShortcutsForReading(
         resolvedOrganizationId,
         currentFileId,
@@ -263,9 +270,7 @@ export function PiecePdfViewerPage() {
       setDownloadUrl(pdfLoad.downloadUrl);
       setPreloadedPdf(pdfLoad.pdfDocument);
       setIsCachedLocally(pdfLoad.resolved?.source === 'local');
-      if (annotationsResult.ok) {
-        setAnnotations(annotationsResult.value);
-      }
+      annotationsViewerKeyRef.current = null;
       if (shortcutsResult.ok) {
         setNavigationShortcuts(shortcutsResult.value);
       }
@@ -350,7 +355,48 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId, viewerContext]);
+  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId]);
+
+  useEffect(() => {
+    if (!organizationId || !fileId) {
+      return;
+    }
+
+    const resolvedOrganizationId = organizationId;
+    const resolvedFileId = fileId;
+
+    const viewerKey = viewerContext
+      ? `${viewerContext.userId}:${viewerContext.myMusicianId ?? 'none'}:${[...viewerContext.memberGroupIds].sort().join(',')}`
+      : 'none';
+    const loadKey = `${resolvedOrganizationId}:${resolvedFileId}:${viewerKey}`;
+
+    if (annotationsViewerKeyRef.current === loadKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function reloadAnnotations() {
+      const result = await offline.listAnnotationsForReading(
+        resolvedOrganizationId,
+        resolvedFileId,
+        viewerContext ?? undefined,
+      );
+
+      if (cancelled || !result.ok) {
+        return;
+      }
+
+      setAnnotations(result.value);
+      annotationsViewerKeyRef.current = loadKey;
+    }
+
+    void reloadAnnotations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, fileId, viewerContext, offline]);
 
   useEffect(() => {
     if (!organizationId || !userId || !fileId) {
@@ -476,6 +522,7 @@ export function PiecePdfViewerPage() {
         leads.push({
           id: assignment.sectionId,
           name: assignment.sectionName ?? 'Naipe',
+          groupName: assignment.groupName,
         });
       }
       setSectionLeadOptions(leads);
@@ -896,8 +943,7 @@ export function PiecePdfViewerPage() {
     <ReaderLayout
       title={file.title}
       backTo={detailPath}
-      downloadUrl={downloadUrl}
-      downloadName={file.originalName}
+      onTitleClick={() => setInfoModalOpen(true)}
       offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
       headerActions={
         org && allowFileDownload ? (
@@ -923,6 +969,33 @@ export function PiecePdfViewerPage() {
           setDirectedSetManageModalOpen(true);
         }}
         preloadedPdf={preloadedPdf}
+        allowDownload={allowFileDownload}
+        readerInfo={{
+          open: infoModalOpen,
+          onClose: () => setInfoModalOpen(false),
+          piece: {
+            title: pieceDetail?.title ?? 'Obra',
+            composer: pieceDetail?.composer,
+            category: pieceDetail?.category
+              ? {
+                  name: pieceDetail.category.name,
+                  color: pieceDetail.category.color,
+                  slug: pieceDetail.category.slug,
+                }
+              : null,
+            themes: pieceDetail?.themes,
+            aliases: pieceDetail?.aliases,
+            description: pieceDetail?.description,
+            notes: pieceDetail?.notes,
+          },
+          part: {
+            title: file.title,
+            partLabel: formatPartLinks(file.partLinks, parts),
+            originalName: file.originalName,
+          },
+          downloadUrl,
+          downloadName: file.originalName,
+        }}
         audioPicker={{
           visible: online && accessibleAudios.length > 0,
           onOpenPicker: () => setAudioPickerOpen(true),

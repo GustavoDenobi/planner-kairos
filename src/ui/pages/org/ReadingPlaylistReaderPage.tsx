@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceDetail, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
 import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
 
@@ -63,6 +63,7 @@ import {
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
+import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
 
 import type { AssignmentWithDetails } from '@/domain/ensemble';
 
@@ -170,6 +171,8 @@ export function ReadingPlaylistReaderPage() {
 
   const itemCacheRef = useRef(new PlaylistItemCache());
 
+  const activeItemLoadRef = useRef(0);
+
   const sequentialSkipRef = useRef<{ direction: 'next' | 'prev' } | null>(null);
 
   const sectionLeadsLoadedRef = useRef(false);
@@ -179,6 +182,9 @@ export function ReadingPlaylistReaderPage() {
   const [playlist, setPlaylist] = useState<ReadingPlaylistDetail | null>(null);
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [pieceDetailForInfo, setPieceDetailForInfo] = useState<PieceDetail | null>(null);
 
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
 
@@ -246,7 +252,24 @@ export function ReadingPlaylistReaderPage() {
 
   const cachedCurrentItem = itemCacheRef.current.get(itemIndex);
 
+  useEffect(() => {
+    if (!organizationId || !currentItem?.pieceId || !online) {
+      setPieceDetailForInfo(null);
+      return;
+    }
 
+    let cancelled = false;
+
+    void repertoire.getPiece(organizationId, currentItem.pieceId).then((result) => {
+      if (!cancelled) {
+        setPieceDetailForInfo(result.ok ? result.value : null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, currentItem?.pieceId, online, repertoire]);
 
   const backTo = useMemo(() => {
 
@@ -424,6 +447,8 @@ export function ReadingPlaylistReaderPage() {
 
         name: assignment.sectionName ?? 'Naipe',
 
+        groupName: assignment.groupName,
+
       });
 
     }
@@ -452,6 +477,10 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
+      const loadId = ++activeItemLoadRef.current;
+
+      const isActive = () => loadId === activeItemLoadRef.current;
+
 
 
       const item = playlist.items[index];
@@ -465,6 +494,12 @@ export function ReadingPlaylistReaderPage() {
 
 
       if (!isPlaylistItemAvailable(item)) {
+
+        if (!isActive()) {
+
+          return null;
+
+        }
 
         setDownloadUrl(null);
 
@@ -487,6 +522,12 @@ export function ReadingPlaylistReaderPage() {
       const cached = itemCacheRef.current.get(index);
 
       if (cached) {
+
+        if (!isActive()) {
+
+          return cached;
+
+        }
 
         setDownloadUrl(cached.downloadUrl);
 
@@ -526,6 +567,14 @@ export function ReadingPlaylistReaderPage() {
 
 
 
+      if (!isActive()) {
+
+        return result;
+
+      }
+
+
+
       if (!result) {
 
         setDownloadUrl(null);
@@ -562,6 +611,9 @@ export function ReadingPlaylistReaderPage() {
           item.pieceFileId,
           viewerContext,
         );
+        if (!isActive()) {
+          return result;
+        }
         if (setsResult.ok) {
           setAnnotationSets(setsResult.value);
         }
@@ -645,6 +697,8 @@ export function ReadingPlaylistReaderPage() {
 
     org?.id,
 
+    itemIndex,
+
     loadItemAtIndex,
 
     loadSectionLeads,
@@ -693,7 +747,21 @@ export function ReadingPlaylistReaderPage() {
 
     }
 
-  }, [playlist, organizationId, itemIndex, offline]);
+  }, [playlist, organizationId, itemIndex, offline, viewerContext]);
+
+
+
+  const syncCachedAnnotations = useCallback(
+
+    (updater: (current: PdfAnnotation[]) => PdfAnnotation[]) => {
+
+      itemCacheRef.current.updateAnnotations(itemIndex, updater);
+
+    },
+
+    [itemIndex],
+
+  );
 
 
 
@@ -1050,11 +1118,13 @@ export function ReadingPlaylistReaderPage() {
 
       setAnnotations((current) => [...current, result.value]);
 
+      syncCachedAnnotations((current) => [...current, result.value]);
+
       return result.value;
 
     },
 
-    [organizationId, userId, currentItem, offline, online],
+    [organizationId, userId, currentItem, offline, online, syncCachedAnnotations],
 
   );
 
@@ -1092,9 +1162,13 @@ export function ReadingPlaylistReaderPage() {
 
       setAnnotations((current) => current.filter((annotation) => annotation.id !== annotationId));
 
+      syncCachedAnnotations((current) =>
+        current.filter((annotation) => annotation.id !== annotationId),
+      );
+
     },
 
-    [organizationId, currentItem, offline],
+    [organizationId, currentItem, offline, syncCachedAnnotations],
 
   );
 
@@ -1252,13 +1326,16 @@ export function ReadingPlaylistReaderPage() {
       setAnnotations((current) =>
         current.filter((annotation) => annotation.annotationSetId !== setId),
       );
+      syncCachedAnnotations((current) =>
+        current.filter((annotation) => annotation.annotationSetId !== setId),
+      );
       if (editingSetId === setId) {
         setEditingSetId(null);
         setDirectedSetModalOpen(false);
       }
       return true;
     },
-    [organizationId, currentItem, offline, editingSetId],
+    [organizationId, currentItem, offline, editingSetId, syncCachedAnnotations],
   );
 
   const handleDirectedSetSubmit = useCallback(
@@ -1880,30 +1957,17 @@ export function ReadingPlaylistReaderPage() {
 
       backTo={backTo}
 
-      downloadUrl={downloadUrl}
-
-      downloadName={currentItem.fileTitle}
-
       offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
 
       headerActions={
-
         org && currentItem.pieceId ? (
-
           <OfflineDownloadButton
-
             organizationId={org.id}
-
             pieceId={currentItem.pieceId}
-
             fileId={currentItem.pieceFileId}
-
             allowRemove={false}
-
           />
-
         ) : null
-
       }
 
       centerContent={
@@ -1915,6 +1979,8 @@ export function ReadingPlaylistReaderPage() {
           onPrevious={playlistContext.onPreviousItem}
 
           onNext={playlistContext.onGoNextItem}
+
+          onTitleClick={() => setInfoModalOpen(true)}
 
         />
 
@@ -1952,6 +2018,39 @@ export function ReadingPlaylistReaderPage() {
         entryDirection={navState.direction}
 
         preloadedPdf={cachedCurrentItem?.pdfDocument ?? null}
+
+        readerInfo={{
+          open: infoModalOpen,
+          onClose: () => setInfoModalOpen(false),
+          piece: {
+            title: pieceDetailForInfo?.title ?? currentItem.pieceTitle,
+            composer: pieceDetailForInfo?.composer,
+            category: pieceDetailForInfo?.category
+              ? {
+                  name: pieceDetailForInfo.category.name,
+                  color: pieceDetailForInfo.category.color,
+                  slug: pieceDetailForInfo.category.slug,
+                }
+              : currentItem.pieceCategory
+                ? {
+                    name: currentItem.pieceCategory.name,
+                    color: currentItem.pieceCategory.color,
+                    slug: currentItem.pieceCategory.slug,
+                  }
+                : null,
+            themes: pieceDetailForInfo?.themes,
+            aliases: pieceDetailForInfo?.aliases,
+            description: pieceDetailForInfo?.description,
+            notes: pieceDetailForInfo?.notes,
+          },
+          part: {
+            title: displayTitle,
+            partLabel: formatPartLinks(currentItem.partLinks, audioParts),
+            originalName: currentItem.fileTitle,
+          },
+          downloadUrl,
+          downloadName: currentItem.fileTitle,
+        }}
 
         audioPicker={{
 

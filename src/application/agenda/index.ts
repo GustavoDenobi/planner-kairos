@@ -20,8 +20,10 @@ import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file
 import type { EventInput, ProgramItemInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
 
 import {
+  cancelEvent,
   deleteEvent,
   getEvent,
+  restoreEvent,
   scheduleEvent,
   updateEvent,
   listEventsInRange,
@@ -32,6 +34,7 @@ import { setEventProgram, getPreviousEventProgram } from './program-use-cases';
 import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
 import {
   cancelRecurrence,
+  cancelRecurrenceOccurrence,
   deleteRecurrenceOccurrence,
   getRecurrence,
   scheduleRecurrence,
@@ -119,6 +122,28 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         userId,
         eventId,
       ),
+    cancelEvent: (organizationId: string, userId: string, eventId: string) =>
+      cancelEvent(
+        deps.eventRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        eventId,
+      ),
+    restoreEvent: (organizationId: string, userId: string, eventId: string) =>
+      restoreEvent(
+        deps.eventRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        eventId,
+      ),
     scheduleRecurrence: (organizationId: string, userId: string, input: ScheduleRecurrenceInput) =>
       scheduleRecurrence(
         deps.eventRepo,
@@ -192,6 +217,23 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         scope,
         input,
         options,
+      ),
+    cancelRecurrenceOccurrence: (
+      organizationId: string,
+      userId: string,
+      eventId: string,
+      scope: RecurrenceEditScope,
+    ) =>
+      cancelRecurrenceOccurrence(
+        deps.eventRepo,
+        deps.membershipRepo,
+        deps.musicianRepo,
+        deps.assignmentRepo,
+        deps.orgRepo,
+        organizationId,
+        userId,
+        eventId,
+        scope,
       ),
     deleteRecurrenceOccurrence: (
       organizationId: string,

@@ -6,6 +6,7 @@ import type { OrganizationRepository } from '@/application/ports/organization-re
 import type { EventInput } from '@/domain/agenda';
 import {
   canWriteEvent,
+  isEventCancelled,
   uniqueIds,
   validateEventInput,
 } from '@/domain/agenda';
@@ -243,6 +244,112 @@ export async function deleteEvent(
     return Result.ok(undefined);
   } catch {
     return Result.fail('delete_failed');
+  }
+}
+
+export async function cancelEvent(
+  eventRepo: EventRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+  eventId: string,
+) {
+  const contextResult = await loadWriterContext(
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
+    organizationId,
+    userId,
+  );
+  if (!contextResult.ok) {
+    return contextResult;
+  }
+
+  const context = contextResult.value;
+  const existing = await eventRepo.getById(organizationId, eventId);
+  if (!existing) {
+    return Result.fail('not_found');
+  }
+
+  if (
+    !canWriteEvent({
+      isPrivileged: context.isPrivileged,
+      isGroupWriter: context.isGroupWriter,
+      userId,
+      createdBy: existing.createdBy,
+      eventGroupIds: existing.groups.map((group) => group.id),
+      writableGroupIds: context.writableGroupIds,
+    })
+  ) {
+    return Result.fail('not_allowed' as const);
+  }
+
+  if (isEventCancelled(existing)) {
+    return Result.fail('already_cancelled' as const);
+  }
+
+  try {
+    const event = await eventRepo.setCancelledAt(organizationId, eventId, new Date().toISOString());
+    return Result.ok(event);
+  } catch {
+    return Result.fail('cancel_failed');
+  }
+}
+
+export async function restoreEvent(
+  eventRepo: EventRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+  eventId: string,
+) {
+  const contextResult = await loadWriterContext(
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    orgRepo,
+    organizationId,
+    userId,
+  );
+  if (!contextResult.ok) {
+    return contextResult;
+  }
+
+  const context = contextResult.value;
+  const existing = await eventRepo.getById(organizationId, eventId);
+  if (!existing) {
+    return Result.fail('not_found');
+  }
+
+  if (
+    !canWriteEvent({
+      isPrivileged: context.isPrivileged,
+      isGroupWriter: context.isGroupWriter,
+      userId,
+      createdBy: existing.createdBy,
+      eventGroupIds: existing.groups.map((group) => group.id),
+      writableGroupIds: context.writableGroupIds,
+    })
+  ) {
+    return Result.fail('not_allowed' as const);
+  }
+
+  if (!isEventCancelled(existing)) {
+    return Result.fail('not_cancelled' as const);
+  }
+
+  try {
+    const event = await eventRepo.setCancelledAt(organizationId, eventId, null);
+    return Result.ok(event);
+  } catch {
+    return Result.fail('restore_failed');
   }
 }
 

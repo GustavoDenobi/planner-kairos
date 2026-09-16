@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { partitionPieceFilesForViewer } from '@/domain/repertoire';
 import type { PieceFileKind, PieceFileOrganization, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconScoreSheet, IconPlay } from '@/ui/components/icons';
+import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconPrint, IconScoreSheet, IconPlay } from '@/ui/components/icons';
 import { SortableList } from '@/ui/components/SortableList';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
@@ -27,6 +27,8 @@ type PieceFilesSectionProps = {
   isConductor?: boolean;
   allowDownload?: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
+  onPrint?: (file: PieceFileWithLinks) => void;
+  printingFileId?: string | null;
   onEdit: (file: PieceFileWithLinks) => void;
   onAddFiles: (files: File[]) => void;
   onReorderScoreFiles?: (orderedFileIds: string[]) => Promise<boolean>;
@@ -86,6 +88,8 @@ function FileList({
   isAdmin,
   allowDownload,
   onOpen,
+  onPrint,
+  printingFileId,
   onEdit,
 }: {
   files: PieceFileWithLinks[];
@@ -93,6 +97,8 @@ function FileList({
   isAdmin: boolean;
   allowDownload: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
+  onPrint?: (file: PieceFileWithLinks) => void;
+  printingFileId?: string | null;
   onEdit: (file: PieceFileWithLinks) => void;
 }) {
   if (files.length === 0) {
@@ -118,14 +124,28 @@ function FileList({
             </button>
             <div className="flex shrink-0 items-center gap-1">
               {file.kind === 'score' && (
-                <button
-                  type="button"
-                  onClick={() => onOpen(file)}
-                  aria-label="Abrir leitor"
-                  className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
-                >
-                  <IconScoreSheet className="h-4 w-4" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(file)}
+                    aria-label="Abrir leitor"
+                    className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
+                  >
+                    <IconScoreSheet className="h-4 w-4" />
+                  </button>
+                  {allowDownload && onPrint && (
+                    <button
+                      type="button"
+                      onClick={() => onPrint(file)}
+                      disabled={printingFileId === file.id}
+                      aria-label={`Imprimir ${file.title}`}
+                      title="Imprimir"
+                      className="hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex"
+                    >
+                      <IconPrint className="h-4 w-4" />
+                    </button>
+                  )}
+                </>
               )}
               {file.kind == 'audio' && (
                 <button
@@ -143,6 +163,7 @@ function FileList({
                   pieceId={file.pieceId}
                   fileId={file.id}
                   compact
+                  className="hidden md:flex"
                 />
               )}
               {isAdmin && (
@@ -172,6 +193,8 @@ export function PieceFilesSection({
   isConductor = false,
   allowDownload = true,
   onOpen,
+  onPrint,
+  printingFileId = null,
   onEdit,
   onAddFiles,
   onReorderScoreFiles,
@@ -459,6 +482,18 @@ export function PieceFilesSection({
                           <p className="mt-0.5 text-sm text-muted">Lição {file.sortOrder + 1}</p>
                         </button>
                         <div className="flex shrink-0 items-center gap-1">
+                          {allowDownload && onPrint && (
+                            <button
+                              type="button"
+                              onClick={() => onPrint(file)}
+                              disabled={printingFileId === file.id}
+                              aria-label={`Imprimir ${file.title}`}
+                              title="Imprimir"
+                              className="hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex"
+                            >
+                              <IconPrint className="h-4 w-4" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               type="button"
@@ -480,6 +515,8 @@ export function PieceFilesSection({
                     isAdmin={isAdmin}
                     allowDownload={allowDownload}
                     onOpen={onOpen}
+                    onPrint={onPrint}
+                    printingFileId={printingFileId}
                     onEdit={onEdit}
                   />
                 )}
@@ -494,6 +531,8 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onPrint={onPrint}
+                  printingFileId={printingFileId}
                   onEdit={onEdit}
                 />
               </div>
@@ -510,6 +549,8 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onPrint={onPrint}
+                  printingFileId={printingFileId}
                   onEdit={onEdit}
                 />
               </div>
@@ -524,6 +565,8 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onPrint={onPrint}
+                  printingFileId={printingFileId}
                   onEdit={onEdit}
                 />
               </div>
@@ -538,6 +581,8 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onPrint={onPrint}
+                  printingFileId={printingFileId}
                   onEdit={onEdit}
                 />
               </div>
@@ -554,6 +599,8 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onPrint={onPrint}
+                  printingFileId={printingFileId}
                   onEdit={onEdit}
                 />
               </div>

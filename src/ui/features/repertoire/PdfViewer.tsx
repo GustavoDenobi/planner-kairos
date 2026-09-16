@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { openPdfDocument, printPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -31,21 +39,19 @@ import {
   IconArrowUpDown,
   IconChevronLeft,
   IconChevronRight,
-  IconEraser,
-  IconHighlighter,
-  IconLaser,
   IconMaximize,
   IconMetronome,
   IconMinimize,
   IconMoon,
   IconMusic,
-  IconMenu,
-  IconPencil,
+  IconReturn,
+  IconAlertTriangle,
+  IconCheck,
+  IconLoader,
   IconUndo,
   IconSun,
   IconZoomIn,
 } from '@/ui/components/icons';
-import { Modal } from '@/ui/components/Modal';
 import {
   AnnotationHighlightLayer,
   AnnotationInteractionLayer,
@@ -56,6 +62,7 @@ import {
   type VisibleLayers,
 } from '@/ui/features/repertoire/AnnotationOverlay';
 import { AnnotationToolOptions } from '@/ui/features/repertoire/AnnotationToolOptions';
+import { AnnotationToolPicker } from '@/ui/features/repertoire/AnnotationToolPicker';
 import {
   AnnotationLayerVisibilityDropdown,
   type LayerVisibilityOption,
@@ -80,8 +87,10 @@ import {
 import {
   DEFAULT_ANNOTATION_TOOL_PREFERENCES,
   loadAnnotationToolPreferences,
+  loadNavigationShortcutsVisible,
   loadPdfReaderPreferences,
   saveAnnotationToolPreferences,
+  saveNavigationShortcutsVisible,
   savePdfReaderPreferences,
   type AnnotationToolPreferences,
   type PdfNavigationMode,
@@ -91,15 +100,96 @@ import {
   MIN_PDF_SCALE,
   nextDoubleTapFitMode,
 } from '@/ui/features/repertoire/pdf-viewport-gestures';
+import {
+  getBasePageLayout,
+  scalePageLayout,
+  type PageLayoutSize,
+} from '@/ui/features/repertoire/pdf-page-layout-cache';
+import {
+  getCachedPageRender,
+  storeCachedPageRender,
+} from '@/ui/features/repertoire/pdf-page-render-cache';
 import { usePdfViewportGestures } from '@/ui/features/repertoire/usePdfViewportGestures';
+import { usePdfVisiblePages } from '@/ui/features/repertoire/usePdfVisiblePages';
 import { PdfViewerMetronomeBar } from '@/ui/features/repertoire/PdfViewerMetronomeBar';
+import { PdfViewerPageNavBar } from '@/ui/features/repertoire/PdfViewerPageNavBar';
+import {
+  PdfReaderInfoModal,
+  type PdfReaderPartInfo,
+  type PdfReaderPieceInfo,
+} from '@/ui/features/repertoire/PdfReaderInfoModal';
 
 const SWIPE_THRESHOLD_PX = 48;
+const SHORTCUT_TARGET_TOP_OFFSET_PX = 50;
+const PAGE_NAV_BAR_BOTTOM_ZONE_RATIO = 0.5;
+
+function isInteractivePointerTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element
+    && Boolean(target.closest('button, select, input, textarea, a, [role="button"]'))
+  );
+}
+
+function isNextPageKey(key: string): boolean {
+  return key === 'ArrowRight' || key === 'PageDown' || key === 'ArrowDown';
+}
+
+function isPrevPageKey(key: string): boolean {
+  return key === 'ArrowLeft' || key === 'PageUp' || key === 'ArrowUp';
+}
+
+function scrollVerticalToPage(container: HTMLElement, pageNumber: number) {
+  const pageEl = container.querySelector(
+    `[data-page-number="${pageNumber}"]`,
+  ) as HTMLElement | null;
+  if (!pageEl || pageEl.getBoundingClientRect().height <= 0) {
+    return;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const pageRect = pageEl.getBoundingClientRect();
+  container.scrollTop += pageRect.top - containerRect.top;
+}
+
+function resolveScrollVisiblePage(container: HTMLElement): number {
+  const pages = container.querySelectorAll('[data-page-number]');
+  if (pages.length === 0) {
+    return 1;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const viewportMid = containerRect.top + containerRect.height / 2;
+  let visiblePage = 1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const pageNode of pages) {
+    const pageEl = pageNode as HTMLElement;
+    const pageNumber = Number.parseInt(pageEl.dataset.pageNumber ?? '1', 10);
+    const pageRect = pageEl.getBoundingClientRect();
+    if (pageRect.height <= 0) {
+      continue;
+    }
+
+    const pageMid = pageRect.top + pageRect.height / 2;
+    const distance = Math.abs(pageMid - viewportMid);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      visiblePage = pageNumber;
+    }
+  }
+
+  return visiblePage;
+}
 
 export type SectionLeadOption = {
   id: string;
   name: string;
+  groupName: string;
 };
+
+function formatSectionLeadLabel(lead: SectionLeadOption): string {
+  return `${lead.groupName} - ${lead.name}`;
+}
 
 export type DirectedSetOption = {
   id: string;
@@ -124,12 +214,14 @@ type PdfViewerPlaylistNavProps = {
   playlist: PdfViewerPlaylistContext;
   onPrevious: () => void;
   onNext: () => void;
+  onTitleClick?: () => void;
 };
 
 export function PdfViewerPlaylistNav({
   playlist,
   onPrevious,
   onNext,
+  onTitleClick,
 }: PdfViewerPlaylistNavProps) {
   return (
     <div className="flex min-w-0 w-full items-center justify-center gap-x-3">
@@ -143,9 +235,19 @@ export function PdfViewerPlaylistNav({
         <IconChevronLeft className="h-5 w-5" />
       </button>
       <div className="min-w-0 text-center">
-        <p className="truncate text-sm font-medium text-text">
-          {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
-        </p>
+        {onTitleClick ? (
+          <button
+            type="button"
+            onClick={onTitleClick}
+            className="max-w-full truncate text-sm font-medium text-text underline-offset-2 hover:underline"
+          >
+            {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
+          </button>
+        ) : (
+          <p className="truncate text-sm font-medium text-text">
+            {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
+          </p>
+        )}
         <p className="truncate text-xs text-muted">{playlist.title}</p>
       </div>
       <button
@@ -174,6 +276,7 @@ type PdfViewerProps = {
   initialPage?: number;
   entryDirection?: 'next' | 'prev';
   preloadedPdf?: pdfjs.PDFDocumentProxy | null;
+  allowDownload?: boolean;
   audioPicker?: {
     visible: boolean;
     onOpenPicker: () => void;
@@ -205,12 +308,21 @@ type PdfViewerProps = {
   ) => Promise<PieceFileTocEntry | null>;
   onTocEntryDelete?: (id: string) => Promise<void>;
   onTocEntryReorder?: (orderedIds: string[]) => Promise<void>;
+  readerInfo?: {
+    open: boolean;
+    onClose: () => void;
+    piece: PdfReaderPieceInfo;
+    part: PdfReaderPartInfo;
+    downloadUrl?: string | null;
+    downloadName?: string;
+  };
 };
 
 type PdfPageFrameProps = {
   pdf: pdfjs.PDFDocumentProxy;
   pageNumber: number;
   scale: number;
+  layoutSize: PageLayoutSize;
   inverted: boolean;
   annotations: PdfAnnotation[];
   interactionMode: AnnotationInteractionMode;
@@ -219,6 +331,7 @@ type PdfPageFrameProps = {
   highlightColor: string;
   penStrokeWidth: number;
   highlightStrokeWidth: number;
+  highlightHorizontal: boolean;
   laserStrokes: LaserStroke[];
   laserColor: string;
   laserStrokeWidth: number;
@@ -231,6 +344,7 @@ type PdfPageFrameProps = {
   gesturesActive: boolean;
   navigationShortcuts: PdfNavigationShortcut[];
   onNavigationShortcutPress: (shortcut: PdfNavigationShortcut) => void;
+  navigationShortcutsVisible: boolean;
   tocEntries: PieceFileTocEntry[];
   showTocOverlay: boolean;
   onTocEntryPress?: (entry: PieceFileTocEntry) => void;
@@ -239,10 +353,11 @@ type PdfPageFrameProps = {
   onShortcutPageTap: (pageNumber: number, point: NormalizedPoint) => void;
 };
 
-function PdfPageFrame({
+function PdfPageFrameComponent({
   pdf,
   pageNumber,
   scale,
+  layoutSize,
   inverted,
   annotations,
   interactionMode,
@@ -251,6 +366,7 @@ function PdfPageFrame({
   highlightColor,
   penStrokeWidth,
   highlightStrokeWidth,
+  highlightHorizontal,
   laserStrokes,
   laserColor,
   laserStrokeWidth,
@@ -263,6 +379,7 @@ function PdfPageFrame({
   gesturesActive,
   navigationShortcuts,
   onNavigationShortcutPress,
+  navigationShortcutsVisible,
   tocEntries,
   showTocOverlay,
   onTocEntryPress,
@@ -271,12 +388,31 @@ function PdfPageFrame({
   onShortcutPageTap,
 }: PdfPageFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [draftStroke, setDraftStroke] = useState<NormalizedPoint[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let renderTask: pdfjs.RenderTask | null = null;
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const cached = getCachedPageRender(pdf, pageNumber, scale);
+    if (cached) {
+      canvas.width = cached.width;
+      canvas.height = cached.height;
+      const context = canvas.getContext('2d');
+      context?.drawImage(cached, 0, 0);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    canvas.width = layoutSize.width;
+    canvas.height = layoutSize.height;
 
     pdf.getPage(pageNumber).then((page) => {
       if (cancelled) {
@@ -284,29 +420,32 @@ function PdfPageFrame({
       }
 
       const viewport = page.getViewport({ scale });
-      const canvas = canvasRef.current;
-      if (!canvas) {
+      const activeCanvas = canvasRef.current;
+      if (!activeCanvas) {
         return;
       }
 
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      setDimensions({ width: viewport.width, height: viewport.height });
+      activeCanvas.width = viewport.width;
+      activeCanvas.height = viewport.height;
 
-      const context = canvas.getContext('2d');
+      const context = activeCanvas.getContext('2d');
       if (!context) {
         return;
       }
 
-      renderTask = page.render({ canvasContext: context, viewport, canvas });
-      return renderTask.promise;
+      renderTask = page.render({ canvasContext: context, viewport, canvas: activeCanvas });
+      return renderTask.promise.then(() => {
+        if (!cancelled && canvasRef.current) {
+          storeCachedPageRender(pdf, pageNumber, scale, canvasRef.current);
+        }
+      });
     });
 
     return () => {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdf, pageNumber, scale]);
+  }, [pdf, pageNumber, scale, layoutSize.height, layoutSize.width]);
 
   const handleStrokeComplete = useCallback(
     (geometry: StrokeGeometry) => {
@@ -329,16 +468,14 @@ function PdfPageFrame({
     [onLaserStrokeComplete, pageNumber],
   );
 
-  const pageAspectRatio =
-    dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : 1;
+  const pageAspectRatio = layoutSize.width / layoutSize.height;
 
   return (
     <div
-      className="relative mx-auto shrink-0"
-      data-page-number={pageNumber}
+      className="relative h-full w-full"
       style={{
-        width: dimensions.width > 0 ? dimensions.width : undefined,
-        height: dimensions.height > 0 ? dimensions.height : undefined,
+        width: layoutSize.width,
+        height: layoutSize.height,
       }}
     >
       <div className={`relative ${inverted ? 'invert' : ''}`}>
@@ -348,68 +485,66 @@ function PdfPageFrame({
             inverted ? '' : 'shadow-sm'
           }`}
         />
-        {dimensions.width > 0 && dimensions.height > 0 && (
-          <>
-            <AnnotationPenLayer
-              pageNumber={pageNumber}
-              annotations={annotations}
-              visibleLayers={visibleLayers}
-              inverted={inverted}
-              penColor={penColor}
-              penStrokeWidth={penStrokeWidth}
-              draftStroke={draftStroke}
-              showDraft={interactionMode === 'pen'}
-            />
-            <AnnotationLaserLayer
-              pageNumber={pageNumber}
-              laserStrokes={laserStrokes}
-              laserColor={laserColor}
-              laserStrokeWidth={laserStrokeWidth}
-              draftStroke={draftStroke}
-              showDraft={interactionMode === 'laser'}
-            />
-          </>
-        )}
-      </div>
-      {dimensions.width > 0 && dimensions.height > 0 && (
         <>
-          <AnnotationHighlightLayer
+          <AnnotationPenLayer
             pageNumber={pageNumber}
             annotations={annotations}
             visibleLayers={visibleLayers}
             inverted={inverted}
-            pageAspectRatio={pageAspectRatio}
-            highlightColor={highlightColor}
-            highlightStrokeWidth={highlightStrokeWidth}
-            draftStroke={draftStroke}
-            showDraft={interactionMode === 'highlight'}
-          />
-          <AnnotationInteractionLayer
-            pageNumber={pageNumber}
-            annotations={annotations}
-            visibleLayers={visibleLayers}
-            mode={interactionMode}
-            readOnly={readOnly}
-            gesturesActive={gesturesActive}
-            pageAspectRatio={pageAspectRatio}
+            penColor={penColor}
             penStrokeWidth={penStrokeWidth}
-            highlightStrokeWidth={highlightStrokeWidth}
+            draftStroke={draftStroke}
+            showDraft={interactionMode === 'pen'}
+          />
+          <AnnotationLaserLayer
+            pageNumber={pageNumber}
+            laserStrokes={laserStrokes}
+            laserColor={laserColor}
             laserStrokeWidth={laserStrokeWidth}
-            canEraseAnnotation={canEraseAnnotation}
-            onStrokeComplete={handleStrokeComplete}
-            onHighlightComplete={handleHighlightComplete}
-            onLaserStrokeComplete={handleLaserStrokeComplete}
-            onEraseAnnotation={onEraseAnnotation}
-            onDraftStrokeChange={setDraftStroke}
+            draftStroke={draftStroke}
+            showDraft={interactionMode === 'laser'}
           />
         </>
-      )}
+      </div>
+      <>
+        <AnnotationHighlightLayer
+          pageNumber={pageNumber}
+          annotations={annotations}
+          visibleLayers={visibleLayers}
+          inverted={inverted}
+          pageAspectRatio={pageAspectRatio}
+          highlightColor={highlightColor}
+          highlightStrokeWidth={highlightStrokeWidth}
+          draftStroke={draftStroke}
+          showDraft={interactionMode === 'highlight'}
+        />
+        <AnnotationInteractionLayer
+          pageNumber={pageNumber}
+          annotations={annotations}
+          visibleLayers={visibleLayers}
+          mode={interactionMode}
+          readOnly={readOnly}
+          gesturesActive={gesturesActive}
+          pageAspectRatio={pageAspectRatio}
+          penStrokeWidth={penStrokeWidth}
+          highlightStrokeWidth={highlightStrokeWidth}
+          highlightHorizontal={highlightHorizontal}
+          laserStrokeWidth={laserStrokeWidth}
+          canEraseAnnotation={canEraseAnnotation}
+          onStrokeComplete={handleStrokeComplete}
+          onHighlightComplete={handleHighlightComplete}
+          onLaserStrokeComplete={handleLaserStrokeComplete}
+          onEraseAnnotation={onEraseAnnotation}
+          onDraftStrokeChange={setDraftStroke}
+        />
+      </>
       <NavigationShortcutOverlay
         shortcuts={navigationShortcuts}
         pageNumber={pageNumber}
         onShortcutPress={onNavigationShortcutPress}
         inverted={inverted}
         disabled={gesturesActive || shortcutPickRequest != null || tocPickActive}
+        visible={navigationShortcutsVisible}
       />
       {showTocOverlay && (
         <TocEntryOverlay
@@ -420,7 +555,7 @@ function PdfPageFrame({
           disabled={gesturesActive || shortcutPickRequest != null || tocPickActive}
         />
       )}
-      {(shortcutPickRequest != null || tocPickActive) && dimensions.width > 0 && dimensions.height > 0 && (
+      {(shortcutPickRequest != null || tocPickActive) && (
         <button
           type="button"
           className="absolute inset-0 z-30 cursor-crosshair bg-primary/5"
@@ -434,6 +569,66 @@ function PdfPageFrame({
           }}
         />
       )}
+    </div>
+  );
+}
+
+const PdfPageFrame = memo(PdfPageFrameComponent);
+
+type PdfPageSlotProps = Omit<PdfPageFrameProps, 'layoutSize'> & {
+  shouldRender: boolean;
+};
+
+function PdfPageSlot({
+  shouldRender,
+  pdf,
+  pageNumber,
+  scale,
+  inverted,
+  ...frameProps
+}: PdfPageSlotProps) {
+  const [layoutSize, setLayoutSize] = useState<PageLayoutSize | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getBasePageLayout(pdf, pageNumber).then((baseLayout) => {
+      if (cancelled) {
+        return;
+      }
+      setLayoutSize(scalePageLayout(baseLayout, scale));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, pageNumber, scale]);
+
+  return (
+    <div
+      className="relative mx-auto shrink-0"
+      data-page-number={pageNumber}
+      style={{
+        width: layoutSize?.width,
+        height: layoutSize?.height,
+        minHeight: layoutSize?.height,
+      }}
+    >
+      {shouldRender && layoutSize ? (
+        <PdfPageFrame
+          pdf={pdf}
+          pageNumber={pageNumber}
+          scale={scale}
+          layoutSize={layoutSize}
+          inverted={inverted}
+          {...frameProps}
+        />
+      ) : layoutSize ? (
+        <div
+          className={`h-full w-full ${inverted ? 'bg-black/80' : 'bg-white/80'} shadow-sm`}
+          aria-hidden
+        />
+      ) : null}
     </div>
   );
 }
@@ -493,6 +688,15 @@ function draftToCreateInput(
   };
 }
 
+const AUTO_SAVE_DEBOUNCE_MS = 500;
+const SAVED_INDICATOR_MS = 2000;
+
+type AnnotationSaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+
+type SessionUndoEntry =
+  | { kind: 'create'; annotationId: string }
+  | { kind: 'delete'; annotation: PdfAnnotation; wasDraft: boolean };
+
 export function PdfViewer({
   url,
   userId,
@@ -506,6 +710,7 @@ export function PdfViewer({
   initialPage = 1,
   entryDirection,
   preloadedPdf = null,
+  allowDownload = true,
   audioPicker,
   inlineAudioBar,
   onAnnotationCreate,
@@ -522,6 +727,7 @@ export function PdfViewer({
   onTocEntryUpdate,
   onTocEntryDelete,
   onTocEntryReorder,
+  readerInfo,
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -543,6 +749,9 @@ export function PdfViewer({
   const [pdf, setPdf] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const verticalProgrammaticScrollRef = useRef(false);
   const [scale, setScale] = useState(1);
   const [fitScale, setFitScale] = useState(1);
   const scaleRef = useRef(scale);
@@ -558,13 +767,30 @@ export function PdfViewer({
   const [navigation, setNavigation] = useState<PdfNavigationMode>(
     () => defaultPreferences(userId).navigation,
   );
+  const [navigationShortcutsVisible, setNavigationShortcutsVisible] = useState(
+    () => (userId ? loadNavigationShortcutsVisible(userId) : true),
+  );
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
   const [isAnnotating, setIsAnnotating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<AnnotationSaveStatus>('idle');
   const [draftAnnotations, setDraftAnnotations] = useState<PdfAnnotation[]>([]);
   const [pendingDeletionIds, setPendingDeletionIds] = useState<string[]>([]);
+  const [sessionUndoStack, setSessionUndoStack] = useState<SessionUndoEntry[]>([]);
+  const autoSaveTimeoutRef = useRef<number | null>(null);
+  const savedIndicatorTimeoutRef = useRef<number | null>(null);
+  const isSavingRef = useRef(false);
+  const saveQueuedRef = useRef(false);
+  const inFlightSaveDraftIdsRef = useRef<Set<string>>(new Set());
+  const undoneDuringSaveDraftIdsRef = useRef<Set<string>>(new Set());
+  const hasAnnotatedRef = useRef(false);
+  const isAnnotatingRef = useRef(isAnnotating);
+  isAnnotatingRef.current = isAnnotating;
+  const draftAnnotationsRef = useRef(draftAnnotations);
+  draftAnnotationsRef.current = draftAnnotations;
+  const pendingDeletionIdsRef = useRef(pendingDeletionIds);
+  pendingDeletionIdsRef.current = pendingDeletionIds;
+  const persistDraftChangesRef = useRef<() => Promise<boolean>>(async () => true);
   const [laserStrokes, setLaserStrokes] = useState<LaserStroke[]>([]);
   const laserTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [interactionMode, setInteractionMode] = useState<AnnotationInteractionMode>('read');
@@ -594,9 +820,7 @@ export function PdfViewer({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
-  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<
-    'zoom' | 'annotate' | 'metronome' | null
-  >(null);
+  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | 'metronome' | null>(null);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
   const [shortcutEditorOpen, setShortcutEditorOpen] = useState(false);
   const [shortcutPickRequest, setShortcutPickRequest] = useState<ShortcutPickRequest>(null);
@@ -605,6 +829,7 @@ export function PdfViewer({
   const [tocEditorOpen, setTocEditorOpen] = useState(false);
   const [tocPickActive, setTocPickActive] = useState(false);
   const [tocPickResult, setTocPickResult] = useState<TocPickResult | null>(null);
+  const [pageNavBarVisible, setPageNavBarVisible] = useState(false);
 
   const sortedNavigationShortcuts = useMemo(
     () => [...navigationShortcuts].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -684,7 +909,7 @@ export function PdfViewer({
     setActiveLayer('directed');
   }, [directedSetSelectRequest, directedSetOptions]);
 
-  const layerVisibilityOptions = useMemo((): LayerVisibilityOption[] => {
+  const layerMenuOptions = useMemo((): LayerVisibilityOption[] => {
     const options: LayerVisibilityOption[] = [];
 
     if (userId) {
@@ -692,15 +917,21 @@ export function PdfViewer({
         id: 'personal',
         label: 'Pessoal',
         visible: visibleLayers.personal,
+        canEdit: true,
+        editValue: 'personal',
       });
     }
 
     if (canEditSectionLayer) {
-      options.push({
-        id: 'section',
-        label: 'Naipe',
-        visible: visibleLayers.section,
-      });
+      for (const lead of leadOptions) {
+        options.push({
+          id: 'section',
+          label: formatSectionLeadLabel(lead),
+          visible: visibleLayers.section,
+          canEdit: true,
+          editValue: `section:${lead.id}`,
+        });
+      }
     }
 
     if (canShowDirectedLayer) {
@@ -709,6 +940,8 @@ export function PdfViewer({
           id: option.id,
           label: option.label,
           visible: visibleLayers.directed[option.id] ?? true,
+          canEdit: option.canEdit,
+          editValue: option.canEdit ? `directed:${option.id}` : undefined,
         });
       }
     }
@@ -718,6 +951,7 @@ export function PdfViewer({
     userId,
     canEditSectionLayer,
     canShowDirectedLayer,
+    leadOptions,
     directedSetOptions,
     visibleLayers,
   ]);
@@ -751,7 +985,7 @@ export function PdfViewer({
       for (const lead of leadOptions) {
         options.push({
           value: `section:${lead.id}`,
-          label: leadOptions.length > 1 ? `Naipe: ${lead.name}` : 'Naipe',
+          label: formatSectionLeadLabel(lead),
         });
       }
     }
@@ -832,7 +1066,18 @@ export function PdfViewer({
     const preferences = loadPdfReaderPreferences(userId);
     setInverted(preferences.inverted);
     setNavigation(preferences.navigation);
+    setNavigationShortcutsVisible(preferences.navigationShortcutsVisible !== false);
   }, [userId]);
+
+  const setNavigationShortcutsVisiblePreference = useCallback(
+    (visible: boolean) => {
+      setNavigationShortcutsVisible(visible);
+      if (userId) {
+        saveNavigationShortcutsVisible(userId, visible);
+      }
+    },
+    [userId],
+  );
 
   const toggleInvert = useCallback(() => {
     setInverted((current) => {
@@ -849,6 +1094,8 @@ export function PdfViewer({
       if (next === 'horizontal') {
         setCurrentPage(1);
         setShouldAnimate(false);
+      } else {
+        setPageNavBarVisible(false);
       }
       return next;
     });
@@ -886,6 +1133,13 @@ export function PdfViewer({
     setMetronomeOpen(false);
   }, []);
 
+  const handlePrint = useCallback(() => {
+    if (!pdf || !allowDownload) {
+      return;
+    }
+    void printPdfDocument(pdf);
+  }, [pdf, allowDownload]);
+
   const clearLaserStrokes = useCallback(() => {
     laserTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
     laserTimeoutsRef.current.clear();
@@ -916,17 +1170,60 @@ export function PdfViewer({
     if (userId) {
       setAnnotationToolPrefs(loadAnnotationToolPreferences(userId));
     }
+    hasAnnotatedRef.current = false;
+    setSaveStatus('idle');
+    setSessionUndoStack([]);
     setIsAnnotating(true);
     setMobileToolbarPanel(null);
+    setPageNavBarVisible(false);
   }, [clearLaserStrokes, userId]);
 
-  const exitAnnotationMode = useCallback(() => {
+  const handleLayerEdit = useCallback(
+    (editValue: string) => {
+      handleEditLayerChange(editValue);
+      if (!isAnnotatingRef.current) {
+        enterAnnotationMode();
+      }
+    },
+    [handleEditLayerChange, enterAnnotationMode],
+  );
+
+  const handleCreateLayer = useCallback(() => {
+    if (!onManageDirectedSet) {
+      return;
+    }
+    onManageDirectedSet({
+      activeDirectedSetId: activeEditLayerValue.startsWith('directed:')
+        ? activeEditLayerValue.slice('directed:'.length)
+        : null,
+    });
+  }, [onManageDirectedSet, activeEditLayerValue]);
+
+  const exitAnnotationMode = useCallback(async () => {
+    if (autoSaveTimeoutRef.current !== null) {
+      window.clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+    if (
+      draftAnnotationsRef.current.length > 0 ||
+      pendingDeletionIdsRef.current.length > 0
+    ) {
+      await persistDraftChangesRef.current();
+    }
+    if (savedIndicatorTimeoutRef.current !== null) {
+      window.clearTimeout(savedIndicatorTimeoutRef.current);
+      savedIndicatorTimeoutRef.current = null;
+    }
+    isSavingRef.current = false;
+    saveQueuedRef.current = false;
+    hasAnnotatedRef.current = false;
+    setSaveStatus('idle');
+    setSessionUndoStack([]);
     setIsAnnotating(false);
     setInteractionMode('read');
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
     clearLaserStrokes();
-    setShowDiscardConfirm(false);
     setMobileToolbarPanel(null);
   }, [clearLaserStrokes]);
 
@@ -1000,18 +1297,62 @@ export function PdfViewer({
     return navigation === 'horizontal' ? viewportRef.current : scrollRef.current;
   }, [navigation]);
 
-  const { pan, isGesturing, isZoomed, resetPan } = usePdfViewportGestures({
-    viewportRef: navigation === 'horizontal' ? viewportRef : scrollRef,
-    contentRef,
-    scale,
-    setScale,
-    fitScale,
-    navigation,
-    isAnnotating,
-    enabled: Boolean(pdf) && numPages > 0,
-    onDoubleTap: () => doubleTapFitRef.current(),
-    onSingleTap: (point) => viewportSingleTapRef.current(point),
-  });
+  const { pan, isGesturing, isZoomed, displayScale, visualScaleRatio, resetPan } =
+    usePdfViewportGestures({
+      viewportRef: navigation === 'horizontal' ? viewportRef : scrollRef,
+      contentRef,
+      renderScale: scale,
+      setRenderScale: setScale,
+      fitScale,
+      navigation,
+      isAnnotating,
+      enabled: Boolean(pdf) && numPages > 0,
+      onDoubleTap: () => doubleTapFitRef.current(),
+      onSingleTap: (point) => viewportSingleTapRef.current(point),
+    });
+
+  const visiblePages = usePdfVisiblePages(
+    scrollRef,
+    numPages,
+    currentPage,
+    navigation === 'vertical' && Boolean(pdf) && numPages > 0,
+  );
+
+  const [currentPageBaseLayout, setCurrentPageBaseLayout] = useState<PageLayoutSize | null>(null);
+
+  useEffect(() => {
+    if (!pdf) {
+      setCurrentPageBaseLayout(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getBasePageLayout(pdf, currentPage).then((layout) => {
+      if (!cancelled) {
+        setCurrentPageBaseLayout(layout);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, currentPage]);
+
+  const pageRenderWidth = currentPageBaseLayout
+    ? currentPageBaseLayout.width * displayScale
+    : 800;
+
+  const contentTransformStyle = useMemo(
+    () => ({
+      transform:
+        visualScaleRatio !== 1
+          ? `translate(${pan.x}px, ${pan.y}px) scale(${visualScaleRatio})`
+          : `translate(${pan.x}px, ${pan.y}px)`,
+      transformOrigin: navigation === 'horizontal' ? 'center center' : 'top left',
+      willChange: 'transform' as const,
+    }),
+    [navigation, pan.x, pan.y, visualScaleRatio],
+  );
 
   const applyFitScale = useCallback(
     (next: number, force = false) => {
@@ -1035,7 +1376,9 @@ export function PdfViewer({
         return null;
       }
 
-      const page = await pdf.getPage(navigation === 'horizontal' ? currentPage : 1);
+      const page = await pdf.getPage(
+        navigation === 'horizontal' ? currentPageRef.current : 1,
+      );
       const viewport = page.getViewport({ scale: 1 });
       const containerWidth = container.clientWidth - 16;
       const containerHeight = container.clientHeight - 16;
@@ -1053,7 +1396,7 @@ export function PdfViewer({
 
       return Math.min(containerWidth / viewport.width, containerHeight / viewport.height);
     },
-    [pdf, getViewportElement, navigation, currentPage],
+    [pdf, getViewportElement, navigation],
   );
 
   const fitToWidth = useCallback(async (force = false) => {
@@ -1139,7 +1482,111 @@ export function PdfViewer({
 
   useEffect(() => {
     resetPan();
+  }, [navigation, resetPan]);
+
+  useEffect(() => {
+    if (navigation === 'horizontal') {
+      resetPan();
+    }
   }, [currentPage, navigation, resetPan]);
+
+  const scrollVerticalToPageProgrammatically = useCallback((pageNumber: number) => {
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    verticalProgrammaticScrollRef.current = true;
+    scrollVerticalToPage(container, pageNumber);
+    window.setTimeout(() => {
+      verticalProgrammaticScrollRef.current = false;
+    }, 150);
+  }, []);
+
+  useEffect(() => {
+    if (navigation !== 'vertical' || !pdf || numPages === 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      scrollVerticalToPageProgrammatically(currentPageRef.current);
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [navigation, pdf, numPages, url, scrollVerticalToPageProgrammatically]);
+
+  useEffect(() => {
+    if (navigation !== 'vertical' || !pdf || numPages === 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      scrollVerticalToPageProgrammatically(currentPageRef.current);
+    }, 200);
+
+    return () => clearTimeout(timeoutId);
+  }, [scale, fitScale, navigation, pdf, numPages, scrollVerticalToPageProgrammatically]);
+
+  useEffect(() => {
+    if (navigation !== 'vertical' || !pdf || numPages === 0) {
+      return;
+    }
+
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    let frameId = 0;
+    const onScroll = () => {
+      if (verticalProgrammaticScrollRef.current || frameId !== 0) {
+        return;
+      }
+
+      frameId = requestAnimationFrame(() => {
+        frameId = 0;
+        if (verticalProgrammaticScrollRef.current) {
+          return;
+        }
+
+        const nextPage = resolveScrollVisiblePage(container);
+        setCurrentPage((page) => {
+          if (page === nextPage) {
+            return page;
+          }
+
+          currentPageRef.current = nextPage;
+          return nextPage;
+        });
+      });
+    };
+
+    container.addEventListener('scroll', onScroll, { passive: true });
+
+    const initialSyncFrameId = requestAnimationFrame(() => {
+      if (verticalProgrammaticScrollRef.current) {
+        return;
+      }
+
+      const nextPage = resolveScrollVisiblePage(container);
+      setCurrentPage((page) => {
+        if (page === nextPage) {
+          return page;
+        }
+
+        currentPageRef.current = nextPage;
+        return nextPage;
+      });
+    });
+
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(initialSyncFrameId);
+      if (frameId !== 0) {
+        cancelAnimationFrame(frameId);
+      }
+    };
+  }, [navigation, pdf, numPages]);
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -1200,20 +1647,40 @@ export function PdfViewer({
         if (currentPage <= 1) {
           return;
         }
-        setShouldAnimate(true);
-        setSlideDirection('prev');
-        setCurrentPage(currentPage - 1);
+        const targetPage = currentPage - 1;
+        if (navigation === 'horizontal') {
+          setShouldAnimate(true);
+          setSlideDirection('prev');
+          setCurrentPage(targetPage);
+        } else {
+          setShouldAnimate(false);
+          currentPageRef.current = targetPage;
+          setCurrentPage(targetPage);
+          requestAnimationFrame(() => {
+            scrollVerticalToPageProgrammatically(targetPage);
+          });
+        }
         return;
       }
 
       if (currentPage >= numPages) {
         return;
       }
-      setShouldAnimate(true);
-      setSlideDirection('next');
-      setCurrentPage(currentPage + 1);
+      const targetPage = currentPage + 1;
+      if (navigation === 'horizontal') {
+        setShouldAnimate(true);
+        setSlideDirection('next');
+        setCurrentPage(targetPage);
+      } else {
+        setShouldAnimate(false);
+        currentPageRef.current = targetPage;
+        setCurrentPage(targetPage);
+        requestAnimationFrame(() => {
+          scrollVerticalToPageProgrammatically(targetPage);
+        });
+      }
     },
-    [currentPage, isAnnotating, numPages],
+    [currentPage, isAnnotating, navigation, numPages, scrollVerticalToPageProgrammatically],
   );
 
   const goToPreviousPage = useCallback(() => {
@@ -1241,6 +1708,50 @@ export function PdfViewer({
     }
     navigateHorizontal('next');
   }, [currentPage, isAnnotating, numPages, navigateHorizontal, navigation, playlist]);
+
+  const goToPage = useCallback(
+    (targetPage: number) => {
+      if (isAnnotating) {
+        return;
+      }
+
+      const page = Math.min(Math.max(1, targetPage), numPages);
+      if (page === currentPage) {
+        return;
+      }
+
+      if (navigation === 'horizontal') {
+        setShouldAnimate(true);
+        setSlideDirection(page > currentPage ? 'next' : 'prev');
+        setCurrentPage(page);
+        resetPan();
+        return;
+      }
+
+      setShouldAnimate(false);
+      currentPageRef.current = page;
+      setCurrentPage(page);
+      requestAnimationFrame(() => {
+        scrollVerticalToPageProgrammatically(page);
+      });
+    },
+    [currentPage, isAnnotating, navigation, numPages, resetPan, scrollVerticalToPageProgrammatically],
+  );
+
+  const goToFirstPage = useCallback(() => {
+    goToPage(1);
+  }, [goToPage]);
+
+  const closePageNavBar = useCallback(() => {
+    setPageNavBarVisible(false);
+  }, []);
+
+  const openTocPanel = useCallback(() => {
+    setTocPanelOpen(true);
+    closePageNavBar();
+  }, [closePageNavBar]);
+
+  const showTocButton = sortedTocEntries.length > 0 || canManageToc;
 
   const goToShortcut = useCallback(
     (shortcut: PdfNavigationShortcut) => {
@@ -1271,7 +1782,7 @@ export function PdfViewer({
           shortcut.targetY != null ? pageEl.offsetHeight * shortcut.targetY : pageEl.offsetHeight * 0.5;
         const offsetX =
           shortcut.targetX != null ? pageEl.offsetWidth * shortcut.targetX : pageEl.offsetWidth * 0.5;
-        container.scrollTop = pageEl.offsetTop + offsetY - container.clientHeight / 2;
+        container.scrollTop = Math.max(0, pageEl.offsetTop + offsetY - SHORTCUT_TARGET_TOP_OFFSET_PX);
         container.scrollLeft = Math.max(
           0,
           pageEl.offsetLeft + offsetX - container.clientWidth / 2,
@@ -1355,7 +1866,12 @@ export function PdfViewer({
 
   const handleViewportSingleTap = useCallback(
     (point: { x: number; y: number }) => {
-      if (isAnnotating || shortcutPickRequest != null) {
+      if (isAnnotating || shortcutPickRequest != null || tocPickActive) {
+        return;
+      }
+
+      const hit = document.elementFromPoint(point.x, point.y);
+      if (isInteractivePointerTarget(hit)) {
         return;
       }
 
@@ -1364,18 +1880,14 @@ export function PdfViewer({
         return;
       }
 
-      const relativeX = point.x - viewport.getBoundingClientRect().left;
-      const third = viewport.clientWidth / 3;
+      const rect = viewport.getBoundingClientRect();
+      const relativeY = point.y - rect.top;
+      const bottomZoneTop = viewport.clientHeight * (1 - PAGE_NAV_BAR_BOTTOM_ZONE_RATIO);
+      const inBottomHalf = relativeY >= bottomZoneTop;
 
-      if (!isZoomed && navigation === 'horizontal') {
-        if (relativeX < third) {
-          goToPreviousPage();
-          return;
-        }
-        if (relativeX > third * 2) {
-          goToNextPage();
-          return;
-        }
+      if (!isZoomed && inBottomHalf) {
+        setPageNavBarVisible((current) => !current);
+        return;
       }
 
       if (isFullscreen) {
@@ -1384,13 +1896,12 @@ export function PdfViewer({
     },
     [
       getViewportElement,
-      goToNextPage,
-      goToPreviousPage,
       isAnnotating,
       isFullscreen,
       isZoomed,
       navigation,
       shortcutPickRequest,
+      tocPickActive,
     ],
   );
   viewportSingleTapRef.current = handleViewportSingleTap;
@@ -1410,11 +1921,32 @@ export function PdfViewer({
   }, [isAnnotating, playlist]);
 
   useEffect(() => {
-    if (navigation !== 'horizontal' || isAnnotating || shortcutPickRequest != null) {
+    if (isAnnotating) {
       return;
     }
 
     function onKeyDown(event: KeyboardEvent) {
+      if (shortcutPickRequest != null || tocPickActive) {
+        if (isNextPageKey(event.key)) {
+          event.preventDefault();
+          navigateHorizontal('next');
+        } else if (isPrevPageKey(event.key)) {
+          event.preventDefault();
+          navigateHorizontal('prev');
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          setShortcutPickRequest(null);
+          setTocPickActive(false);
+        }
+        return;
+      }
+
+      if (allowDownload && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        handlePrint();
+        return;
+      }
+
       const shortcutIndex = Number.parseInt(event.key, 10);
       if (
         !event.shiftKey
@@ -1433,22 +1965,22 @@ export function PdfViewer({
       }
 
       if (playlist && event.shiftKey) {
-        if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+        if (isNextPageKey(event.key)) {
           event.preventDefault();
           goToNextItem();
           return;
         }
-        if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+        if (isPrevPageKey(event.key)) {
           event.preventDefault();
           goToPreviousItem();
           return;
         }
       }
 
-      if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+      if (isNextPageKey(event.key)) {
         event.preventDefault();
         goToNextPage();
-      } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+      } else if (isPrevPageKey(event.key)) {
         event.preventDefault();
         goToPreviousPage();
       }
@@ -1457,9 +1989,10 @@ export function PdfViewer({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    navigation,
     isAnnotating,
     shortcutPickRequest,
+    tocPickActive,
+    navigateHorizontal,
     goToNextPage,
     goToPreviousPage,
     goToShortcut,
@@ -1467,11 +2000,16 @@ export function PdfViewer({
     playlist,
     goToNextItem,
     goToPreviousItem,
+    handlePrint,
+    allowDownload,
   ]);
 
   const handleTouchStart = useCallback(
     (event: React.TouchEvent) => {
       if (isFullscreen || isZoomed || isGesturing || event.touches.length !== 1) {
+        return;
+      }
+      if (isInteractivePointerTarget(event.target)) {
         return;
       }
 
@@ -1487,6 +2025,9 @@ export function PdfViewer({
   const handleFullscreenPointerDown = useCallback(
     (event: React.PointerEvent) => {
       if (!isFullscreen || isAnnotating || isGesturing) {
+        return;
+      }
+      if (isInteractivePointerTarget(event.target)) {
         return;
       }
 
@@ -1601,6 +2142,13 @@ export function PdfViewer({
     [persistAnnotationToolPrefs],
   );
 
+  const handleHighlightHorizontalChange = useCallback(
+    (highlightHorizontal: boolean) => {
+      persistAnnotationToolPrefs({ highlightHorizontal });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
   const displayAnnotations = useMemo(() => {
     const deleted = new Set(pendingDeletionIds);
     return [
@@ -1624,6 +2172,7 @@ export function PdfViewer({
   const laserColor = resolvePresetStroke('stroke', LASER_DEFAULT_PRESET_ID, inverted);
   const penStrokeWidth = annotationToolPrefs.penStrokeWidth;
   const highlightStrokeWidth = annotationToolPrefs.highlightStrokeWidth;
+  const highlightHorizontal = annotationToolPrefs.highlightHorizontal;
   const laserStrokeWidth = LASER_STROKE_WIDTH;
 
   const activeDirectedSet = directedSetOptions.find((option) => option.id === activeDirectedSetId);
@@ -1685,54 +2234,183 @@ export function PdfViewer({
     [userId, leadOptions, directedSetOptions],
   );
 
-  const handleSaveAnnotations = useCallback(async () => {
-    if (!userId || isSaving) {
-      return;
+  const persistDraftChanges = useCallback(async (): Promise<boolean> => {
+    if (!userId) {
+      return false;
     }
 
-    if (!hasUnsavedChanges) {
-      exitAnnotationMode();
-      return;
+    if (isSavingRef.current) {
+      saveQueuedRef.current = true;
+      return false;
     }
 
-    setIsSaving(true);
-    for (const annotationId of pendingDeletionIds) {
+    const deletionsToProcess = [...pendingDeletionIdsRef.current];
+    const draftsToProcess = [...draftAnnotationsRef.current];
+
+    if (deletionsToProcess.length === 0 && draftsToProcess.length === 0) {
+      return true;
+    }
+
+    isSavingRef.current = true;
+    setSaveStatus('saving');
+
+    const draftIdsToSave = new Set(draftsToProcess.map((draft) => draft.id));
+    inFlightSaveDraftIdsRef.current = draftIdsToSave;
+    const deletionIdsToSave = new Set(deletionsToProcess);
+    const idMapping = new Map<string, string>();
+    let allSucceeded = true;
+
+    for (const annotationId of deletionsToProcess) {
       await onAnnotationDelete(annotationId);
     }
-    for (const draft of draftAnnotations) {
-      await onAnnotationCreate(draftToCreateInput(draft));
-    }
-    setIsSaving(false);
-    exitAnnotationMode();
-  }, [
-    userId,
-    isSaving,
-    hasUnsavedChanges,
-    pendingDeletionIds,
-    draftAnnotations,
-    onAnnotationDelete,
-    onAnnotationCreate,
-    exitAnnotationMode,
-  ]);
 
-  const handleDiscardAnnotations = useCallback(() => {
-    if (!hasUnsavedChanges) {
-      exitAnnotationMode();
+    for (const draft of draftsToProcess) {
+      const created = await onAnnotationCreate(draftToCreateInput(draft));
+      if (!created) {
+        allSucceeded = false;
+        break;
+      }
+      idMapping.set(draft.id, created.id);
+    }
+
+    if (allSucceeded) {
+      const undoneDuringSave = undoneDuringSaveDraftIdsRef.current;
+      const deletionIdsFromUndoneSave = new Set<string>();
+      for (const draftId of undoneDuringSave) {
+        const savedId = idMapping.get(draftId);
+        if (savedId) {
+          deletionIdsFromUndoneSave.add(savedId);
+        }
+      }
+      undoneDuringSaveDraftIdsRef.current = new Set();
+
+      setPendingDeletionIds((current) => {
+        const next = current.filter((annotationId) => !deletionIdsToSave.has(annotationId));
+        for (const annotationId of deletionIdsFromUndoneSave) {
+          if (!next.includes(annotationId)) {
+            next.push(annotationId);
+          }
+        }
+        return next;
+      });
+      setDraftAnnotations((current) =>
+        current.filter((draft) => !draftIdsToSave.has(draft.id)),
+      );
+
+      if (idMapping.size > 0) {
+        setSessionUndoStack((stack) =>
+          stack.map((entry) => {
+            if (entry.kind === 'create') {
+              const mappedId = idMapping.get(entry.annotationId);
+              return mappedId ? { kind: 'create', annotationId: mappedId } : entry;
+            }
+
+            if (entry.kind === 'delete' && entry.wasDraft) {
+              const mappedId = idMapping.get(entry.annotation.id);
+              if (mappedId) {
+                return {
+                  kind: 'delete',
+                  wasDraft: false,
+                  annotation: { ...entry.annotation, id: mappedId },
+                };
+              }
+            }
+
+            return entry;
+          }),
+        );
+      }
+
+      if (savedIndicatorTimeoutRef.current !== null) {
+        window.clearTimeout(savedIndicatorTimeoutRef.current);
+      }
+      setSaveStatus('saved');
+      savedIndicatorTimeoutRef.current = window.setTimeout(() => {
+        savedIndicatorTimeoutRef.current = null;
+        setSaveStatus('idle');
+      }, SAVED_INDICATOR_MS);
+    } else {
+      undoneDuringSaveDraftIdsRef.current = new Set();
+      setSaveStatus('error');
+    }
+
+    inFlightSaveDraftIdsRef.current = new Set();
+    isSavingRef.current = false;
+
+    const shouldRetry =
+      saveQueuedRef.current ||
+      pendingDeletionIdsRef.current.some((id) => !deletionIdsToSave.has(id)) ||
+      draftAnnotationsRef.current.some((draft) => !draftIdsToSave.has(draft.id));
+    saveQueuedRef.current = false;
+
+    if (shouldRetry) {
+      void persistDraftChangesRef.current();
+    }
+
+    return allSucceeded;
+  }, [userId, onAnnotationDelete, onAnnotationCreate]);
+  persistDraftChangesRef.current = persistDraftChanges;
+
+  useEffect(() => {
+    if (!isAnnotating || !userId) {
       return;
     }
-    setShowDiscardConfirm(true);
-  }, [hasUnsavedChanges, exitAnnotationMode]);
 
-  const confirmDiscardAnnotations = useCallback(() => {
-    exitAnnotationMode();
-  }, [exitAnnotationMode]);
+    if (!hasUnsavedChanges) {
+      setSaveStatus((current) => (current === 'pending' ? 'idle' : current));
+      return;
+    }
+
+    setSaveStatus((current) => (current === 'saving' ? current : 'pending'));
+
+    autoSaveTimeoutRef.current = window.setTimeout(() => {
+      autoSaveTimeoutRef.current = null;
+      void persistDraftChangesRef.current();
+    }, AUTO_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (autoSaveTimeoutRef.current !== null) {
+        window.clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+    };
+  }, [
+    draftAnnotations,
+    pendingDeletionIds,
+    isAnnotating,
+    hasUnsavedChanges,
+    userId,
+    persistDraftChanges,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (autoSaveTimeoutRef.current !== null) {
+        window.clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      if (savedIndicatorTimeoutRef.current !== null) {
+        window.clearTimeout(savedIndicatorTimeoutRef.current);
+      }
+      if (
+        isAnnotatingRef.current &&
+        (draftAnnotationsRef.current.length > 0 || pendingDeletionIdsRef.current.length > 0)
+      ) {
+        void persistDraftChangesRef.current();
+      }
+    },
+    [],
+  );
 
   const addDraftAnnotation = useCallback(
     (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
       if (!userId) {
         return;
       }
-      setDraftAnnotations((current) => [...current, createDraftAnnotation(input, userId)]);
+      const draft = createDraftAnnotation(input, userId);
+      hasAnnotatedRef.current = true;
+      setDraftAnnotations((current) => [...current, draft]);
+      setSessionUndoStack((current) => [...current, { kind: 'create', annotationId: draft.id }]);
     },
     [userId],
   );
@@ -1816,24 +2494,105 @@ export function PdfViewer({
 
   const handleEraseAnnotation = useCallback(
     (annotationId: string) => {
-      const isUnsavedDraft = draftAnnotations.some((annotation) => annotation.id === annotationId);
-      if (isUnsavedDraft) {
+      const draft = draftAnnotations.find((annotation) => annotation.id === annotationId);
+      if (draft) {
+        hasAnnotatedRef.current = true;
         setDraftAnnotations((current) =>
           current.filter((annotation) => annotation.id !== annotationId),
         );
+        setSessionUndoStack((current) => [
+          ...current,
+          { kind: 'delete', annotation: draft, wasDraft: true },
+        ]);
         return;
       }
 
+      const saved = annotations.find((annotation) => annotation.id === annotationId);
+      if (!saved) {
+        return;
+      }
+
+      hasAnnotatedRef.current = true;
       setPendingDeletionIds((current) =>
         current.includes(annotationId) ? current : [...current, annotationId],
       );
+      setSessionUndoStack((current) => [
+        ...current,
+        { kind: 'delete', annotation: saved, wasDraft: false },
+      ]);
     },
-    [draftAnnotations],
+    [draftAnnotations, annotations],
   );
 
   const handleUndoLast = useCallback(() => {
-    setDraftAnnotations((current) => current.slice(0, -1));
+    setSessionUndoStack((current) => {
+      if (current.length === 0) {
+        return current;
+      }
+
+      const entry = current[current.length - 1];
+      hasAnnotatedRef.current = true;
+
+      if (entry.kind === 'create') {
+        const { annotationId } = entry;
+
+        if (inFlightSaveDraftIdsRef.current.has(annotationId)) {
+          undoneDuringSaveDraftIdsRef.current.add(annotationId);
+        }
+
+        const isDraft = draftAnnotationsRef.current.some((draft) => draft.id === annotationId);
+        if (isDraft) {
+          setDraftAnnotations((drafts) => drafts.filter((draft) => draft.id !== annotationId));
+        } else {
+          setPendingDeletionIds((pending) =>
+            pending.includes(annotationId) ? pending : [...pending, annotationId],
+          );
+        }
+      } else {
+        const { annotation, wasDraft } = entry;
+        if (wasDraft) {
+          setDraftAnnotations((drafts) =>
+            drafts.some((draft) => draft.id === annotation.id)
+              ? drafts
+              : [...drafts, annotation],
+          );
+        } else {
+          setPendingDeletionIds((pending) => pending.filter((id) => id !== annotation.id));
+        }
+      }
+
+      return current.slice(0, -1);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!isAnnotating) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement
+        && (target.tagName === 'INPUT'
+          || target.tagName === 'TEXTAREA'
+          || target.tagName === 'SELECT'
+          || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      handleUndoLast();
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isAnnotating, handleUndoLast]);
 
   if (loading) {
     return <p className="p-4 text-sm text-muted">Carregando PDF…</p>;
@@ -1848,10 +2607,6 @@ export function PdfViewer({
   }
 
   const pageNumbers = Array.from({ length: numPages }, (_, index) => index + 1);
-  const canGoPrevious =
-    currentPage > 1 || (navigation === 'horizontal' && (playlist?.canGoPrevious ?? false));
-  const canGoNext =
-    currentPage < numPages || (navigation === 'horizontal' && (playlist?.canGoNext ?? false));
   const surfaceClass = inverted ? 'bg-black' : 'bg-bg';
   const slideClass = shouldAnimate
     ? slideDirection === 'next'
@@ -1871,6 +2626,7 @@ export function PdfViewer({
     highlightColor,
     penStrokeWidth,
     highlightStrokeWidth,
+    highlightHorizontal,
     laserStrokes,
     laserColor,
     laserStrokeWidth,
@@ -1887,6 +2643,7 @@ export function PdfViewer({
     gesturesActive: isGesturing || shortcutPickRequest != null || tocPickActive,
     navigationShortcuts: sortedNavigationShortcuts,
     onNavigationShortcutPress: goToShortcut,
+    navigationShortcutsVisible,
     tocEntries: sortedTocEntries,
     showTocOverlay: tocEditorOpen || tocPanelOpen,
     onTocEntryPress: goToTocEntry,
@@ -1918,7 +2675,7 @@ export function PdfViewer({
   const controlsRowClass =
     'flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-4 py-2';
   const toolbarIconButtonClass = (active = false) =>
-    `inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+    `inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm ${
       active ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text'
     }`;
   const mobilePanelButtonClass = (active: boolean) =>
@@ -1926,10 +2683,15 @@ export function PdfViewer({
   const mobilePanelRowClass = `${controlsRowClass} border-t border-border lg:hidden`;
   const annotationPanelRowClass = `${controlsRowClass} border-t border-border`;
 
-  const renderLayerVisibilityDropdown = () => (
+  const renderAnnotationLayerMenu = () => (
     <AnnotationLayerVisibilityDropdown
-      options={layerVisibilityOptions}
+      options={layerMenuOptions}
       onToggle={toggleLayerVisibility}
+      onEditLayer={layerMenuOptions.some((option) => option.canEdit) ? handleLayerEdit : undefined}
+      onCreateLayer={canEditDirectedLayer && onManageDirectedSet ? handleCreateLayer : undefined}
+      activeEditValue={isAnnotating ? activeEditLayerValue : null}
+      isAnnotating={isAnnotating}
+      buttonClassName={toolbarIconButtonClass(false)}
     />
   );
 
@@ -1944,7 +2706,7 @@ export function PdfViewer({
         −
       </button>
       <span className="min-w-10 text-center text-sm text-text lg:min-w-12">
-        {Math.round(scale * 100)}%
+        {Math.round(displayScale * 100)}%
       </span>
       <button
         type="button"
@@ -1977,118 +2739,6 @@ export function PdfViewer({
     </div>
   );
 
-  const renderViewAnnotationControls = () => (
-    <>
-      {userId && (
-        <button
-          type="button"
-          onClick={enterAnnotationMode}
-          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-        >
-          Anotar
-        </button>
-      )}
-      {canManageNavigationShortcuts && onNavigationShortcutCreate && (
-        <>
-          <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setShortcutEditorOpen(true)}
-            className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-          >
-            Atalhos
-          </button>
-        </>
-      )}
-      {(sortedTocEntries.length > 0 || canManageToc) && (
-        <>
-          <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setTocPanelOpen(true)}
-            className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-          >
-            Sumário
-          </button>
-        </>
-      )}
-    </>
-  );
-
-  const renderAnnotationToolControls = () => (
-    <>
-      <select
-        value={activeEditLayerValue}
-        onChange={(event) => handleEditLayerChange(event.target.value)}
-        disabled={editLayerOptions.length <= 1}
-        className="max-w-52 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-text disabled:opacity-70"
-        aria-label="Camada em edição"
-      >
-        {editLayerOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {canEditDirectedLayer && onManageDirectedSet && (
-        <button
-          type="button"
-          onClick={() =>
-            onManageDirectedSet({
-              activeDirectedSetId: activeEditLayerValue.startsWith('directed:')
-                ? activeEditLayerValue.slice('directed:'.length)
-                : null,
-            })
-          }
-          className="rounded-lg border border-border px-2 py-1 text-sm text-text"
-        >
-          Gerenciar
-        </button>
-      )}
-      <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
-      <button
-        type="button"
-        onClick={() => setInteractionMode('pen')}
-        aria-pressed={interactionMode === 'pen'}
-        aria-label="Caneta"
-        title="Caneta"
-        className={toolbarIconButtonClass(interactionMode === 'pen')}
-      >
-        <IconPencil className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setInteractionMode('highlight')}
-        aria-pressed={interactionMode === 'highlight'}
-        aria-label="Marca-texto"
-        title="Marca-texto"
-        className={toolbarIconButtonClass(interactionMode === 'highlight')}
-      >
-        <IconHighlighter className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setInteractionMode('laser')}
-        aria-pressed={interactionMode === 'laser'}
-        aria-label="Laser"
-        title="Laser"
-        className={toolbarIconButtonClass(interactionMode === 'laser')}
-      >
-        <IconLaser className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setInteractionMode('eraser')}
-        aria-pressed={interactionMode === 'eraser'}
-        aria-label="Borracha"
-        title="Borracha"
-        className={toolbarIconButtonClass(interactionMode === 'eraser')}
-      >
-        <IconEraser className="h-4 w-4" />
-      </button>
-    </>
-  );
-
   const renderAnnotationToolOptions = () => {
     if (interactionMode !== 'pen' && interactionMode !== 'highlight') {
       return null;
@@ -2108,6 +2758,7 @@ export function PdfViewer({
             ? annotationToolPrefs.penStrokeWidth
             : annotationToolPrefs.highlightStrokeWidth
         }
+        pageRenderWidth={pageRenderWidth}
         onPresetChange={
           interactionMode === 'pen' ? handlePenPresetChange : handleHighlightPresetChange
         }
@@ -2116,6 +2767,8 @@ export function PdfViewer({
             ? handlePenStrokeWidthChange
             : handleHighlightStrokeWidthChange
         }
+        highlightHorizontal={annotationToolPrefs.highlightHorizontal}
+        onHighlightHorizontalChange={handleHighlightHorizontalChange}
       />
     );
   };
@@ -2134,6 +2787,44 @@ export function PdfViewer({
       )
     : null;
 
+  const renderAnnotationSaveStatus = () => {
+    const statusIconClass = 'flex h-8 w-8 shrink-0 items-center justify-center';
+
+    if (saveStatus === 'error') {
+      return (
+        <span
+          className={`${statusIconClass} text-red-600`}
+          aria-live="polite"
+          aria-label="Erro ao salvar"
+        >
+          <IconAlertTriangle className="h-4 w-4" aria-hidden />
+        </span>
+      );
+    }
+
+    if (saveStatus === 'saving' || saveStatus === 'pending') {
+      return (
+        <span
+          className={`${statusIconClass} text-muted`}
+          aria-live="polite"
+          aria-label="Salvando"
+        >
+          <IconLoader className="h-4 w-4 animate-spin" aria-hidden />
+        </span>
+      );
+    }
+
+    return (
+      <span
+        className={`${statusIconClass} text-muted`}
+        aria-live="polite"
+        aria-label="Salvo"
+      >
+        <IconCheck className="h-4 w-4" aria-hidden />
+      </span>
+    );
+  };
+
   const controlsBar = (
     <div
       className={controlsBarClass}
@@ -2144,36 +2835,37 @@ export function PdfViewer({
       {playlistBar}
       {isAnnotating ? (
         <>
-          <div className={controlsRowClass}>
-            {renderLayerVisibilityDropdown()}
-            {renderAnnotationToolControls()}
-            <button
-              type="button"
-              onClick={handleUndoLast}
-              disabled={draftAnnotations.length === 0}
-              className={`${toolbarIconButtonClass()} disabled:opacity-50`}
-              aria-label="Desfazer"
-              title="Desfazer"
-            >
-              <IconUndo className="h-4 w-4" />
-            </button>
-            <span className="flex-1" aria-hidden />
-            <button
-              type="button"
-              onClick={() => void handleSaveAnnotations()}
-              disabled={isSaving}
-              className="rounded-lg border border-primary bg-primary px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {isSaving ? 'Salvando…' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={handleDiscardAnnotations}
-              disabled={isSaving}
-              className="rounded-lg border border-border px-3 py-1 text-sm text-text disabled:opacity-50"
-            >
-              Descartar
-            </button>
+          <div className={`${controlsRowClass} justify-between`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void exitAnnotationMode()}
+                disabled={saveStatus === 'saving'}
+                className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-50"
+                aria-label="Voltar"
+              >
+                <IconChevronLeft className="h-6 w-6" />
+              </button>
+              {renderAnnotationLayerMenu()}
+            </div>
+            <div className="flex flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-2">
+              <AnnotationToolPicker
+                interactionMode={interactionMode === 'read' ? 'pen' : interactionMode}
+                onSelect={setInteractionMode}
+                buttonClassName={toolbarIconButtonClass}
+              />
+              <button
+                type="button"
+                onClick={handleUndoLast}
+                disabled={sessionUndoStack.length === 0}
+                className={`${toolbarIconButtonClass()} disabled:opacity-50`}
+                aria-label="Desfazer"
+                title="Desfazer"
+              >
+                <IconUndo className="h-4 w-4" />
+              </button>
+            </div>
+            {renderAnnotationSaveStatus()}
           </div>
           {annotationToolOptionsPanel && (
             <div className={annotationPanelRowClass}>{annotationToolOptionsPanel}</div>
@@ -2200,29 +2892,18 @@ export function PdfViewer({
               <button
                 type="button"
                 onClick={toggleNavigation}
-                aria-pressed={navigation === 'horizontal'}
                 aria-label={
                   navigation === 'horizontal'
                     ? 'Usar navegação vertical'
                     : 'Usar navegação lateral'
                 }
                 title={navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
-                className={`${toolbarIconButtonClass(navigation === 'horizontal')} lg:h-auto lg:w-auto lg:gap-1 lg:px-2 lg:py-1`}
+                className={`${toolbarIconButtonClass()} lg:h-auto lg:w-auto lg:gap-1 lg:px-2 lg:py-1`}
               >
                 <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
                 <span className="hidden lg:inline">
                   {navigation === 'horizontal' ? 'Lateral' : 'Vertical'}
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleInvert}
-                aria-pressed={inverted}
-                aria-label={inverted ? 'Desativar inversão de cores' : 'Inverter cores da partitura'}
-                title={inverted ? 'Cores normais' : 'Inverter cores'}
-                className={toolbarIconButtonClass(inverted)}
-              >
-                {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
               </button>
               <button
                 type="button"
@@ -2233,6 +2914,16 @@ export function PdfViewer({
                 className={toolbarIconButtonClass(isFullscreen)}
               >
                 {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={toggleInvert}
+                aria-pressed={inverted}
+                aria-label={inverted ? 'Desativar inversão de cores' : 'Inverter cores da partitura'}
+                title={inverted ? 'Cores normais' : 'Inverter cores'}
+                className={toolbarIconButtonClass(inverted)}
+              >
+                {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
               </button>
 
               {audioPicker?.visible && (
@@ -2258,29 +2949,24 @@ export function PdfViewer({
                 <IconMetronome className="h-4 w-4" />
               </button>
 
-              {renderLayerVisibilityDropdown()}
+              {renderAnnotationLayerMenu()}
 
-              <span className="mx-1 inline-block h-6 w-px bg-border align-middle" aria-hidden="true" />
+              {canManageNavigationShortcuts && onNavigationShortcutCreate ? (
+                <button
+                  type="button"
+                  onClick={() => setShortcutEditorOpen(true)}
+                  aria-label="Atalhos de navegação"
+                  title="Atalhos"
+                  className={toolbarIconButtonClass(shortcutEditorOpen)}
+                >
+                  <IconReturn className="h-4 w-4" />
+                </button>
+              ) : null}
 
-            <button
-              type="button"
-              onClick={() =>
-                setMobileToolbarPanel((current) => (current === 'annotate' ? null : 'annotate'))
-              }
-              aria-label="Opções de anotação"
-              aria-expanded={mobileToolbarPanel === 'annotate'}
-              aria-pressed={mobileToolbarPanel === 'annotate'}
-              className={toolbarIconButtonClass(mobileToolbarPanel === 'annotate')}
-            >
-              <IconMenu className="h-4 w-4" />
-            </button>
             </div>
           </div>
           {mobileToolbarPanel === 'zoom' && (
             <div className={mobilePanelRowClass}>{renderZoomControls()}</div>
-          )}
-          {mobileToolbarPanel === 'annotate' && (
-            <div className={annotationPanelRowClass}>{renderViewAnnotationControls()}</div>
           )}
         </>
       )}
@@ -2302,92 +2988,113 @@ export function PdfViewer({
       ) : null}
       {inlineAudioBar}
 
-      {navigation === 'horizontal' ? (
-        <div
-          ref={viewportRef}
-          className={`relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden ${viewportPadding} ${surfaceClass}`}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          {...viewportInteractionProps}
-        >
-          <div key={currentPage} className={`flex w-full items-center justify-center ${slideClass}`}>
-            <div
-              ref={contentRef}
-              className="shrink-0"
-              style={{
-                transform: `translate(${pan.x}px, ${pan.y}px)`,
-                willChange: 'transform',
-              }}
-            >
-              <PdfPageFrame pageNumber={currentPage} {...pageFrameProps} />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {navigation === 'horizontal' ? (
+          <div
+            ref={viewportRef}
+            className={`relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden ${viewportPadding} ${surfaceClass}`}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            {...viewportInteractionProps}
+          >
+            <div key={currentPage} className={`flex w-full items-center justify-center ${slideClass}`}>
+              <div ref={contentRef} className="shrink-0" style={contentTransformStyle}>
+                <PdfPageSlot
+                  pageNumber={currentPage}
+                  shouldRender
+                  {...pageFrameProps}
+                />
+              </div>
             </div>
           </div>
-
-          {!isAnnotating && !isFullscreen && !isZoomed && (
-            <>
-              <button
-                type="button"
-                onClick={goToPreviousPage}
-                disabled={!canGoPrevious}
-                aria-label="Página anterior"
-                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 disabled:cursor-default"
-              />
-              <button
-                type="button"
-                onClick={goToNextPage}
-                disabled={!canGoNext}
-                aria-label="Próxima página"
-                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-1/3 disabled:cursor-default"
-              />
-            </>
-          )}
-        </div>
-      ) : (
-        <div
-          ref={scrollRef}
-          className={`flex min-h-0 flex-1 flex-col items-center overscroll-contain ${
-            isZoomed ? 'overflow-auto touch-pan-x touch-pan-y' : 'overflow-y-auto touch-pan-y'
-          } ${viewportPadding} ${surfaceClass}`}
-          {...viewportInteractionProps}
-        >
+        ) : (
           <div
-            ref={contentRef}
-            className="mx-auto w-max max-w-none space-y-2"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px)`,
-              willChange: 'transform',
-            }}
+            ref={scrollRef}
+            className={`flex min-h-0 flex-1 flex-col items-center overscroll-contain ${
+              isZoomed ? 'overflow-auto touch-pan-x touch-pan-y' : 'overflow-y-auto touch-pan-y'
+            } ${viewportPadding} ${surfaceClass}`}
+            {...viewportInteractionProps}
           >
-            {pageNumbers.map((pageNumber) => (
-              <PdfPageFrame key={pageNumber} pageNumber={pageNumber} {...pageFrameProps} />
-            ))}
+            <div
+              ref={contentRef}
+              className="mx-auto w-max max-w-none space-y-2"
+              style={contentTransformStyle}
+            >
+              {pageNumbers.map((pageNumber) => (
+                <PdfPageSlot
+                  key={pageNumber}
+                  pageNumber={pageNumber}
+                  shouldRender={visiblePages.has(pageNumber)}
+                  {...pageFrameProps}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        <PdfViewerPageNavBar
+          pdf={pdf}
+          inverted={inverted}
+          currentPage={currentPage}
+          numPages={numPages}
+          visible={pageNavBarVisible && !isAnnotating && !shortcutPickRequest && !tocPickActive}
+          showTocButton={showTocButton}
+          onGoHome={goToFirstPage}
+          onOpenToc={openTocPanel}
+          onPageChange={goToPage}
+          onRequestClose={closePageNavBar}
+        />
+      </div>
       <PdfNavigationShortcutBar
         shortcuts={sortedNavigationShortcuts}
         onShortcutPress={goToShortcut}
-        visible={false}
+        visible={navigationShortcutsVisible}
       />
       {(shortcutPickRequest != null || tocPickActive) && (
         <div className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-primary bg-primary/90 px-4 py-2 text-sm font-medium text-white shadow-md">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-lg border border-primary bg-primary/90 px-4 py-2 text-sm font-medium text-white shadow-md">
+            {navigation === 'horizontal' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigateHorizontal('prev')}
+                  disabled={currentPage <= 1}
+                  aria-label="Página anterior"
+                  className="rounded border border-white/40 p-1 hover:bg-white/10 disabled:opacity-40"
+                >
+                  <IconChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="tabular-nums">
+                  {currentPage}/{numPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigateHorizontal('next')}
+                  disabled={currentPage >= numPages}
+                  aria-label="Próxima página"
+                  className="rounded border border-white/40 p-1 hover:bg-white/10 disabled:opacity-40"
+                >
+                  <IconChevronRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
             <p>
               {shortcutPickRequest?.kind === 'anchor'
                 ? 'Toque na partitura para posicionar o botão'
-                : tocPickActive
-                  ? 'Toque na partitura para marcar a posição da lição'
-                  : 'Toque na partitura para definir a página'}
+                : shortcutPickRequest?.kind === 'target'
+                  ? 'Toque na partitura para definir a posição de destino'
+                  : 'Toque na partitura para marcar a posição da lição'}
             </p>
-            {tocPickActive && (
-              <button
-                type="button"
-                onClick={() => setTocPickActive(false)}
-                className="rounded border border-white/40 px-2 py-0.5 text-xs hover:bg-white/10"
-              >
-                Cancelar
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShortcutPickRequest(null);
+                setTocPickActive(false);
+              }}
+              className="rounded border border-white/40 px-2 py-0.5 text-xs hover:bg-white/10"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
@@ -2439,7 +3146,8 @@ export function PdfViewer({
           open={shortcutEditorOpen}
           shortcuts={sortedNavigationShortcuts}
           numPages={numPages}
-          currentPage={currentPage}
+          buttonsVisible={navigationShortcutsVisible}
+          onButtonsVisibleChange={setNavigationShortcutsVisiblePreference}
           pickRequest={shortcutPickRequest}
           lastPick={shortcutPickResult}
           onPickConsumed={() => setShortcutPickResult(null)}
@@ -2469,31 +3177,18 @@ export function PdfViewer({
           }}
         />
       )}
-      <Modal
-        open={showDiscardConfirm}
-        onClose={() => setShowDiscardConfirm(false)}
-        title="Descartar anotações?"
-      >
-        <p className="text-sm text-muted">
-          As alterações desta sessão serão perdidas. Esta ação não pode ser desfeita.
-        </p>
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setShowDiscardConfirm(false)}
-            className="rounded-lg border border-border px-3 py-2 text-sm text-text"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={confirmDiscardAnnotations}
-            className="rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white"
-          >
-            Descartar
-          </button>
-        </div>
-      </Modal>
+      {readerInfo ? (
+        <PdfReaderInfoModal
+          open={readerInfo.open}
+          onClose={readerInfo.onClose}
+          piece={readerInfo.piece}
+          part={readerInfo.part}
+          allowDownload={allowDownload}
+          downloadUrl={readerInfo.downloadUrl}
+          downloadName={readerInfo.downloadName}
+          onPrint={pdf && allowDownload ? handlePrint : undefined}
+        />
+      ) : null}
     </div>
   );
 }

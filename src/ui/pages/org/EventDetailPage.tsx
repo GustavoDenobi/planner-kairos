@@ -8,6 +8,7 @@ import {
   eventDisplayTitle,
   eventHasNoAudience,
   extraAudienceMusicianIds,
+  isEventCancelled,
 } from '@/domain/agenda';
 import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
@@ -21,7 +22,7 @@ import {
   formatEventTime,
   toDatetimeLocalValue,
 } from '@/ui/features/agenda/agenda-date';
-import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
+import { agendaErrorMessage, EVENT_CANCELLED_LABEL } from '@/ui/features/agenda/agenda-labels';
 import { agendaPath } from '@/ui/features/agenda/agenda-routes';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
 import { EventAudienceChips } from '@/ui/features/agenda/EventAudienceChips';
@@ -85,7 +86,12 @@ export function EventDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [recurrenceScopeMode, setRecurrenceScopeMode] = useState<'save' | 'delete' | null>(null);
+  const [recurrenceScopeMode, setRecurrenceScopeMode] = useState<'save' | 'delete' | 'cancel' | null>(null);
+  const [confirmCancelEvent, setConfirmCancelEvent] = useState(false);
+  const [isCancellingEvent, setIsCancellingEvent] = useState(false);
+  const [cancelEventError, setCancelEventError] = useState<string | null>(null);
+  const [isRestoringEvent, setIsRestoringEvent] = useState(false);
+  const [restoreEventError, setRestoreEventError] = useState<string | null>(null);
   const [confirmCancelRecurrence, setConfirmCancelRecurrence] = useState(false);
   const [isCancellingRecurrence, setIsCancellingRecurrence] = useState(false);
   const [cancelRecurrenceError, setCancelRecurrenceError] = useState<string | null>(null);
@@ -286,6 +292,63 @@ export function EventDetailPage() {
     setConfirmDelete(true);
   }
 
+  async function handleCancelEvent(scope?: RecurrenceEditScope) {
+    if (!org || !eventId || !userId) {
+      return;
+    }
+
+    setCancelEventError(null);
+    setIsCancellingEvent(true);
+
+    const result =
+      event?.recurrenceId && scope
+        ? await agenda.cancelRecurrenceOccurrence(org.id, userId, eventId, scope)
+        : await agenda.cancelEvent(org.id, userId, eventId);
+
+    setIsCancellingEvent(false);
+    setRecurrenceScopeMode(null);
+    setConfirmCancelEvent(false);
+
+    if (!result.ok) {
+      setCancelEventError(agendaErrorMessage(result.error));
+      return;
+    }
+
+    if ('value' in result && result.value) {
+      setEvent(result.value);
+    } else {
+      await loadEvent();
+    }
+  }
+
+  function requestCancelEvent() {
+    if (event?.recurrenceId) {
+      setRecurrenceScopeMode('cancel');
+      return;
+    }
+    setConfirmCancelEvent(true);
+  }
+
+  async function handleRestoreEvent() {
+    if (!org || !eventId || !userId) {
+      return;
+    }
+
+    setRestoreEventError(null);
+    setIsRestoringEvent(true);
+
+    const result = await agenda.restoreEvent(org.id, userId, eventId);
+
+    setIsRestoringEvent(false);
+
+    if (!result.ok) {
+      setRestoreEventError(agendaErrorMessage(result.error));
+      return;
+    }
+
+    setEvent(result.value);
+  }
+
   async function handleCancelRecurrence() {
     if (!org || !userId || !event?.recurrenceId) {
       return;
@@ -387,6 +450,7 @@ export function EventDetailPage() {
 
   const displayTitle = eventDisplayTitle(event, event.type);
   const badgeStyle = eventTypeBadgeStyle(event.type);
+  const eventCancelled = isEventCancelled(event);
 
   const detailsForm = (
     <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
@@ -471,13 +535,17 @@ export function EventDetailPage() {
               {displayTitle}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              
               <span
                 className="rounded-full px-2.5 py-0.5 text-xs font-medium"
                 style={badgeStyle}
               >
                 {event.type.name}
               </span>
+              {eventCancelled && (
+                <span className="rounded-full bg-bg px-2.5 py-0.5 text-xs font-medium text-muted">
+                  {EVENT_CANCELLED_LABEL}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-muted">
               {formatEventTime(event.startsAt, event.endsAt)}
@@ -580,6 +648,12 @@ export function EventDetailPage() {
           {deleteError && (
             <p className="mb-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>
           )}
+          {cancelEventError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cancelEventError}</p>
+          )}
+          {restoreEventError && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">{restoreEventError}</p>
+          )}
           {cancelRecurrenceError && (
             <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cancelRecurrenceError}</p>
           )}
@@ -594,6 +668,8 @@ export function EventDetailPage() {
                 disabled={
                   editSeriesSaving ||
                   isCancellingRecurrence ||
+                  isCancellingEvent ||
+                  isRestoringEvent ||
                   isDeleting ||
                   isSaving
                 }
@@ -602,11 +678,48 @@ export function EventDetailPage() {
                 Editar série
               </button>
             )}
+            {eventCancelled ? (
+              <button
+                type="button"
+                onClick={() => void handleRestoreEvent()}
+                disabled={
+                  isRestoringEvent ||
+                  isCancellingEvent ||
+                  isDeleting ||
+                  isSaving ||
+                  isCancellingRecurrence
+                }
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50 w-full sm:w-auto"
+              >
+                {isRestoringEvent ? 'Restaurando…' : 'Restaurar evento'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={requestCancelEvent}
+                disabled={
+                  isCancellingEvent ||
+                  isRestoringEvent ||
+                  isDeleting ||
+                  isSaving ||
+                  isCancellingRecurrence
+                }
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-bg disabled:opacity-50 w-full sm:w-auto"
+              >
+                Cancelar evento
+              </button>
+            )}
             {event.recurrenceId && (
               <button
                 type="button"
                 onClick={() => setConfirmCancelRecurrence(true)}
-                disabled={isCancellingRecurrence || isDeleting || isSaving}
+                disabled={
+                  isCancellingRecurrence ||
+                  isCancellingEvent ||
+                  isRestoringEvent ||
+                  isDeleting ||
+                  isSaving
+                }
                 className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full sm:w-auto"
               >
                 Cancelar série (próximos)
@@ -615,7 +728,13 @@ export function EventDetailPage() {
             <button
               type="button"
               onClick={requestDelete}
-              disabled={isDeleting || isSaving || isCancellingRecurrence}
+              disabled={
+                isDeleting ||
+                isSaving ||
+                isCancellingRecurrence ||
+                isCancellingEvent ||
+                isRestoringEvent
+              }
               className="rounded-lg border border-red-600/40 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400 w-full sm:w-auto"
             >
               Excluir evento
@@ -655,6 +774,32 @@ export function EventDetailPage() {
         onClose={() => setRecurrenceScopeMode(null)}
         onConfirm={(scope) => void handleDelete(scope)}
         isConfirming={isDeleting}
+      />
+
+      <RecurrenceScopeModal
+        open={recurrenceScopeMode === 'cancel'}
+        mode="cancel"
+        onClose={() => setRecurrenceScopeMode(null)}
+        onConfirm={(scope) => void handleCancelEvent(scope)}
+        isConfirming={isCancellingEvent}
+      />
+
+      <ConfirmModal
+        open={confirmCancelEvent}
+        title="Cancelar evento?"
+        message={
+          <>
+            O evento <strong className="text-text">{displayTitle}</strong> será marcado como
+            cancelado e continuará visível na agenda, preservando programação e demais informações.
+          </>
+        }
+        confirmLabel="Cancelar evento"
+        onConfirm={() => void handleCancelEvent()}
+        onClose={() => {
+          setConfirmCancelEvent(false);
+          setCancelEventError(null);
+        }}
+        isConfirming={isCancellingEvent}
       />
 
       <CancelRecurrenceConfirmModal

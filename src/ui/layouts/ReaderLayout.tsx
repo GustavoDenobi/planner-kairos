@@ -1,15 +1,12 @@
 import type { ReactNode } from 'react';
 import { BackButton } from '@/ui/components/BackButton';
-import { IconArrowDown } from '@/ui/components/icons';
 import { useLoadingBarPlacement } from '@/ui/app/loading-bar/useLoadingBar';
-import { downloadFromUrl } from '@/ui/utils/download-url';
 
 type ReaderLayoutProps = {
   title?: string;
   subtitle?: string;
   backTo: string;
-  downloadUrl?: string | null;
-  downloadName?: string;
+  onTitleClick?: () => void;
   centerContent?: ReactNode;
   headerActions?: ReactNode;
   offlineBanner?: ReactNode;
@@ -20,25 +17,13 @@ export function ReaderLayout({
   title,
   subtitle,
   backTo,
-  downloadUrl,
-  downloadName,
+  onTitleClick,
   centerContent,
   headerActions,
   offlineBanner,
   children,
 }: ReaderLayoutProps) {
   useLoadingBarPlacement('belowReaderHeader');
-
-  async function handleDownload() {
-    if (!downloadUrl) {
-      return;
-    }
-    try {
-      await downloadFromUrl(downloadUrl, downloadName);
-    } catch {
-      /* Keep the reader open if the download cannot start. */
-    }
-  }
 
   return (
     <div className="flex h-[var(--app-vh)] flex-col bg-bg">
@@ -58,7 +43,17 @@ export function ReaderLayout({
           {centerContent ?? (
             <>
               {title && (
-                <h1 className="truncate text-base font-medium text-text sm:text-lg">{title}</h1>
+                onTitleClick ? (
+                  <button
+                    type="button"
+                    onClick={onTitleClick}
+                    className="max-w-full truncate text-base font-medium text-text underline-offset-2 hover:underline sm:text-lg"
+                  >
+                    {title}
+                  </button>
+                ) : (
+                  <h1 className="truncate text-base font-medium text-text sm:text-lg">{title}</h1>
+                )
               )}
               {subtitle && (
                 <p className="truncate text-xs text-muted sm:text-sm">{subtitle}</p>
@@ -68,17 +63,6 @@ export function ReaderLayout({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {headerActions}
-          {downloadUrl ? (
-            <button
-              type="button"
-              onClick={() => void handleDownload()}
-              title="Baixar arquivo"
-              aria-label="Baixar arquivo"
-              className="inline-flex items-center gap-1 rounded-lg border border-border p-2 text-sm text-text transition-colors hover:bg-bg"
-            >
-              <IconArrowDown className="h-4 w-4 shrink-0" aria-hidden />
-            </button>
-          ) : null}
         </div>
       </header>
       {offlineBanner}

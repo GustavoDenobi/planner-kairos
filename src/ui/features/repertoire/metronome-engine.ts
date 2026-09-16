@@ -1,7 +1,7 @@
 export const METRONOME_MIN_BPM = 40;
 export const METRONOME_MAX_BPM = 208;
 
-export const METRONOME_BEATS_OPTIONS = [2, 3, 4, 6] as const;
+export const METRONOME_BEATS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 export type MetronomeBeatsPerMeasure = (typeof METRONOME_BEATS_OPTIONS)[number];
 
 export type MetronomeEngineOptions = {
@@ -31,7 +31,7 @@ export function normalizeBeatsPerMeasure(value: number): MetronomeBeatsPerMeasur
   if (METRONOME_BEATS_OPTIONS.includes(value as MetronomeBeatsPerMeasure)) {
     return value as MetronomeBeatsPerMeasure;
   }
-  return 4;
+  return 1;
 }
 
 export class MetronomeEngine {

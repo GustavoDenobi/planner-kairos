@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { AnnotationSet, CreateAnnotationSetInput, UpdateAnnotationSetInput } from '@/domain/repertoire';
-import { formatAnnotationSetLabel } from '@/domain/repertoire';
 import { AudienceFields, type AudienceGroupOption, type AudienceMusicianOption } from '@/ui/features/audience/AudienceFields';
 import { Modal } from '@/ui/components/Modal';
 
@@ -62,40 +61,21 @@ export function DirectedAnnotationSetModal({
     }
   }
 
-  const previewLabel = formatAnnotationSetLabel({
-    id: initialSet?.id ?? 'preview',
-    organizationId: initialSet?.organizationId ?? '',
-    pieceFileId: initialSet?.pieceFileId ?? '',
-    authorUserId: initialSet?.authorUserId ?? '',
-    title: title.trim() || null,
-    groups: groups.filter((group) => groupIds.includes(group.id)).map((group) => ({
-      id: group.id,
-      name: group.name,
-      kind: group.kind,
-    })),
-    musicians: musicians.filter((musician) => musicianIds.includes(musician.id)).map((musician) => ({
-      id: musician.id,
-      fullName: musician.name,
-    })),
-    createdAt: initialSet?.createdAt ?? '',
-    updatedAt: initialSet?.updatedAt ?? '',
-  });
-
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={mode === 'create' ? 'Novo conjunto para alunos' : 'Editar conjunto para alunos'}
+      title={mode === 'create' ? 'Nova camada' : 'Editar camada'}
     >
       <div className="space-y-4">
         <label className="block space-y-1">
-          <span className="text-sm text-muted">Título (opcional)</span>
+          <span className="text-sm text-muted">Título</span>
           <input
             type="text"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             disabled={disabled || isSaving}
-            placeholder={previewLabel}
+            placeholder="Título da camada"
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
           />
         </label>
@@ -109,7 +89,7 @@ export function DirectedAnnotationSetModal({
           onMusicianIdsChange={setMusicianIds}
           disabled={disabled || isSaving}
           title="Destinatários"
-          searchPlaceholder="Buscar turma ou aluno"
+          searchPlaceholder="Busque quem terá acesso a esta camada"
           emptySelectedLabel="Nenhum destinatário selecionado"
         />
 
@@ -128,9 +108,9 @@ export function DirectedAnnotationSetModal({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={disabled || isSaving}
-            className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-fg disabled:opacity-60"
+            className="rounded-lg bg-primary px-3 py-2 text-sm text-white disabled:opacity-60"
           >
-            {isSaving ? 'Salvando…' : mode === 'create' ? 'Criar conjunto' : 'Salvar'}
+            {isSaving ? 'Salvando…' : mode === 'create' ? 'Criar camada' : 'Salvar'}
           </button>
         </div>
       </div>

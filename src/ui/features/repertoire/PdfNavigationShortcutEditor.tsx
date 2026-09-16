@@ -24,7 +24,7 @@ export type ShortcutPickResult = {
 
 type DraftShortcut = {
   label: string;
-  targetPageNumber: number;
+  targetPageNumber: number | null;
   targetX: number | null;
   targetY: number | null;
   anchorPageNumber: number | null;
@@ -36,7 +36,8 @@ type PdfNavigationShortcutEditorProps = {
   open: boolean;
   shortcuts: PdfNavigationShortcut[];
   numPages: number;
-  currentPage: number;
+  buttonsVisible: boolean;
+  onButtonsVisibleChange: (visible: boolean) => void;
   pickRequest: ShortcutPickRequest;
   lastPick: ShortcutPickResult | null;
   onPickConsumed: () => void;
@@ -48,10 +49,10 @@ type PdfNavigationShortcutEditorProps = {
   onReorder: (orderedIds: string[]) => Promise<void>;
 };
 
-function emptyDraft(currentPage: number): DraftShortcut {
+function emptyDraft(): DraftShortcut {
   return {
     label: '',
-    targetPageNumber: currentPage,
+    targetPageNumber: null,
     targetX: null,
     targetY: null,
     anchorPageNumber: null,
@@ -60,11 +61,16 @@ function emptyDraft(currentPage: number): DraftShortcut {
   };
 }
 
+function hasButtonPosition(draft: DraftShortcut): boolean {
+  return draft.anchorPageNumber != null && draft.anchorX != null && draft.anchorY != null;
+}
+
 export function PdfNavigationShortcutEditor({
   open,
   shortcuts,
   numPages,
-  currentPage,
+  buttonsVisible,
+  onButtonsVisibleChange,
   pickRequest,
   lastPick,
   onPickConsumed,
@@ -77,7 +83,7 @@ export function PdfNavigationShortcutEditor({
 }: PdfNavigationShortcutEditorProps) {
   const [mode, setMode] = useState<'list' | 'add' | 'edit'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DraftShortcut>(() => emptyDraft(currentPage));
+  const [draft, setDraft] = useState<DraftShortcut>(() => emptyDraft());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,14 +103,14 @@ export function PdfNavigationShortcutEditor({
     if (!open) {
       setMode('list');
       setEditingId(null);
-      setDraft(emptyDraft(currentPage));
+      setDraft(emptyDraft());
       setError(null);
       onRequestPick(null);
     }
-  }, [open, currentPage, onRequestPick]);
+  }, [open, onRequestPick]);
 
   const startAdd = () => {
-    setDraft(emptyDraft(currentPage));
+    setDraft(emptyDraft());
     setEditingId(null);
     setMode('add');
     setError(null);
@@ -130,10 +136,20 @@ export function PdfNavigationShortcutEditor({
       setError('Informe um nome para o atalho.');
       return;
     }
+    if (!hasButtonPosition(draft)) {
+      setError('Defina a posição do botão na partitura.');
+      return;
+    }
+    if (draft.targetPageNumber == null) {
+      setError('Defina a posição de destino na partitura.');
+      return;
+    }
     if (draft.targetPageNumber < 1 || draft.targetPageNumber > numPages) {
       setError(`A página de destino deve estar entre 1 e ${numPages}.`);
       return;
     }
+
+    const targetPageNumber = draft.targetPageNumber;
 
     setBusy(true);
     setError(null);
@@ -141,7 +157,7 @@ export function PdfNavigationShortcutEditor({
       if (mode === 'add') {
         await onCreate({
           label: draft.label.trim(),
-          targetPageNumber: draft.targetPageNumber,
+          targetPageNumber,
           targetX: draft.targetX,
           targetY: draft.targetY,
           anchorPageNumber: draft.anchorPageNumber,
@@ -151,7 +167,7 @@ export function PdfNavigationShortcutEditor({
       } else if (mode === 'edit' && editingId) {
         await onUpdate(editingId, {
           label: draft.label.trim(),
-          targetPageNumber: draft.targetPageNumber,
+          targetPageNumber,
           targetX: draft.targetX,
           targetY: draft.targetY,
           anchorPageNumber: draft.anchorPageNumber,
@@ -188,15 +204,6 @@ export function PdfNavigationShortcutEditor({
     [onReorder],
   );
 
-  const clearAnchor = () => {
-    setDraft((current) => ({
-      ...current,
-      anchorPageNumber: null,
-      anchorX: null,
-      anchorY: null,
-    }));
-  };
-
   const formView = (
     <div className="space-y-4">
       <div>
@@ -214,70 +221,41 @@ export function PdfNavigationShortcutEditor({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-text" htmlFor="shortcut-target-page">
-          Página de destino
-        </label>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            id="shortcut-target-page"
-            type="number"
-            min={1}
-            max={numPages}
-            value={draft.targetPageNumber}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                targetPageNumber: Number.parseInt(event.target.value, 10) || 1,
-              }))
-            }
-            className="w-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
-          />
-          <button
-            type="button"
-            onClick={() => onRequestPick({ kind: 'target' })}
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              pickRequest?.kind === 'target'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            {pickRequest?.kind === 'target' ? 'Toque na partitura…' : 'Toque para definir'}
-          </button>
-        </div>
-        {draft.targetY != null && (
+        <p className="mb-1 text-sm font-medium text-text">Posição do botão</p>
+        <button
+          type="button"
+          onClick={() => onRequestPick({ kind: 'anchor' })}
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            pickRequest?.kind === 'anchor'
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-text'
+          }`}
+        >
+          {pickRequest?.kind === 'anchor' ? 'Toque na partitura…' : 'Definir posição do botão'}
+        </button>
+        {draft.anchorPageNumber != null && (
           <p className="mt-1 text-xs text-muted">
-            Ponto de retorno marcado na página {draft.targetPageNumber}.
+            Botão na página {draft.anchorPageNumber}.
           </p>
         )}
       </div>
 
       <div>
-        <p className="mb-1 text-sm font-medium text-text">Botão na partitura (opcional)</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onRequestPick({ kind: 'anchor' })}
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              pickRequest?.kind === 'anchor'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-text'
-            }`}
-          >
-            {pickRequest?.kind === 'anchor' ? 'Toque na partitura…' : 'Posicionar botão'}
-          </button>
-          {draft.anchorPageNumber != null && (
-            <button
-              type="button"
-              onClick={clearAnchor}
-              className="rounded-lg border border-border px-3 py-2 text-sm text-text"
-            >
-              Remover posição
-            </button>
-          )}
-        </div>
-        {draft.anchorPageNumber != null && (
+        <p className="mb-1 text-sm font-medium text-text">Posição de destino</p>
+        <button
+          type="button"
+          onClick={() => onRequestPick({ kind: 'target' })}
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            pickRequest?.kind === 'target'
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-text'
+          }`}
+        >
+          {pickRequest?.kind === 'target' ? 'Toque na partitura…' : 'Definir posição de destino'}
+        </button>
+        {draft.targetPageNumber != null && (
           <p className="mt-1 text-xs text-muted">
-            Botão na página {draft.anchorPageNumber}.
+            Destino na página {draft.targetPageNumber}.
           </p>
         )}
       </div>
@@ -317,6 +295,16 @@ export function PdfNavigationShortcutEditor({
     >
       {mode === 'list' ? (
         <div className="space-y-4">
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text">
+            <input
+              type="checkbox"
+              checked={buttonsVisible}
+              onChange={(event) => onButtonsVisibleChange(event.target.checked)}
+              className="mt-0.5 rounded border-border text-primary focus:ring-primary"
+            />
+            <span>Exibir botões na partitura</span>
+          </label>
+
           {shortcuts.length === 0 ? (
             <p className="text-sm text-muted">
               Nenhum atalho configurado. Adicione botões para saltar rapidamente entre voltas e seções da partitura.

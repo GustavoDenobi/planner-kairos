@@ -12,7 +12,7 @@ import type {
 } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { computeFileSha256Hex } from '@/domain/shared';
-import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -30,6 +30,7 @@ import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
+import { printPdfDocument, resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
 import {
   PieceFileUploadEntries,
   type PartLinkSelection,
@@ -53,6 +54,7 @@ export function PieceDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const repertoire = useRepertoire();
+  const offline = useOffline();
   const ensemble = useEnsemble();
   const { userId } = useAuth();
   const { organizations } = useOrg();
@@ -109,6 +111,7 @@ export function PieceDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [playingAudioFile, setPlayingAudioFile] = useState<PieceFileWithLinks | null>(null);
+  const [printingFileId, setPrintingFileId] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -637,6 +640,43 @@ export function PieceDetailPage() {
     setAudioLoading(false);
   }
 
+  async function handlePrint(file: PieceFileWithLinks) {
+    if (!org || !piece || file.kind !== 'score' || printingFileId || !allowFileDownload) {
+      return;
+    }
+
+    setPrintingFileId(file.id);
+    setError(null);
+
+    const pdfLoad = await resolvePdfDocument(offline, org.id, piece.id, file.id);
+
+    if (pdfLoad.error === 'offline_not_cached') {
+      setError('Partitura não disponível offline. Toque em "Manter no dispositivo" com conexão ativa.');
+      setPrintingFileId(null);
+      return;
+    }
+
+    if (pdfLoad.error || !pdfLoad.pdfDocument) {
+      setError(
+        pdfLoad.error === 'not_found'
+          ? 'Arquivo não encontrado.'
+          : repertoireErrorMessage(pdfLoad.error ?? 'load_failed'),
+      );
+      setPrintingFileId(null);
+      return;
+    }
+
+    try {
+      await printPdfDocument(pdfLoad.pdfDocument);
+    } catch {
+      setError('Não foi possível imprimir a partitura.');
+    } finally {
+      revokePdfObjectUrl(pdfLoad.downloadUrl);
+      void pdfLoad.pdfDocument.loadingTask.destroy();
+      setPrintingFileId(null);
+    }
+  }
+
   async function handleDownload(fileId: string, filename?: string) {
     if (!org || !piece) {
       return;
@@ -833,6 +873,8 @@ export function PieceDetailPage() {
         isConductor={isConductor}
         allowDownload={allowFileDownload}
         onOpen={handleOpen}
+        onPrint={handlePrint}
+        printingFileId={printingFileId}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}
         onReorderScoreFiles={

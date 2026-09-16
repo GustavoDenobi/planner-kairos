@@ -43,6 +43,7 @@ function eventDetail(): EventDetail {
     occurrenceIndex: 0,
     originalStartsAt: '2026-08-18T10:00:00.000Z',
     isException: false,
+    cancelledAt: null,
     type: {
       id: 'type-1',
       organizationId: 'org-1',
@@ -99,6 +100,9 @@ function createRepos() {
     update: vi.fn(),
     replaceProgram: vi.fn(),
     delete: vi.fn(),
+    setCancelledAt: vi.fn(),
+    bulkCancelFutureOccurrences: vi.fn(),
+    bulkCancelOccurrencesFromInstant: vi.fn(),
     markAsException: vi.fn(),
     bulkUpdateFutureOccurrences: vi.fn(),
     replaceAudienceForFutureOccurrences: vi.fn(),

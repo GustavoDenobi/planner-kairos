@@ -664,7 +664,7 @@ export function AgendaPage() {
         <div
           className={`min-h-0 min-w-0 flex-1 ${
             viewMode === 'columns'
-              ? 'flex flex-col overflow-hidden'
+              ? 'relative flex min-h-0 flex-col overflow-hidden'
               : 'overflow-x-hidden overflow-y-auto overscroll-contain'
           }`}
         >

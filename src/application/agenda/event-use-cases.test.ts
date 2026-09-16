@@ -23,6 +23,7 @@ function eventDetail(overrides: Partial<EventDetail> = {}): EventDetail {
     occurrenceIndex: null,
     originalStartsAt: null,
     isException: false,
+    cancelledAt: null,
     type: {
       id: 'type-1',
       organizationId: 'org-1',
@@ -149,6 +150,9 @@ function createRepos(options?: {
       }),
     replaceProgram: vi.fn(),
     delete: vi.fn(),
+    setCancelledAt: vi.fn(),
+    bulkCancelFutureOccurrences: vi.fn(),
+    bulkCancelOccurrencesFromInstant: vi.fn(),
     markAsException: vi.fn(),
     bulkUpdateFutureOccurrences: vi.fn(),
     replaceAudienceForFutureOccurrences: vi.fn(),

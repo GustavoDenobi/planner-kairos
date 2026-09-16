@@ -15,7 +15,7 @@ import { supabase } from './client';
 const EVENT_TYPE_COLUMNS = 'id, organization_id, name, kind, sort_order, color';
 
 const EVENT_COLUMNS =
-  'id, organization_id, type_id, title, starts_at, ends_at, location, notes, created_by, recurrence_id, occurrence_index, original_starts_at, is_exception';
+  'id, organization_id, type_id, title, starts_at, ends_at, location, notes, created_by, recurrence_id, occurrence_index, original_starts_at, is_exception, cancelled_at';
 
 type EventTypeRow = {
   id: string;
@@ -40,6 +40,7 @@ type EventRow = {
   occurrence_index: number | null;
   original_starts_at: string | null;
   is_exception: boolean;
+  cancelled_at: string | null;
   event_types: EventTypeRow | EventTypeRow[] | null;
 };
 
@@ -281,6 +282,7 @@ async function buildEventDetail(
     occurrenceIndex: row.occurrence_index,
     originalStartsAt: row.original_starts_at,
     isException: row.is_exception,
+    cancelledAt: row.cancelled_at,
     type: mapEventType(typeRow),
     program,
     groups: eventAudience.groups,
@@ -461,6 +463,7 @@ export function createEventRepository(): EventRepository {
           musicians: eventAudience.musicians,
           recurrenceId: row.recurrence_id,
           isException: row.is_exception,
+          cancelledAt: row.cancelled_at,
         };
         if (!matchesMineFilter(item, options)) {
           continue;
@@ -646,6 +649,88 @@ export function createEventRepository(): EventRepository {
 
       if (error) {
         throw new Error(error.message);
+      }
+    },
+
+    async setCancelledAt(organizationId, eventId, cancelledAt) {
+      const { error } = await supabase
+        .from('events')
+        .update({ cancelled_at: cancelledAt })
+        .eq('organization_id', organizationId)
+        .eq('id', eventId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const row = await fetchEventRow(organizationId, eventId);
+      if (!row) {
+        throw new Error('not_found');
+      }
+      const built = await buildEventDetail(organizationId, row);
+      if (!built) {
+        throw new Error('update_failed');
+      }
+      return built;
+    },
+
+    async bulkCancelFutureOccurrences(organizationId, recurrenceId, fromIndex, cancelledAt, skipExceptions) {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, is_exception, occurrence_index')
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .gte('occurrence_index', fromIndex);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      for (const row of data ?? []) {
+        if (skipExceptions && row.is_exception) {
+          continue;
+        }
+        const { error: updateError } = await supabase
+          .from('events')
+          .update({ cancelled_at: cancelledAt })
+          .eq('organization_id', organizationId)
+          .eq('id', row.id);
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
+      }
+    },
+
+    async bulkCancelOccurrencesFromInstant(
+      organizationId,
+      recurrenceId,
+      fromInstant,
+      cancelledAt,
+      skipExceptions,
+    ) {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, is_exception, starts_at')
+        .eq('organization_id', organizationId)
+        .eq('recurrence_id', recurrenceId)
+        .gte('starts_at', fromInstant);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      for (const row of data ?? []) {
+        if (skipExceptions && row.is_exception) {
+          continue;
+        }
+        const { error: updateError } = await supabase
+          .from('events')
+          .update({ cancelled_at: cancelledAt })
+          .eq('organization_id', organizationId)
+          .eq('id', row.id);
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
       }
     },
 

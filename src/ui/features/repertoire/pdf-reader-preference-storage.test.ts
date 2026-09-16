@@ -21,6 +21,7 @@ const USER_ID = 'user-test-123';
 const DEFAULTS = {
   inverted: false,
   navigation: 'horizontal' as const,
+  navigationShortcutsVisible: true,
   metronomeBpm: DEFAULT_METRONOME_BPM,
   metronomeBeatsPerMeasure: DEFAULT_METRONOME_BEATS,
   metronomeVolume: DEFAULT_METRONOME_VOLUME,
@@ -73,7 +74,7 @@ describe('pdf-reader-preference-storage', () => {
       inverted: false,
       navigation: 'vertical',
       metronomeBpm: 999,
-      metronomeBeatsPerMeasure: 7,
+      metronomeBeatsPerMeasure: 9,
       metronomeVolume: 2,
     });
 
@@ -82,7 +83,7 @@ describe('pdf-reader-preference-storage', () => {
       inverted: false,
       navigation: 'vertical',
       metronomeBpm: 208,
-      metronomeBeatsPerMeasure: 4,
+      metronomeBeatsPerMeasure: 1,
       metronomeVolume: 1,
     });
   });
@@ -103,6 +104,14 @@ describe('pdf-reader-preference-storage', () => {
     expect(loadPdfNavigationPreference(USER_ID)).toBe('horizontal');
   });
 
+  it('persists any beats-per-measure from 1 to 8', () => {
+    saveMetronomePreferences(USER_ID, {
+      metronomeBeatsPerMeasure: 8,
+    });
+
+    expect(loadMetronomePreferences(USER_ID).metronomeBeatsPerMeasure).toBe(8);
+  });
+
   it('persists annotation tool preferences and clamps invalid values', () => {
     saveAnnotationToolPreferences(USER_ID, {
       penPresetId: 'unknown',
@@ -115,7 +124,8 @@ describe('pdf-reader-preference-storage', () => {
       penPresetId: DEFAULT_ANNOTATION_TOOL_PREFERENCES.penPresetId,
       penStrokeWidth: 0.008,
       highlightPresetId: 'pink',
-      highlightStrokeWidth: 0.01,
+      highlightStrokeWidth: 0.005,
+      highlightHorizontal: false,
     });
   });
 

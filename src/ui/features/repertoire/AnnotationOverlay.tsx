@@ -11,7 +11,11 @@ import {
   findErasableAnnotationAtPoint,
   toNormalizedCoords,
 } from '@/ui/features/repertoire/annotation-coordinates';
-import { buildHighlightBrushRects } from '@/ui/features/repertoire/highlight-brush';
+import {
+  buildHighlightBrushRects,
+  constrainHighlightPointToHorizontalAxis,
+  constrainHighlightStrokeToHorizontalAxis,
+} from '@/ui/features/repertoire/highlight-brush';
 
 export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser' | 'laser';
 
@@ -100,6 +104,7 @@ type InteractionLayerProps = SharedProps & {
   pageAspectRatio: number;
   penStrokeWidth: number;
   highlightStrokeWidth: number;
+  highlightHorizontal: boolean;
   laserStrokeWidth: number;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (geometry: StrokeGeometry) => void;
@@ -304,6 +309,7 @@ export function AnnotationInteractionLayer({
   pageAspectRatio,
   penStrokeWidth,
   highlightStrokeWidth,
+  highlightHorizontal,
   laserStrokeWidth,
   canEraseAnnotation,
   onStrokeComplete,
@@ -418,7 +424,11 @@ export function AnnotationInteractionLayer({
       }
 
       if ((mode === 'pen' || mode === 'highlight' || mode === 'laser') && draftStrokeRef.current) {
-        const nextStroke = [...draftStrokeRef.current, point];
+        const nextPoint =
+          mode === 'highlight' && highlightHorizontal
+            ? constrainHighlightPointToHorizontalAxis(point, draftStrokeRef.current[0]!.y)
+            : point;
+        const nextStroke = [...draftStrokeRef.current, nextPoint];
         draftStrokeRef.current = nextStroke;
         onDraftStrokeChange(nextStroke);
       }
@@ -426,6 +436,7 @@ export function AnnotationInteractionLayer({
     [
       canEraseAnnotation,
       getPoint,
+      highlightHorizontal,
       interactive,
       mode,
       onDraftStrokeChange,
@@ -448,7 +459,9 @@ export function AnnotationInteractionLayer({
     }
 
     if (mode === 'highlight') {
-      onHighlightComplete({ points: stroke, strokeWidth: highlightStrokeWidth });
+      const points =
+        highlightHorizontal ? constrainHighlightStrokeToHorizontalAxis(stroke) : stroke;
+      onHighlightComplete({ points, strokeWidth: highlightStrokeWidth });
       return;
     }
 
@@ -457,6 +470,7 @@ export function AnnotationInteractionLayer({
     }
   }, [
     clearDraft,
+    highlightHorizontal,
     highlightStrokeWidth,
     laserStrokeWidth,
     mode,

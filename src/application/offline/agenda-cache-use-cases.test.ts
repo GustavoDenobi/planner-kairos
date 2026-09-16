@@ -83,6 +83,7 @@ function sampleEvent(overrides: Partial<EventListItem> = {}): EventListItem {
     createdBy: 'user-2',
     recurrenceId: null,
     isException: false,
+    cancelledAt: null,
     groups: [{ id: 'group-1', name: 'Cordas', kind: 'ensemble' }],
     musicians: [{ id: 'musician-1', fullName: 'João', userId: 'user-1' }],
     ...overrides,
@@ -218,6 +219,7 @@ describe('getCachedEventDetail', () => {
       occurrenceIndex: null,
       originalStartsAt: null,
       isException: false,
+      cancelledAt: null,
       type: {
         id: 'type-1',
         organizationId: 'org-1',

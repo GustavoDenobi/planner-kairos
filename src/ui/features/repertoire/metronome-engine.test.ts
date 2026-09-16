@@ -19,8 +19,11 @@ describe('metronome helpers', () => {
   });
 
   it('normalizes beats per measure to supported options', () => {
+    expect(normalizeBeatsPerMeasure(1)).toBe(1);
+    expect(normalizeBeatsPerMeasure(8)).toBe(8);
     expect(normalizeBeatsPerMeasure(3)).toBe(3);
-    expect(normalizeBeatsPerMeasure(99)).toBe(4);
+    expect(normalizeBeatsPerMeasure(0)).toBe(1);
+    expect(normalizeBeatsPerMeasure(99)).toBe(1);
   });
 });
 

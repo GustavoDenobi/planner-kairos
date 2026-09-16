@@ -7,6 +7,7 @@ type NavigationShortcutOverlayProps = {
   onShortcutPress: (shortcut: PdfNavigationShortcut) => void;
   inverted?: boolean;
   disabled?: boolean;
+  visible?: boolean;
 };
 
 function shortcutColor(shortcut: PdfNavigationShortcut): string {
@@ -26,7 +27,12 @@ export function NavigationShortcutOverlay({
   onShortcutPress,
   inverted = false,
   disabled = false,
+  visible = true,
 }: NavigationShortcutOverlayProps) {
+  if (!visible) {
+    return null;
+  }
+
   const anchorBgClass = inverted ? 'bg-black/95' : 'bg-white/95';
   const anchorShortcuts = shortcuts.filter(
     (shortcut) =>

@@ -69,7 +69,6 @@ function useKanbanScroll(containerRef: RefObject<HTMLDivElement | null>) {
     let touchStartX = 0;
     let touchStartY = 0;
     let touchAxis: 'x' | 'y' | null = null;
-    let touchColumnScroll: HTMLElement | null = null;
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -78,7 +77,6 @@ function useKanbanScroll(containerRef: RefObject<HTMLDivElement | null>) {
       touchStartX = event.touches[0].clientX;
       touchStartY = event.touches[0].clientY;
       touchAxis = null;
-      touchColumnScroll = findColumnScroll(event.target);
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -102,23 +100,11 @@ function useKanbanScroll(containerRef: RefObject<HTMLDivElement | null>) {
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
         event.preventDefault();
-        return;
-      }
-
-      if (
-        touchColumnScroll &&
-        touchColumnScroll.scrollHeight <= touchColumnScroll.clientHeight + 1
-      ) {
-        container.scrollLeft -= deltaX;
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        event.preventDefault();
       }
     };
 
     const onTouchEnd = () => {
       touchAxis = null;
-      touchColumnScroll = null;
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
@@ -208,69 +194,71 @@ export function AgendaWeekKanban({
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="h-full min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain"
-    >
-      <div className="flex h-full min-h-0 w-max">
-        {columns.map(({ date, birthdays: dayBirthdays, events: dayEvents }) => {
-          const isToday = isSameDay(date, today);
+    <div className="relative min-h-0 min-w-0 flex-1">
+      <div
+        ref={scrollRef}
+        className="absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+      >
+        <div className="flex h-full">
+          {columns.map(({ date, birthdays: dayBirthdays, events: dayEvents }) => {
+            const isToday = isSameDay(date, today);
 
-          return (
-            <div
-              key={date.toISOString()}
-              ref={isToday ? todayColumnRef : undefined}
-              className="flex h-full min-h-0 w-72 shrink-0 flex-col border-r border-border last:border-r-0"
-            >
+            return (
               <div
-                className={`shrink-0 px-3 py-2 ${
-                  isToday ? 'bg-primary/5' : 'bg-bg'
-                }`}
+                key={date.toISOString()}
+                ref={isToday ? todayColumnRef : undefined}
+                className="flex h-full min-h-0 w-72 shrink-0 flex-col border-r border-border last:border-r-0"
               >
-                <div className="flex items-center gap-2">
-                  <h2 className={`text-sm text-text ${isToday ? 'font-semibold' : ''}`}>
-                    {formatKanbanDayHeader(date)}
-                  </h2>
-                  {isToday && (
-                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      hoje
-                    </span>
-                  )}
+                <div
+                  className={`shrink-0 px-3 py-2 ${
+                    isToday ? 'bg-primary/5' : 'bg-bg'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <h2 className={`text-sm text-text ${isToday ? 'font-semibold' : ''}`}>
+                      {formatKanbanDayHeader(date)}
+                    </h2>
+                    {isToday && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        hoje
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  data-agenda-column-scroll
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+                >
+                  <ul className="space-y-2 p-2">
+                    {dayBirthdays.map((birthday) => (
+                      <li key={`birthday-${birthday.musicianId}-${birthday.date}`}>
+                        <AgendaBirthdayCard orgSlug={orgSlug} birthday={birthday} />
+                      </li>
+                    ))}
+                    {dayEvents.map((event) => (
+                      <li key={event.id}>
+                        <AgendaEventCard orgSlug={orgSlug} event={event} variant="columns" />
+                      </li>
+                    ))}
+                    {canCreateEvents && (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => onAddEvent(date)}
+                          className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-surface px-3 py-2 text-sm font-medium text-muted transition-colors hover:border-primary hover:text-primary"
+                        >
+                          <IconPlus className="h-4 w-4" />
+                          Evento
+                        </button>
+                      </li>
+                    )}
+                  </ul>
                 </div>
               </div>
-
-              <div
-                data-agenda-column-scroll
-                className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
-              >
-                <ul className="space-y-2 p-2">
-                  {dayBirthdays.map((birthday) => (
-                    <li key={`birthday-${birthday.musicianId}-${birthday.date}`}>
-                      <AgendaBirthdayCard orgSlug={orgSlug} birthday={birthday} />
-                    </li>
-                  ))}
-                  {dayEvents.map((event) => (
-                    <li key={event.id}>
-                      <AgendaEventCard orgSlug={orgSlug} event={event} variant="columns" />
-                    </li>
-                  ))}
-                  {canCreateEvents && (
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() => onAddEvent(date)}
-                        className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-surface px-3 py-2 text-sm font-medium text-muted transition-colors hover:border-primary hover:text-primary"
-                      >
-                        <IconPlus className="h-4 w-4" />
-                        Evento
-                      </button>
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -5,10 +5,6 @@ vi.mock('pdfjs-dist', () => ({
   getDocument: vi.fn(),
 }));
 
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker&url', () => ({
-  default: '/pdf.worker.js',
-}));
-
 vi.mock('@/ui/features/repertoire/pdf-load', () => ({
   resolvePdfDocument: vi.fn(),
   openPdfDocument: vi.fn(),
