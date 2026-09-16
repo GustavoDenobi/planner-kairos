@@ -5,6 +5,7 @@ import type {
   CreatePdfAnnotationInput,
   StrokeGeometry,
 } from './piece-file-annotation';
+import { TEXT_ANNOTATION_MAX_LENGTH } from './piece-file-annotation';
 import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from './piece-file';
 import type { PieceCategoryInput } from './piece-category';
 import type { PieceInput } from './piece';
@@ -209,6 +210,12 @@ function isStrokeGeometry(geometry: AnnotationGeometry): geometry is StrokeGeome
   return 'points' in geometry;
 }
 
+function isTextGeometry(
+  geometry: AnnotationGeometry,
+): geometry is Extract<AnnotationGeometry, { content: string }> {
+  return 'content' in geometry && 'fontSize' in geometry;
+}
+
 export function validateAnnotationGeometry(
   type: AnnotationType,
   geometry: AnnotationGeometry,
@@ -227,6 +234,41 @@ export function validateAnnotationGeometry(
       if (!isNormalizedCoord(point.x) || !isNormalizedCoord(point.y)) {
         return 'invalid_coordinates';
       }
+    }
+    return null;
+  }
+
+  if (type === 'text') {
+    if (!isTextGeometry(geometry)) {
+      return 'invalid_geometry';
+    }
+    if (!isNormalizedCoord(geometry.x) || !isNormalizedCoord(geometry.y)) {
+      return 'invalid_coordinates';
+    }
+    if (!Number.isFinite(geometry.fontSize) || geometry.fontSize <= 0) {
+      return 'invalid_font_size';
+    }
+    const content = geometry.content.trim();
+    if (content.length === 0) {
+      return 'invalid_text_content';
+    }
+    if (geometry.content.length > TEXT_ANNOTATION_MAX_LENGTH) {
+      return 'invalid_text_length';
+    }
+    if (geometry.fontWeight != null && geometry.fontWeight !== 'bold') {
+      return 'invalid_font_weight';
+    }
+    if (geometry.fontStyle != null && geometry.fontStyle !== 'italic') {
+      return 'invalid_font_style';
+    }
+    if (
+      geometry.fontFamily != null
+      && geometry.fontFamily !== 'sans-serif'
+      && geometry.fontFamily !== 'serif'
+      && geometry.fontFamily !== 'monospace'
+      && geometry.fontFamily !== 'handwritten'
+    ) {
+      return 'invalid_font_family';
     }
     return null;
   }

@@ -23,10 +23,15 @@ export default defineConfig(({ mode }) => {
       pdfjsAssetsPlugin(),
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['logo.svg', 'logo.png'],
+        includeAssets: [
+          'logo.svg',
+          'logo.png',
+          'fonts/BravuraText-smufl.woff2',
+          'fonts/BravuraText-smufl.woff',
+        ],
         manifest: pwaManifest,
         workbox: {
-          globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2,webmanifest,wasm}'],
+          globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff,woff2,webmanifest,wasm}'],
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/^\/api\//, /^\/pdfjs\//],

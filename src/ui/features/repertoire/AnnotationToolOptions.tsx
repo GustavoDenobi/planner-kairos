@@ -4,12 +4,13 @@ import {
   HIGHLIGHT_STROKE_WIDTH,
   PEN_COLOR_PRESETS,
   PEN_STROKE_WIDTH,
+  TEXT_FONT_SIZE,
   resolvePresetVisualStroke,
   type StrokeWidthRange,
 } from '@/domain/repertoire';
 import { AnnotationBrushPreview } from '@/ui/features/repertoire/AnnotationBrushPreview';
 
-export type AnnotationToolKind = 'pen' | 'highlight';
+export type AnnotationToolKind = 'pen' | 'highlight' | 'text';
 
 type AnnotationToolOptionsProps = {
   tool: AnnotationToolKind;
@@ -24,15 +25,30 @@ type AnnotationToolOptionsProps = {
 };
 
 function presetsForTool(tool: AnnotationToolKind) {
-  return tool === 'pen' ? PEN_COLOR_PRESETS : HIGHLIGHT_COLOR_PRESETS;
+  if (tool === 'highlight') {
+    return HIGHLIGHT_COLOR_PRESETS;
+  }
+  return PEN_COLOR_PRESETS;
 }
 
 function strokeRangeForTool(tool: AnnotationToolKind): StrokeWidthRange {
-  return tool === 'pen' ? PEN_STROKE_WIDTH : HIGHLIGHT_STROKE_WIDTH;
+  if (tool === 'highlight') {
+    return HIGHLIGHT_STROKE_WIDTH;
+  }
+  if (tool === 'text') {
+    return TEXT_FONT_SIZE;
+  }
+  return PEN_STROKE_WIDTH;
 }
 
-function annotationTypeForTool(tool: AnnotationToolKind): 'stroke' | 'highlight' {
-  return tool === 'pen' ? 'stroke' : 'highlight';
+function annotationTypeForTool(tool: AnnotationToolKind): 'stroke' | 'highlight' | 'text' {
+  if (tool === 'highlight') {
+    return 'highlight';
+  }
+  if (tool === 'text') {
+    return 'text';
+  }
+  return 'stroke';
 }
 
 export function AnnotationToolOptions({
@@ -52,6 +68,7 @@ export function AnnotationToolOptions({
   const sliderId = `annotation-${tool}-stroke-width`;
   const [showBrushPreview, setShowBrushPreview] = useState(false);
   const previewColor = resolvePresetVisualStroke(type, selectedPresetId, inverted);
+  const showStrokePreview = tool === 'pen' || tool === 'highlight';
 
   useEffect(() => {
     if (!showBrushPreview) {
@@ -73,7 +90,9 @@ export function AnnotationToolOptions({
       <div
         className="flex items-center gap-1.5"
         role="group"
-        aria-label={tool === 'pen' ? 'Cor da caneta' : 'Cor do marca-texto'}
+        aria-label={
+          tool === 'pen' ? 'Cor da caneta' : tool === 'text' ? 'Cor do texto' : 'Cor do marca-texto'
+        }
       >
         {presets.map((preset) => {
           const isActive = preset.id === selectedPresetId;
@@ -95,7 +114,7 @@ export function AnnotationToolOptions({
         })}
       </div>
       <div className="relative">
-        {showBrushPreview && (
+        {showStrokePreview && showBrushPreview && (
           <div className="absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2">
             <AnnotationBrushPreview
               tool={tool}
@@ -107,7 +126,9 @@ export function AnnotationToolOptions({
           </div>
         )}
         <label htmlFor={sliderId} className="flex items-center gap-2 text-sm text-muted">
-          <span className="whitespace-nowrap">Espessura</span>
+          <span className="whitespace-nowrap">
+            {tool === 'text' ? 'Tamanho' : 'Espessura'}
+          </span>
           <input
             id={sliderId}
             type="range"
@@ -115,7 +136,11 @@ export function AnnotationToolOptions({
             max={range.max}
             step={range.step}
             value={strokeWidth}
-            onPointerDown={() => setShowBrushPreview(true)}
+            onPointerDown={() => {
+              if (showStrokePreview) {
+                setShowBrushPreview(true);
+              }
+            }}
             onChange={(event) => onStrokeWidthChange(Number(event.target.value))}
             aria-valuemin={range.min}
             aria-valuemax={range.max}

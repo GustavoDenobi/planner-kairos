@@ -2641,7 +2641,7 @@ export type Database = {
     Enums: {
       access_role: "owner" | "admin" | "member"
       annotation_layer: "personal" | "section" | "directed"
-      annotation_type: "stroke" | "highlight"
+      annotation_type: "stroke" | "highlight" | "text"
       ensemble_role: "member" | "teacher" | "section_lead" | "conductor"
       event_kind: "rehearsal" | "service" | "class" | "special"
       group_kind: "ensemble" | "choir" | "class" | "other"
@@ -2783,7 +2783,7 @@ export const Constants = {
     Enums: {
       access_role: ["owner", "admin", "member"],
       annotation_layer: ["personal", "section", "directed"],
-      annotation_type: ["stroke", "highlight"],
+      annotation_type: ["stroke", "highlight", "text"],
       ensemble_role: ["member", "teacher", "section_lead", "conductor"],
       event_kind: ["rehearsal", "service", "class", "special"],
       group_kind: ["ensemble", "choir", "class", "other"],

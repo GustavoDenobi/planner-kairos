@@ -6,6 +6,7 @@ import type {
   CreateAnnotationSetInput,
   CreatePdfAnnotationInput,
   UpdateAnnotationSetInput,
+  UpdatePdfAnnotationInput,
 } from '@/domain/repertoire';
 
 export type AnnotationSyncStatus = 'synced' | 'pending' | 'deleted_pending';
@@ -62,6 +63,13 @@ export type SyncOutboxDeletePayload = {
   annotationId: string;
 };
 
+export type SyncOutboxUpdatePayload = {
+  organizationId: string;
+  pieceFileId: string;
+  annotationId: string;
+  input: UpdatePdfAnnotationInput;
+};
+
 export type SyncOutboxCreateSetPayload = {
   clientId: string;
   organizationId: string;
@@ -84,9 +92,16 @@ export type SyncOutboxDeleteSetPayload = {
 
 export type SyncOutboxItem = {
   id: string;
-  op: 'create' | 'delete' | 'create_annotation_set' | 'update_annotation_set' | 'delete_annotation_set';
+  op:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'create_annotation_set'
+    | 'update_annotation_set'
+    | 'delete_annotation_set';
   payload:
     | SyncOutboxCreatePayload
+    | SyncOutboxUpdatePayload
     | SyncOutboxDeletePayload
     | SyncOutboxCreateSetPayload
     | SyncOutboxUpdateSetPayload

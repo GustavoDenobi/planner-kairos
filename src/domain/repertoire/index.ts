@@ -54,8 +54,28 @@ export type {
   NormalizedPoint,
   PdfAnnotation,
   StrokeGeometry,
+  TextGeometry,
   UpdatePdfAnnotationInput,
 } from './piece-file-annotation';
+export { TEXT_ANNOTATION_MAX_LENGTH } from './piece-file-annotation';
+export type { TextFontFamily } from './text-font-families';
+export {
+  DEFAULT_TEXT_FONT_FAMILY,
+  TEXT_FONT_FAMILIES,
+  TEXT_FONT_FAMILY_LABELS,
+  isTextFontFamily,
+  nextTextFontFamily,
+  normalizeTextFontFamily,
+} from './text-font-families';
+export type { MusicalSymbol, MusicalSymbolCategory } from './musical-symbols';
+export {
+  MUSICAL_SYMBOLS,
+  MUSICAL_SYMBOL_CATEGORIES,
+  MUSICAL_SYMBOL_CATEGORY_LABELS,
+  findMusicalSymbol,
+  isSmuflPrivateUseCharacter,
+  musicalSymbolsForCategory,
+} from './musical-symbols';
 export {
   ANNOTATION_COLORS,
   HIGHLIGHT_COLORS,
@@ -73,6 +93,7 @@ export {
   LASER_STROKE_WIDTH,
   PEN_COLOR_PRESETS,
   PEN_STROKE_WIDTH,
+  TEXT_FONT_SIZE,
   clampStrokeWidth,
   findPreset,
   formatPresetColor,

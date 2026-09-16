@@ -639,6 +639,32 @@ export function PiecePdfViewerPage() {
     [org, fileId, file, offline],
   );
 
+  const handleAnnotationUpdate = useCallback(
+    async (annotationId: string, input: import('@/domain/repertoire').UpdatePdfAnnotationInput) => {
+      if (!org || !fileId || !file) {
+        return null;
+      }
+
+      const result = await offline.updatePieceFileAnnotation(
+        org.id,
+        file.id,
+        annotationId,
+        input,
+      );
+      if (!result.ok) {
+        return null;
+      }
+
+      setAnnotations((current) =>
+        current.map((annotation) =>
+          annotation.id === annotationId ? result.value : annotation,
+        ),
+      );
+      return result.value;
+    },
+    [org, fileId, file, offline],
+  );
+
   const audienceLookup = useMemo(
     () => ({
       groups: associableGroups,
@@ -1009,6 +1035,7 @@ export function PiecePdfViewerPage() {
           ) : null
         }
         onAnnotationCreate={handleAnnotationCreate}
+        onAnnotationUpdate={handleAnnotationUpdate}
         onAnnotationDelete={handleAnnotationDelete}
         navigationShortcuts={navigationShortcuts}
         canManageNavigationShortcuts={canManageNavigationShortcuts}

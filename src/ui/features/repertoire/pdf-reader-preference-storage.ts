@@ -8,6 +8,10 @@ import {
   HIGHLIGHT_STROKE_WIDTH,
   PEN_COLOR_PRESETS,
   PEN_STROKE_WIDTH,
+  DEFAULT_TEXT_FONT_FAMILY,
+  TEXT_FONT_SIZE,
+  normalizeTextFontFamily,
+  type TextFontFamily,
 } from '@/domain/repertoire';
 
 export type PdfNavigationMode = 'vertical' | 'horizontal';
@@ -18,6 +22,9 @@ export type AnnotationToolPreferences = {
   highlightPresetId: string;
   highlightStrokeWidth: number;
   highlightHorizontal: boolean;
+  textPresetId: string;
+  textFontSize: number;
+  textFontFamily: TextFontFamily;
 };
 
 export type PdfReaderPreferences = {
@@ -43,6 +50,9 @@ export const DEFAULT_ANNOTATION_TOOL_PREFERENCES: AnnotationToolPreferences = {
   highlightPresetId: 'yellow',
   highlightStrokeWidth: HIGHLIGHT_STROKE_WIDTH.default,
   highlightHorizontal: false,
+  textPresetId: PEN_COLOR_PRESETS[0]!.id,
+  textFontSize: TEXT_FONT_SIZE.default,
+  textFontFamily: DEFAULT_TEXT_FONT_FAMILY,
 };
 
 const DEFAULT_PREFERENCES: PdfReaderPreferences = {
@@ -101,6 +111,10 @@ function parseAnnotationToolPreferences(
     typeof raw?.highlightPresetId === 'string' && raw.highlightPresetId.trim()
       ? findPreset('highlight', raw.highlightPresetId).id
       : DEFAULT_ANNOTATION_TOOL_PREFERENCES.highlightPresetId;
+  const textPresetId =
+    typeof raw?.textPresetId === 'string' && raw.textPresetId.trim()
+      ? findPreset('text', raw.textPresetId).id
+      : DEFAULT_ANNOTATION_TOOL_PREFERENCES.textPresetId;
 
   return {
     penPresetId,
@@ -118,6 +132,16 @@ function parseAnnotationToolPreferences(
       HIGHLIGHT_STROKE_WIDTH,
     ),
     highlightHorizontal: raw?.highlightHorizontal === true,
+    textPresetId,
+    textFontSize: clampStrokeWidth(
+      typeof raw?.textFontSize === 'number'
+        ? raw.textFontSize
+        : DEFAULT_ANNOTATION_TOOL_PREFERENCES.textFontSize,
+      TEXT_FONT_SIZE,
+    ),
+    textFontFamily: normalizeTextFontFamily(
+      raw?.textFontFamily ?? DEFAULT_ANNOTATION_TOOL_PREFERENCES.textFontFamily,
+    ),
   };
 }
 
@@ -234,6 +258,9 @@ export function saveAnnotationToolPreferences(
         HIGHLIGHT_STROKE_WIDTH,
       ),
       highlightHorizontal: merged.highlightHorizontal === true,
+      textPresetId: findPreset('text', merged.textPresetId).id,
+      textFontSize: clampStrokeWidth(merged.textFontSize, TEXT_FONT_SIZE),
+      textFontFamily: normalizeTextFontFamily(merged.textFontFamily),
     },
   });
 }

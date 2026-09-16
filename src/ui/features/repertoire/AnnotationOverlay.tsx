@@ -4,7 +4,9 @@ import type {
   NormalizedPoint,
   PdfAnnotation,
   StrokeGeometry,
+  TextGeometry,
 } from '@/domain/repertoire';
+import { resolveAnnotationTextFontFamily } from '@/ui/features/repertoire/annotation-text-metrics';
 import { LASER_FADE_OUT_MS, resolveAnnotationAppearance } from '@/domain/repertoire';
 import {
   ERASER_HIT_RADIUS,
@@ -17,7 +19,7 @@ import {
   constrainHighlightStrokeToHorizontalAxis,
 } from '@/ui/features/repertoire/highlight-brush';
 
-export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'eraser' | 'laser';
+export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'text' | 'eraser' | 'laser';
 
 export type LaserStroke = {
   id: string;
@@ -32,6 +34,36 @@ export type VisibleLayers = {
   section: boolean;
   directed: Record<string, boolean>;
 };
+
+export type AnnotationEditingFocus =
+  | { layer: 'personal' }
+  | { layer: 'section'; sectionId: string }
+  | { layer: 'directed'; annotationSetId: string };
+
+const INACTIVE_EDIT_LAYER_OPACITY = 0.5;
+
+export function annotationLayerOpacity(
+  annotation: PdfAnnotation,
+  editingFocus: AnnotationEditingFocus | null,
+): number {
+  if (editingFocus == null) {
+    return 1;
+  }
+
+  if (editingFocus.layer === 'personal') {
+    return annotation.layer === 'personal' ? 1 : INACTIVE_EDIT_LAYER_OPACITY;
+  }
+
+  if (editingFocus.layer === 'section') {
+    return annotation.layer === 'section' && annotation.sectionId === editingFocus.sectionId
+      ? 1
+      : INACTIVE_EDIT_LAYER_OPACITY;
+  }
+
+  return annotation.layer === 'directed' && annotation.annotationSetId === editingFocus.annotationSetId
+    ? 1
+    : INACTIVE_EDIT_LAYER_OPACITY;
+}
 
 function isDirectedLayerVisible(
   annotation: PdfAnnotation,
@@ -69,6 +101,7 @@ type SharedProps = {
   pageNumber: number;
   annotations: PdfAnnotation[];
   visibleLayers: VisibleLayers;
+  editingFocus: AnnotationEditingFocus | null;
 };
 
 type PenLayerProps = SharedProps & {
@@ -97,6 +130,11 @@ type LaserLayerProps = {
   showDraft: boolean;
 };
 
+type TextLayerProps = SharedProps & {
+  inverted: boolean;
+  pageAspectRatio: number;
+};
+
 type InteractionLayerProps = SharedProps & {
   mode: AnnotationInteractionMode;
   readOnly: boolean;
@@ -112,10 +150,19 @@ type InteractionLayerProps = SharedProps & {
   onLaserStrokeComplete: (geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
   onDraftStrokeChange: (stroke: NormalizedPoint[] | null) => void;
+  onTextPlace: (point: NormalizedPoint) => void;
+  onTextSelect: (annotation: PdfAnnotation) => void;
+  onTextMove: (annotationId: string, point: NormalizedPoint) => void;
+  onTextDragComplete?: (annotationId: string) => void;
+  textEditing?: boolean;
 };
 
 function isStrokeGeometry(geometry: PdfAnnotation['geometry']): geometry is StrokeGeometry {
   return 'points' in geometry;
+}
+
+function isTextGeometry(geometry: PdfAnnotation['geometry']): geometry is TextGeometry {
+  return 'content' in geometry && 'fontSize' in geometry;
 }
 
 const SVG_BASE = {
@@ -129,6 +176,7 @@ export function AnnotationPenLayer({
   pageNumber,
   annotations,
   visibleLayers,
+  editingFocus,
   inverted,
   penColor,
   penStrokeWidth,
@@ -153,6 +201,7 @@ export function AnnotationPenLayer({
             strokeWidth={geometry.strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
+            opacity={annotationLayerOpacity(annotation, editingFocus)}
           />
         );
       })}
@@ -174,6 +223,7 @@ export function AnnotationHighlightLayer({
   pageNumber,
   annotations,
   visibleLayers,
+  editingFocus,
   inverted,
   pageAspectRatio,
   highlightColor,
@@ -195,6 +245,7 @@ export function AnnotationHighlightLayer({
       {pageAnnotations.map((annotation) => {
         const appearance = resolveAnnotationAppearance(annotation, inverted);
         const blendMode = appearance.blendMode ?? 'multiply';
+        const opacity = annotationLayerOpacity(annotation, editingFocus);
 
         if (isStrokeGeometry(annotation.geometry)) {
           const brushRects = buildHighlightBrushRects(
@@ -203,7 +254,7 @@ export function AnnotationHighlightLayer({
             pageAspectRatio,
           );
           return (
-            <g key={annotation.id} style={{ mixBlendMode: blendMode }}>
+            <g key={annotation.id} style={{ mixBlendMode: blendMode }} opacity={opacity}>
               {brushRects.map((rect, index) => (
                 <rect
                   key={`${annotation.id}-${index}`}
@@ -230,6 +281,7 @@ export function AnnotationHighlightLayer({
               height={geometry.height}
               fill={appearance.stroke}
               stroke="none"
+              opacity={opacity}
               style={{ mixBlendMode: blendMode }}
             />
           );
@@ -252,6 +304,49 @@ export function AnnotationHighlightLayer({
           ))}
         </g>
       )}
+    </svg>
+  );
+}
+
+export function AnnotationTextLayer({
+  pageNumber,
+  annotations,
+  visibleLayers,
+  editingFocus,
+  inverted,
+  pageAspectRatio,
+}: TextLayerProps) {
+  const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
+    (annotation) => annotation.type === 'text' && isTextGeometry(annotation.geometry),
+  );
+  const horizontalScale = pageAspectRatio > 0 ? 1 / pageAspectRatio : 1;
+
+  return (
+    <svg {...SVG_BASE}>
+      {pageAnnotations.map((annotation) => {
+        const geometry = annotation.geometry as TextGeometry;
+        const appearance = resolveAnnotationAppearance(annotation, inverted);
+        return (
+          <g
+            key={annotation.id}
+            transform={`translate(${geometry.x} ${geometry.y}) scale(${horizontalScale} 1)`}
+            opacity={annotationLayerOpacity(annotation, editingFocus)}
+          >
+            <text
+              x={0}
+              y={0}
+              fill={appearance.stroke}
+              fontSize={geometry.fontSize * pageAspectRatio}
+              fontFamily={resolveAnnotationTextFontFamily(geometry.fontFamily)}
+              fontWeight={geometry.fontWeight === 'bold' ? 'bold' : undefined}
+              fontStyle={geometry.fontStyle === 'italic' ? 'italic' : undefined}
+              dominantBaseline="hanging"
+            >
+              {geometry.content}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -317,12 +412,22 @@ export function AnnotationInteractionLayer({
   onLaserStrokeComplete,
   onEraseAnnotation,
   onDraftStrokeChange,
+  onTextPlace,
+  onTextSelect,
+  onTextMove,
+  onTextDragComplete,
+  textEditing = false,
 }: InteractionLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const draftStrokeRef = useRef<NormalizedPoint[] | null>(null);
+  const textDragRef = useRef<{
+    annotationId: string;
+    startPoint: NormalizedPoint;
+    origin: NormalizedPoint;
+  } | null>(null);
 
   const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers);
-  const interactive = !readOnly && mode !== 'read' && !gesturesActive;
+  const interactive = !readOnly && mode !== 'read' && !gesturesActive && !textEditing;
 
   const getPoint = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -377,6 +482,26 @@ export function AnnotationInteractionLayer({
         return;
       }
 
+      if (mode === 'text') {
+        const target = findErasableAnnotationAtPoint(
+          pageAnnotations.filter((annotation) => annotation.type === 'text'),
+          point,
+          canEraseAnnotation,
+          ERASER_HIT_RADIUS,
+          pageAspectRatio,
+        );
+        if (target && isTextGeometry(target.geometry)) {
+          textDragRef.current = {
+            annotationId: target.id,
+            startPoint: point,
+            origin: { x: target.geometry.x, y: target.geometry.y },
+          };
+        } else {
+          onTextPlace(point);
+        }
+        return;
+      }
+
       if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
         draftStrokeRef.current = [point];
         onDraftStrokeChange([point]);
@@ -390,8 +515,10 @@ export function AnnotationInteractionLayer({
       mode,
       onDraftStrokeChange,
       onEraseAnnotation,
+      onTextPlace,
       pageAnnotations,
-    ],
+      pageAspectRatio,
+    ], // pageAspectRatio used by findErasableAnnotationAtPoint for text hit-test
   );
 
   const handlePointerMove = useCallback(
@@ -423,6 +550,15 @@ export function AnnotationInteractionLayer({
         return;
       }
 
+      if (mode === 'text' && textDragRef.current) {
+        const drag = textDragRef.current;
+        onTextMove(drag.annotationId, {
+          x: drag.origin.x + (point.x - drag.startPoint.x),
+          y: drag.origin.y + (point.y - drag.startPoint.y),
+        });
+        return;
+      }
+
       if ((mode === 'pen' || mode === 'highlight' || mode === 'laser') && draftStrokeRef.current) {
         const nextPoint =
           mode === 'highlight' && highlightHorizontal
@@ -441,6 +577,7 @@ export function AnnotationInteractionLayer({
       mode,
       onDraftStrokeChange,
       onEraseAnnotation,
+      onTextMove,
       pageAnnotations,
     ],
   );
@@ -490,11 +627,29 @@ export function AnnotationInteractionLayer({
         return;
       }
 
+      if (mode === 'text' && textDragRef.current) {
+        const drag = textDragRef.current;
+        textDragRef.current = null;
+        const point = getPoint(event);
+        const moved = point
+          ? Math.hypot(point.x - drag.startPoint.x, point.y - drag.startPoint.y) > 0.008
+          : true;
+        if (!moved) {
+          const target = pageAnnotations.find((annotation) => annotation.id === drag.annotationId);
+          if (target) {
+            onTextSelect(target);
+          }
+        } else {
+          onTextDragComplete?.(drag.annotationId);
+        }
+        return;
+      }
+
       if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
         finishStroke();
       }
     },
-    [finishStroke, interactive, mode],
+    [finishStroke, getPoint, interactive, mode, onTextDragComplete, onTextSelect, pageAnnotations],
   );
 
   return (
@@ -502,7 +657,9 @@ export function AnnotationInteractionLayer({
       ref={svgRef}
       className={`absolute inset-0 h-full w-full ${
         interactive ? 'touch-none cursor-crosshair' : 'pointer-events-none'
-      } ${mode === 'eraser' && interactive ? 'cursor-cell' : ''}`}
+      } ${mode === 'eraser' && interactive ? 'cursor-cell' : ''} ${
+        mode === 'text' && interactive ? 'cursor-text' : ''
+      }`}
       style={{ zIndex: interactive ? 30 : 2 }}
       viewBox="0 0 1 1"
       preserveAspectRatio="none"

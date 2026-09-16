@@ -5,6 +5,7 @@ import {
   IconHighlighter,
   IconLaser,
   IconPen,
+  IconTextSize,
 } from '@/ui/components/icons';
 
 type AnnotationDrawMode = Exclude<AnnotationInteractionMode, 'read'>;
@@ -22,6 +23,7 @@ const ANNOTATION_TOOLS: Array<{
 }> = [
   { mode: 'pen', label: 'Caneta', Icon: IconPen },
   { mode: 'highlight', label: 'Marca-texto', Icon: IconHighlighter },
+  { mode: 'text', label: 'Texto', Icon: IconTextSize },
   { mode: 'laser', label: 'Laser', Icon: IconLaser },
   { mode: 'eraser', label: 'Borracha', Icon: IconEraser },
 ];
@@ -62,7 +64,7 @@ export function AnnotationToolPicker({
 
   return (
     <>
-      <div ref={ref} className="relative lg:hidden">
+      <div ref={ref} className="relative min-[640px]:hidden">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
@@ -104,7 +106,7 @@ export function AnnotationToolPicker({
         ) : null}
       </div>
 
-      <div className="hidden items-center gap-x-3 lg:flex">
+      <div className="hidden items-center gap-x-3 min-[640px]:flex">
         {ANNOTATION_TOOLS.map(({ mode, label, Icon }) => (
           <button
             key={mode}

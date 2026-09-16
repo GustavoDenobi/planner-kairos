@@ -406,6 +406,40 @@ export async function syncPendingOfflineChanges(
         );
         await annotationStore.removeOutbox(item.id);
         synced += 1;
+      } else if (item.op === 'update') {
+        const payload = item.payload as {
+          organizationId: string;
+          pieceFileId: string;
+          annotationId: string;
+          input: import('@/domain/repertoire').UpdatePdfAnnotationInput;
+        };
+        const updated = await annotationRepo.update(
+          payload.organizationId,
+          payload.pieceFileId,
+          payload.annotationId,
+          payload.input,
+        );
+        if (updated) {
+          await annotationStore.upsert({
+            clientId: updated.id,
+            id: updated.id,
+            organizationId: updated.organizationId,
+            pieceFileId: updated.pieceFileId,
+            pageNumber: updated.pageNumber,
+            layer: updated.layer,
+            type: updated.type,
+            geometry: updated.geometry,
+            color: updated.color,
+            authorUserId: updated.authorUserId,
+            sectionId: updated.sectionId,
+            annotationSetId: updated.annotationSetId,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+            syncStatus: 'synced',
+          });
+        }
+        await annotationStore.removeOutbox(item.id);
+        synced += 1;
       } else if (item.op === 'delete') {
         const payload = item.payload as {
           organizationId: string;

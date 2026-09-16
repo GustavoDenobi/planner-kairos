@@ -47,6 +47,18 @@ describe('findAnnotationAtPoint', () => {
     updatedAt: '',
   };
 
+  it('finds text annotation near the pointer', () => {
+    const textAnnotation: PdfAnnotation = {
+      ...strokeAnnotation,
+      id: 'text-1',
+      type: 'text',
+      geometry: { x: 0.1, y: 0.1, content: 'ppp', fontSize: 0.02 },
+    };
+    expect(
+      findAnnotationAtPoint([textAnnotation], { x: 0.11, y: 0.11 }, ERASER_HIT_RADIUS)?.id,
+    ).toBe('text-1');
+  });
+
   it('finds a stroke near the pointer', () => {
     expect(findAnnotationAtPoint([strokeAnnotation], { x: 0.3, y: 0.3 }, ERASER_HIT_RADIUS)?.id).toBe(
       'a-1',

@@ -1,4 +1,5 @@
-import type { NormalizedPoint, PdfAnnotation, StrokeGeometry } from '@/domain/repertoire';
+import type { NormalizedPoint, PdfAnnotation, StrokeGeometry, TextGeometry } from '@/domain/repertoire';
+import { estimateTextBBox } from '@/ui/features/repertoire/annotation-text-metrics';
 import {
   HIGHLIGHT_STROKE_WIDTH as HIGHLIGHT_STROKE_WIDTH_RANGE,
   PEN_STROKE_WIDTH as PEN_STROKE_WIDTH_RANGE,
@@ -35,6 +36,10 @@ export const ERASER_HIT_RADIUS = 0.02;
 
 function isStrokeGeometry(geometry: PdfAnnotation['geometry']): geometry is StrokeGeometry {
   return 'points' in geometry;
+}
+
+function isTextGeometry(geometry: PdfAnnotation['geometry']): geometry is TextGeometry {
+  return 'content' in geometry && 'fontSize' in geometry;
 }
 
 function distanceBetween(a: NormalizedPoint, b: NormalizedPoint): number {
@@ -106,6 +111,11 @@ function annotationHitDistance(
 ): number {
   if (annotation.type === 'highlight' && isStrokeGeometry(annotation.geometry)) {
     return highlightStrokeHitDistance(annotation.geometry, point, pageAspectRatio);
+  }
+
+  if (annotation.type === 'text' && isTextGeometry(annotation.geometry)) {
+    const bbox = estimateTextBBox(annotation.geometry, pageAspectRatio);
+    return legacyHighlightHitDistance(bbox, point);
   }
 
   if (isStrokeGeometry(annotation.geometry)) {

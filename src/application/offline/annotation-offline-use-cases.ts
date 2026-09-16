@@ -247,6 +247,19 @@ export async function deleteAnnotationWithOffline(
   return Result.ok(undefined);
 }
 
+function mergeAnnotationUpdate(
+  existing: PdfAnnotation,
+  input: UpdatePdfAnnotationInput,
+  updatedAt: string,
+): PdfAnnotation {
+  return {
+    ...existing,
+    geometry: input.geometry ?? existing.geometry,
+    color: input.color ?? existing.color,
+    updatedAt,
+  };
+}
+
 export async function updateAnnotationWithOffline(
   annotationRepo: PieceFileAnnotationRepository,
   annotationStore: OfflineAnnotationStore,
@@ -255,32 +268,108 @@ export async function updateAnnotationWithOffline(
   annotationId: string,
   input: UpdatePdfAnnotationInput,
 ): Promise<Result<PdfAnnotation, string>> {
-  if (!isBrowserOnline()) {
-    return Result.fail('offline');
+  const isDraft = annotationId.startsWith('draft-');
+  const localRecords = [
+    ...(await annotationStore.listForFile(organizationId, pieceFileId)),
+    ...(await annotationStore.listPendingForFile(organizationId, pieceFileId)),
+  ];
+  const existingLocal = localRecords.find(
+    (item) => item.id === annotationId || item.clientId === annotationId,
+  );
+
+  if (isBrowserOnline() && !isDraft) {
+    try {
+      const updated = await annotationRepo.update(organizationId, pieceFileId, annotationId, input);
+      if (updated) {
+        await annotationStore.upsert({
+          clientId: updated.id,
+          id: updated.id,
+          organizationId: updated.organizationId,
+          pieceFileId: updated.pieceFileId,
+          pageNumber: updated.pageNumber,
+          layer: updated.layer,
+          type: updated.type,
+          geometry: updated.geometry,
+          color: updated.color,
+          authorUserId: updated.authorUserId,
+          sectionId: updated.sectionId,
+          annotationSetId: updated.annotationSetId,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+          syncStatus: 'synced',
+        });
+        return Result.ok(updated);
+      }
+    } catch (error) {
+      if (isPermanentSyncAuthError(error)) {
+        return Result.fail('not_allowed');
+      }
+      // fall through to offline queue
+    }
   }
 
-  const updated = await annotationRepo.update(organizationId, pieceFileId, annotationId, input);
-  if (!updated) {
+  if (!existingLocal) {
     return Result.fail('not_found');
   }
 
-  await annotationStore.upsert({
-    clientId: updated.id,
-    id: updated.id,
-    organizationId: updated.organizationId,
-    pieceFileId: updated.pieceFileId,
-    pageNumber: updated.pageNumber,
-    layer: updated.layer,
-    type: updated.type,
-    geometry: updated.geometry,
-    color: updated.color,
-    authorUserId: updated.authorUserId,
-    sectionId: updated.sectionId,
-    annotationSetId: updated.annotationSetId,
-    createdAt: updated.createdAt,
-    updatedAt: updated.updatedAt,
-    syncStatus: 'synced',
-  });
+  const now = new Date().toISOString();
+  const mergedLocal = {
+    ...existingLocal,
+    geometry: input.geometry ?? existingLocal.geometry,
+    color: input.color ?? existingLocal.color,
+    updatedAt: now,
+    syncStatus: 'pending' as const,
+  };
 
-  return Result.ok(updated);
+  await annotationStore.upsert(mergedLocal);
+
+  if (isDraft) {
+    const outbox = await annotationStore.listOutbox();
+    for (const item of outbox) {
+      if (
+        item.op === 'create'
+        && 'clientId' in item.payload
+        && item.payload.clientId === annotationId
+      ) {
+        await annotationStore.removeOutbox(item.id);
+        await annotationStore.enqueueOutbox({
+          id: crypto.randomUUID(),
+          op: 'create',
+          payload: {
+            clientId: annotationId,
+            organizationId,
+            pieceId: pieceFileId,
+            authorUserId: existingLocal.authorUserId,
+            input: {
+              pieceFileId,
+              pageNumber: mergedLocal.pageNumber,
+              layer: mergedLocal.layer,
+              type: mergedLocal.type,
+              geometry: mergedLocal.geometry,
+              color: mergedLocal.color,
+              sectionId: mergedLocal.sectionId,
+              annotationSetId: mergedLocal.annotationSetId,
+            },
+          },
+          createdAt: now,
+        });
+      }
+    }
+  } else {
+    await annotationStore.enqueueOutbox({
+      id: crypto.randomUUID(),
+      op: 'update',
+      payload: {
+        organizationId,
+        pieceFileId,
+        annotationId,
+        input,
+      },
+      createdAt: now,
+    });
+  }
+
+  return Result.ok(
+    mergeAnnotationUpdate(toPdfAnnotation(existingLocal), input, now),
+  );
 }

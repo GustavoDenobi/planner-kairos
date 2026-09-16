@@ -1,5 +1,27 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Planner Music Symbols';
+  src:
+    url('../../assets/fonts/BravuraText.woff2') format('woff2'),
+    url('../../assets/fonts/BravuraText.woff') format('woff'),
+    url('/fonts/BravuraText-smufl.woff2') format('woff2'),
+    url('/fonts/BravuraText-smufl.woff') format('woff');
+  font-display: block;
+  font-weight: 400;
+  font-style: normal;
+  unicode-range: U+E000-F8FF;
+}
+
+.musical-symbol-glyph,
+.musical-symbol-glyph button {
+  font-family: 'Planner Music Symbols', sans-serif;
+  font-size: 1.25rem;
+  line-height: 1;
+  font-feature-settings: normal;
+  font-variant: normal;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @custom-variant hover {
@@ -282,5 +304,60 @@ html[data-keyboard-open] [data-modal-overlay] {
 @media (prefers-reduced-motion: reduce) {
   .pwa-install-banner-enter {
     animation: none;
+  }
+}
+
+@keyframes navigation-shortcut-target-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+
+  100% {
+    transform: scale(2.75);
+    opacity: 0;
+  }
+}
+
+@keyframes navigation-shortcut-target-dot {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.28);
+  }
+}
+
+.navigation-shortcut-target-pulse {
+  animation: navigation-shortcut-target-pulse 0.7s ease-out 3;
+  transform-origin: center;
+}
+
+.navigation-shortcut-target-dot {
+  animation: navigation-shortcut-target-dot 0.7s ease-in-out 3;
+  transform-origin: center;
+}
+
+@keyframes navigation-shortcut-target-dot-static {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-shortcut-target-pulse {
+    animation: none;
+    opacity: 0;
+  }
+
+  .navigation-shortcut-target-dot {
+    animation: navigation-shortcut-target-dot-static 1.4s ease-in-out 1;
   }
 }

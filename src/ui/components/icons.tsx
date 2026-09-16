@@ -640,17 +640,27 @@ export function IconX(props: IconProps) {
 
 export function IconTextSize(props: IconProps) {
   return (
-    <svg {...defaults} {...props} fill="currentColor" stroke="none">
-      <text
-        x="12"
-        y="17"
-        textAnchor="middle"
-        fontSize="15"
-        fontWeight="700"
-        fontFamily="Inter, system-ui, sans-serif"
-      >
-        A
-      </text>
+    <svg {...defaults} {...props}>
+      <path d="M12 4 5 20" />
+      <path d="M12 4l7 16" />
+      <path d="M8 14h8" />
+    </svg>
+  );
+}
+
+export function IconBold(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M6 4h6a4 4 0 0 1 0 8H6z" />
+      <path d="M6 12h7a4 4 0 0 1 0 8H6z" />
+    </svg>
+  );
+}
+
+export function IconItalic(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M19 4h-9M14 20H5M15 4 9 20" />
     </svg>
   );
 }

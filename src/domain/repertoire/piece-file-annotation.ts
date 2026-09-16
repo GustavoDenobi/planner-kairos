@@ -1,6 +1,6 @@
 export type AnnotationLayer = 'personal' | 'section' | 'directed';
 
-export type AnnotationType = 'stroke' | 'highlight';
+export type AnnotationType = 'stroke' | 'highlight' | 'text';
 
 export type NormalizedPoint = {
   x: number;
@@ -19,7 +19,25 @@ export type HighlightGeometry = {
   height: number;
 };
 
-export type AnnotationGeometry = StrokeGeometry | HighlightGeometry;
+import type { TextFontFamily } from './text-font-families';
+
+export type TextFontWeight = 'bold';
+export type TextFontStyle = 'italic';
+export type { TextFontFamily };
+
+export type TextGeometry = {
+  x: number;
+  y: number;
+  content: string;
+  fontSize: number;
+  fontFamily?: TextFontFamily;
+  fontWeight?: TextFontWeight;
+  fontStyle?: TextFontStyle;
+};
+
+export type AnnotationGeometry = StrokeGeometry | HighlightGeometry | TextGeometry;
+
+export const TEXT_ANNOTATION_MAX_LENGTH = 200;
 
 export type PdfAnnotation = {
   id: string;

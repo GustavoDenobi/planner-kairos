@@ -126,6 +126,9 @@ describe('pdf-reader-preference-storage', () => {
       highlightPresetId: 'pink',
       highlightStrokeWidth: 0.005,
       highlightHorizontal: false,
+      textPresetId: DEFAULT_ANNOTATION_TOOL_PREFERENCES.textPresetId,
+      textFontSize: DEFAULT_ANNOTATION_TOOL_PREFERENCES.textFontSize,
+      textFontFamily: DEFAULT_ANNOTATION_TOOL_PREFERENCES.textFontFamily,
     });
   });
 

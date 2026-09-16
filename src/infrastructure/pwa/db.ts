@@ -19,7 +19,7 @@ export type CachedAnnotationRecord = {
   pieceFileId: string;
   pageNumber: number;
   layer: 'personal' | 'section' | 'directed';
-  type: 'stroke' | 'highlight';
+  type: 'stroke' | 'highlight' | 'text';
   geometryJson: string;
   color: string;
   authorUserId: string;
@@ -51,7 +51,13 @@ export type CachedAnnotationSetRecord = {
 
 export type SyncOutboxRecord = {
   id: string;
-  op: 'create' | 'delete' | 'create_annotation_set' | 'update_annotation_set' | 'delete_annotation_set';
+  op:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'create_annotation_set'
+    | 'update_annotation_set'
+    | 'delete_annotation_set';
   payloadJson: string;
   createdAt: string;
   retryCount: number;

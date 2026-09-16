@@ -1174,6 +1174,68 @@ export function ReadingPlaylistReaderPage() {
 
 
 
+  const handleAnnotationUpdate = useCallback(
+
+    async (annotationId: string, input: import('@/domain/repertoire').UpdatePdfAnnotationInput) => {
+
+      if (!organizationId || !currentItem) {
+
+        return null;
+
+      }
+
+
+
+      const result = await offline.updatePieceFileAnnotation(
+
+        organizationId,
+
+        currentItem.pieceFileId,
+
+        annotationId,
+
+        input,
+
+      );
+
+      if (!result.ok) {
+
+        return null;
+
+      }
+
+
+
+      setAnnotations((current) =>
+
+        current.map((annotation) =>
+
+          annotation.id === annotationId ? result.value : annotation,
+
+        ),
+
+      );
+
+      syncCachedAnnotations((current) =>
+
+        current.map((annotation) =>
+
+          annotation.id === annotationId ? result.value : annotation,
+
+        ),
+
+      );
+
+      return result.value;
+
+    },
+
+    [organizationId, currentItem, offline, syncCachedAnnotations],
+
+  );
+
+
+
   useEffect(() => {
 
     if (!organizationId || !userId) {
@@ -2077,6 +2139,8 @@ export function ReadingPlaylistReaderPage() {
         }
 
         onAnnotationCreate={handleAnnotationCreate}
+
+        onAnnotationUpdate={handleAnnotationUpdate}
 
         onAnnotationDelete={handleAnnotationDelete}
 

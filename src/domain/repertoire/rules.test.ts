@@ -270,6 +270,33 @@ describe('validateAnnotationGeometry', () => {
       }),
     ).toBeNull();
   });
+
+  it('validates text geometry', () => {
+    expect(
+      validateAnnotationGeometry('text', {
+        x: 0.1,
+        y: 0.2,
+        content: 'ppp',
+        fontSize: 0.012,
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('text', {
+        x: 0.1,
+        y: 0.2,
+        content: '   ',
+        fontSize: 0.012,
+      }),
+    ).toBe('invalid_text_content');
+    expect(
+      validateAnnotationGeometry('text', {
+        x: 0.1,
+        y: 0.2,
+        content: 'x'.repeat(201),
+        fontSize: 0.012,
+      }),
+    ).toBe('invalid_text_length');
+  });
 });
 
 describe('validateCreatePdfAnnotationInput', () => {

@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('./file-cache-use-cases', () => ({
+  isBrowserOnline: vi.fn(() => true),
+}));
 import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
-import { listAnnotationsForReading } from '@/application/offline/annotation-offline-use-cases';
+import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
+import {
+  listAnnotationsForReading,
+  updateAnnotationWithOffline,
+} from '@/application/offline/annotation-offline-use-cases';
 
 function createAnnotationStore(): OfflineAnnotationStore {
   const annotations: import('@/application/ports/offline-annotation-store').LocalPdfAnnotation[] =
@@ -225,5 +233,62 @@ describe('listAnnotationsForReading', () => {
     if (result.ok) {
       expect(result.value.map((annotation) => annotation.id)).toEqual(['ann-visible']);
     }
+  });
+});
+
+describe('updateAnnotationWithOffline', () => {
+  it('queues update outbox when offline', async () => {
+    vi.mocked(isBrowserOnline).mockReturnValue(false);
+    const annotationStore = createAnnotationStore();
+    await annotationStore.upsert({
+      clientId: 'ann-1',
+      id: 'ann-1',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      pageNumber: 1,
+      layer: 'personal',
+      type: 'text',
+      geometry: { x: 0.1, y: 0.2, content: 'ppp', fontSize: 0.012 },
+      color: 'preset:blue',
+      authorUserId: 'user-1',
+      sectionId: null,
+      annotationSetId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+
+    const annotationRepo: PieceFileAnnotationRepository = {
+      listForFile: async () => [],
+      create: async () => {
+        throw new Error('offline');
+      },
+      update: async () => null,
+      remove: async () => true,
+    };
+
+    const result = await updateAnnotationWithOffline(
+      annotationRepo,
+      annotationStore,
+      'org-1',
+      'file-1',
+      'ann-1',
+      {
+        geometry: { x: 0.2, y: 0.3, content: 'ff', fontSize: 0.012 },
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.geometry).toEqual({
+        x: 0.2,
+        y: 0.3,
+        content: 'ff',
+        fontSize: 0.012,
+      });
+    }
+
+    const outbox = await annotationStore.listOutbox();
+    expect(outbox.some((item) => item.op === 'update')).toBe(true);
   });
 });

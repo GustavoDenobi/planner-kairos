@@ -31,6 +31,13 @@ export const HIGHLIGHT_STROKE_WIDTH: StrokeWidthRange = {
   step: 0.0025,
 };
 
+export const TEXT_FONT_SIZE: StrokeWidthRange = {
+  min: 0.01,
+  max: 0.08,
+  default: 0.016,
+  step: 0.002,
+};
+
 export const LASER_STROKE_WIDTH = 0.003;
 
 export const LASER_DEFAULT_PRESET_ID = 'red';
@@ -67,7 +74,10 @@ export type AnnotationAppearance = {
 };
 
 function presetsForType(type: AnnotationType): AnnotationToolPreset[] {
-  return type === 'stroke' ? PEN_COLOR_PRESETS : HIGHLIGHT_COLOR_PRESETS;
+  if (type === 'highlight') {
+    return HIGHLIGHT_COLOR_PRESETS;
+  }
+  return PEN_COLOR_PRESETS;
 }
 
 export function formatPresetColor(id: string): string {
@@ -120,7 +130,7 @@ export function resolvePresetVisualStroke(
   inverted: boolean,
 ): string {
   const stroke = resolvePresetStroke(type, presetId, inverted);
-  if (type === 'stroke' && inverted) {
+  if ((type === 'stroke' || type === 'text') && inverted) {
     return invertRgbHex(stroke);
   }
   return stroke;
@@ -147,14 +157,18 @@ export function resolveAnnotationAppearance(
     return resolvePresetAppearance(annotation.type, presetId, inverted);
   }
 
-  if (annotation.type === 'stroke') {
+  if (annotation.type === 'stroke' || annotation.type === 'text') {
     return { stroke: annotation.color };
   }
 
-  return {
-    stroke: resolveHighlightColor(annotation.layer, inverted),
-    blendMode: inverted ? 'screen' : 'multiply',
-  };
+  if (annotation.type === 'highlight') {
+    return {
+      stroke: resolveHighlightColor(annotation.layer, inverted),
+      blendMode: inverted ? 'screen' : 'multiply',
+    };
+  }
+
+  return { stroke: annotation.color };
 }
 
 export function clampStrokeWidth(value: number, range: StrokeWidthRange): number {
