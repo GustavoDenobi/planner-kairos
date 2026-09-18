@@ -31,6 +31,7 @@ type GestureSession =
       initialPan: Pan;
       initialCenter: Point;
       initialScroll: Pan;
+      lastCenterDelta: Pan;
     }
   | {
       kind: 'pan';
@@ -39,6 +40,19 @@ type GestureSession =
       initialPan: Pan;
       initialScroll: Pan;
     };
+
+type PendingScrollRestore = {
+  scroll: Pan;
+  focalInContainer: Point;
+  scaleRatio: number;
+  centerDelta: Pan;
+};
+
+type WheelAnchor = {
+  scroll: Pan;
+  scale: number;
+  focalInContainer: Point;
+};
 
 type UsePdfViewportGesturesOptions = {
   viewportRef: RefObject<HTMLElement | null>;
@@ -114,6 +128,9 @@ export function usePdfViewportGestures({
   const sessionRef = useRef<GestureSession | null>(null);
   const ratioFrameRef = useRef<number>(0);
   const wheelCommitTimeoutRef = useRef<number>(0);
+  const pendingScrollRestoreRef = useRef<PendingScrollRestore | null>(null);
+  const wheelAnchorRef = useRef<WheelAnchor | null>(null);
+  const prevRenderScaleForScrollRef = useRef(renderScale);
   const tapStartRef = useRef<Point | null>(null);
   const tapMovedRef = useRef(false);
   const pinchOccurredRef = useRef(false);
@@ -137,8 +154,55 @@ export function usePdfViewportGestures({
     });
   }, []);
 
+  const queueVerticalScrollRestore = useCallback(
+    (nextScale: number) => {
+      if (navigationRef.current === 'horizontal') {
+        return;
+      }
+
+      const viewport = viewportRef.current;
+      const fromScale = renderScaleRef.current;
+      if (!viewport || fromScale <= 0 || Math.abs(nextScale - fromScale) <= 0.001) {
+        return;
+      }
+
+      const session = sessionRef.current;
+      if (session?.kind === 'pinch') {
+        const rect = viewport.getBoundingClientRect();
+        pendingScrollRestoreRef.current = {
+          scroll: session.initialScroll,
+          focalInContainer: {
+            x: session.initialCenter.x - rect.left,
+            y: session.initialCenter.y - rect.top,
+          },
+          scaleRatio: session.initialScale > 0 ? nextScale / session.initialScale : 1,
+          centerDelta: session.lastCenterDelta,
+        };
+        return;
+      }
+
+      const wheelAnchor = wheelAnchorRef.current;
+      if (wheelAnchor) {
+        pendingScrollRestoreRef.current = {
+          scroll: wheelAnchor.scroll,
+          focalInContainer: wheelAnchor.focalInContainer,
+          scaleRatio: wheelAnchor.scale > 0 ? nextScale / wheelAnchor.scale : 1,
+          centerDelta: { x: 0, y: 0 },
+        };
+        wheelAnchorRef.current = null;
+      }
+    },
+    [viewportRef],
+  );
+
   const commitLiveRenderScale = useCallback(() => {
+    if (ratioFrameRef.current) {
+      cancelAnimationFrame(ratioFrameRef.current);
+      ratioFrameRef.current = 0;
+    }
+
     const next = clampScale(liveScaleRef.current);
+    queueVerticalScrollRestore(next);
     liveScaleRef.current = next;
     setDisplayScale(next);
     setVisualScaleRatio(1);
@@ -146,7 +210,7 @@ export function usePdfViewportGestures({
     if (Math.abs(next - renderScaleRef.current) > 0.001) {
       setRenderScale(next);
     }
-  }, [setRenderScale]);
+  }, [queueVerticalScrollRestore, setRenderScale]);
 
   const previewLiveScale = useCallback(
     (next: number) => {
@@ -206,6 +270,33 @@ export function usePdfViewportGestures({
   }, [renderScale]);
 
   useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const previousScale = prevRenderScaleForScrollRef.current;
+    prevRenderScaleForScrollRef.current = renderScale;
+
+    if (navigationRef.current !== 'horizontal' && viewport) {
+      const pending = pendingScrollRestoreRef.current;
+      pendingScrollRestoreRef.current = null;
+
+      if (pending) {
+        const nextScroll = adjustScrollForPinch(
+          pending.scroll,
+          pending.focalInContainer,
+          pending.scaleRatio,
+        );
+        viewport.scrollLeft = Math.max(0, nextScroll.x - pending.centerDelta.x);
+        viewport.scrollTop = Math.max(0, nextScroll.y - pending.centerDelta.y);
+      } else if (previousScale > 0 && Math.abs(renderScale - previousScale) > 0.001) {
+        const nextScroll = adjustScrollForPinch(
+          { x: viewport.scrollLeft, y: viewport.scrollTop },
+          { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 },
+          renderScale / previousScale,
+        );
+        viewport.scrollLeft = Math.max(0, nextScroll.x);
+        viewport.scrollTop = Math.max(0, nextScroll.y);
+      }
+    }
+
     if (!isScaleZoomed(liveScaleRef.current, fitScale)) {
       if (panRef.current.x !== 0 || panRef.current.y !== 0) {
         resetPan();
@@ -213,7 +304,7 @@ export function usePdfViewportGestures({
       return;
     }
     applyClampedPan(panRef.current);
-  }, [applyClampedPan, fitScale, resetPan, renderScale]);
+  }, [applyClampedPan, fitScale, resetPan, renderScale, viewportRef]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -320,7 +411,9 @@ export function usePdfViewportGestures({
         initialPan: panRef.current,
         initialCenter: touchCenter(a, b),
         initialScroll: { x: viewport.scrollLeft, y: viewport.scrollTop },
+        lastCenterDelta: { x: 0, y: 0 },
       };
+      wheelAnchorRef.current = null;
       setIsGesturing(true);
       pinchOccurredRef.current = true;
       tapMovedRef.current = true;
@@ -352,6 +445,7 @@ export function usePdfViewportGestures({
         x: focal.x - session.initialCenter.x,
         y: focal.y - session.initialCenter.y,
       };
+      session.lastCenterDelta = centerDelta;
 
       previewLiveScale(newScale);
 
@@ -466,6 +560,10 @@ export function usePdfViewportGestures({
         event.stopPropagation();
       }
 
+      if (endedPinch) {
+        commitLiveRenderScale();
+      }
+
       if (
         event.touches.length === 1 &&
         event.touches[0] &&
@@ -480,10 +578,6 @@ export function usePdfViewportGestures({
       const ended = event.changedTouches[0];
       sessionRef.current = null;
       setIsGesturing(false);
-
-      if (endedPinch && event.touches.length === 0) {
-        commitLiveRenderScale();
-      }
 
       if (event.touches.length === 0 && ended) {
         if (isInteractiveTarget(event.target)) {
@@ -587,6 +681,22 @@ export function usePdfViewportGestures({
 
       const ratio = currentScale > 0 ? newScale / currentScale : 1;
       const focal = { x: event.clientX, y: event.clientY };
+      const rect = viewport.getBoundingClientRect();
+      const focalInContainer = {
+        x: focal.x - rect.left,
+        y: focal.y - rect.top,
+      };
+
+      if (navigationRef.current !== 'horizontal' && !wheelAnchorRef.current) {
+        wheelAnchorRef.current = {
+          scroll: { x: viewport.scrollLeft, y: viewport.scrollTop },
+          scale: currentScale,
+          focalInContainer,
+        };
+      } else if (wheelAnchorRef.current) {
+        wheelAnchorRef.current.focalInContainer = focalInContainer;
+      }
+
       previewLiveScale(newScale);
 
       if (navigationRef.current === 'horizontal') {
@@ -599,10 +709,9 @@ export function usePdfViewportGestures({
           }),
         );
       } else {
-        const rect = viewport.getBoundingClientRect();
         const nextScroll = adjustScrollForPinch(
           { x: viewport.scrollLeft, y: viewport.scrollTop },
-          { x: focal.x - rect.left, y: focal.y - rect.top },
+          focalInContainer,
           ratio,
         );
         viewport.scrollLeft = nextScroll.x;

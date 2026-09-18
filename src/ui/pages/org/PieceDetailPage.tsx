@@ -30,7 +30,12 @@ import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
-import { printPdfDocument, resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
+import {
+  deliverPdfDocument,
+  isShareCancellation,
+  shouldSharePdfInsteadOfPrint,
+} from '@/ui/features/repertoire/pdf-delivery';
+import { resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
 import {
   PieceFileUploadEntries,
   type PartLinkSelection,
@@ -667,9 +672,15 @@ export function PieceDetailPage() {
     }
 
     try {
-      await printPdfDocument(pdfLoad.pdfDocument);
-    } catch {
-      setError('Não foi possível imprimir a partitura.');
+      await deliverPdfDocument(pdfLoad.pdfDocument, file.originalName ?? file.title);
+    } catch (error) {
+      if (!isShareCancellation(error)) {
+        setError(
+          shouldSharePdfInsteadOfPrint()
+            ? 'Não foi possível compartilhar a partitura.'
+            : 'Não foi possível imprimir a partitura.',
+        );
+      }
     } finally {
       revokePdfObjectUrl(pdfLoad.downloadUrl);
       void pdfLoad.pdfDocument.loadingTask.destroy();

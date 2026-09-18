@@ -2,9 +2,10 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { partitionPieceFilesForViewer } from '@/domain/repertoire';
 import type { PieceFileKind, PieceFileOrganization, PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconPrint, IconScoreSheet, IconPlay } from '@/ui/components/icons';
+import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconPrint, IconScoreSheet, IconPlay, IconShare } from '@/ui/components/icons';
 import { SortableList } from '@/ui/components/SortableList';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
+import { shouldSharePdfInsteadOfPrint } from '@/ui/features/repertoire/pdf-delivery';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
 type PartFilterOption = {
@@ -82,6 +83,37 @@ function fileMatchesTitleFilter(file: PieceFileWithLinks, query: string): boolea
   return file.title.toLowerCase().includes(normalizedQuery);
 }
 
+function ScoreFileOutputButton({
+  file,
+  onPrint,
+  printingFileId,
+}: {
+  file: PieceFileWithLinks;
+  onPrint: (file: PieceFileWithLinks) => void;
+  printingFileId?: string | null;
+}) {
+  const shareInsteadOfPrint = shouldSharePdfInsteadOfPrint();
+  const label = shareInsteadOfPrint ? 'Compartilhar' : 'Imprimir';
+  const Icon = shareInsteadOfPrint ? IconShare : IconPrint;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPrint(file)}
+      disabled={printingFileId === file.id}
+      aria-label={`${label} ${file.title}`}
+      title={label}
+      className={
+        shareInsteadOfPrint
+          ? 'inline-flex items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50'
+          : 'hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex'
+      }
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
 function FileList({
   files,
   parts,
@@ -134,16 +166,11 @@ function FileList({
                     <IconScoreSheet className="h-4 w-4" />
                   </button>
                   {allowDownload && onPrint && (
-                    <button
-                      type="button"
-                      onClick={() => onPrint(file)}
-                      disabled={printingFileId === file.id}
-                      aria-label={`Imprimir ${file.title}`}
-                      title="Imprimir"
-                      className="hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex"
-                    >
-                      <IconPrint className="h-4 w-4" />
-                    </button>
+                    <ScoreFileOutputButton
+                      file={file}
+                      onPrint={onPrint}
+                      printingFileId={printingFileId}
+                    />
                   )}
                 </>
               )}
@@ -483,16 +510,11 @@ export function PieceFilesSection({
                         </button>
                         <div className="flex shrink-0 items-center gap-1">
                           {allowDownload && onPrint && (
-                            <button
-                              type="button"
-                              onClick={() => onPrint(file)}
-                              disabled={printingFileId === file.id}
-                              aria-label={`Imprimir ${file.title}`}
-                              title="Imprimir"
-                              className="hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex"
-                            >
-                              <IconPrint className="h-4 w-4" />
-                            </button>
+                            <ScoreFileOutputButton
+                              file={file}
+                              onPrint={onPrint}
+                              printingFileId={printingFileId}
+                            />
                           )}
                           {isAdmin && (
                             <button

@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import { openPdfDocument, printPdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { deliverPdfDocument, isShareCancellation } from '@/ui/features/repertoire/pdf-delivery';
+import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -540,12 +541,13 @@ function PdfPageFrameComponent({
         height: layoutSize.height,
       }}
     >
-      <div className={`relative ${inverted ? 'invert' : ''}`}>
+      <div className={`relative h-full w-full ${inverted ? 'invert' : ''}`}>
         <canvas
           ref={canvasRef}
-          className={`block ${inverted ? 'bg-black' : 'bg-white'} ${
+          className={`block h-full w-full ${inverted ? 'bg-black' : 'bg-white'} ${
             inverted ? '' : 'shadow-sm'
           }`}
+          style={{ width: layoutSize.width, height: layoutSize.height }}
         />
         <>
           <AnnotationPenLayer
@@ -678,22 +680,30 @@ function PdfPageSlot({
   inverted,
   ...frameProps
 }: PdfPageSlotProps) {
-  const [layoutSize, setLayoutSize] = useState<PageLayoutSize | null>(null);
+  const [baseLayout, setBaseLayout] = useState<{
+    pageNumber: number;
+    layout: PageLayoutSize;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    void getBasePageLayout(pdf, pageNumber).then((baseLayout) => {
+    void getBasePageLayout(pdf, pageNumber).then((layout) => {
       if (cancelled) {
         return;
       }
-      setLayoutSize(scalePageLayout(baseLayout, scale));
+      setBaseLayout({ pageNumber, layout });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [pdf, pageNumber, scale]);
+  }, [pdf, pageNumber]);
+
+  const layoutSize =
+    baseLayout && baseLayout.pageNumber === pageNumber
+      ? scalePageLayout(baseLayout.layout, scale)
+      : null;
 
   return (
     <div
@@ -1238,8 +1248,12 @@ export function PdfViewer({
     if (!pdf || !allowDownload) {
       return;
     }
-    void printPdfDocument(pdf);
-  }, [pdf, allowDownload]);
+    void deliverPdfDocument(pdf, readerInfo?.downloadName).catch((error) => {
+      if (isShareCancellation(error)) {
+        return;
+      }
+    });
+  }, [pdf, allowDownload, readerInfo?.downloadName]);
 
   const clearLaserStrokes = useCallback(() => {
     laserTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
@@ -1615,18 +1629,6 @@ export function PdfViewer({
 
     return () => clearTimeout(timeoutId);
   }, [navigation, pdf, numPages, url, scrollVerticalToPageProgrammatically]);
-
-  useEffect(() => {
-    if (navigation !== 'vertical' || !pdf || numPages === 0) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      scrollVerticalToPageProgrammatically(currentPageRef.current);
-    }, 200);
-
-    return () => clearTimeout(timeoutId);
-  }, [scale, fitScale, navigation, pdf, numPages, scrollVerticalToPageProgrammatically]);
 
   useEffect(() => {
     if (navigation !== 'vertical' || !pdf || numPages === 0) {
@@ -3451,8 +3453,8 @@ export function PdfViewer({
         ) : (
           <div
             ref={scrollRef}
-            className={`flex min-h-0 flex-1 flex-col items-center overscroll-contain ${
-              isZoomed ? 'overflow-auto touch-pan-x touch-pan-y' : 'overflow-y-auto touch-pan-y'
+            className={`flex min-h-0 flex-1 flex-col items-center overflow-auto overscroll-contain ${
+              isZoomed ? 'touch-pan-x touch-pan-y' : 'touch-pan-y'
             } ${viewportPadding} ${surfaceClass}`}
             {...viewportInteractionProps}
           >

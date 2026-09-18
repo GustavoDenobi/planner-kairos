@@ -1,6 +1,7 @@
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
-import { IconArrowDown, IconPrint } from '@/ui/components/icons';
+import { IconArrowDown, IconPrint, IconShare } from '@/ui/components/icons';
+import { shouldSharePdfInsteadOfPrint } from '@/ui/features/repertoire/pdf-delivery';
 import { downloadFromUrl } from '@/ui/utils/download-url';
 
 export type PdfReaderPieceInfo = {
@@ -42,6 +43,7 @@ export function PdfReaderInfoModal({
 }: PdfReaderInfoModalProps) {
   const showDownload = allowDownload && Boolean(downloadUrl);
   const showPrint = allowDownload && Boolean(onPrint);
+  const shareInsteadOfPrint = showPrint && shouldSharePdfInsteadOfPrint();
   const showActions = showDownload || showPrint;
 
   async function handleDownload() {
@@ -156,8 +158,12 @@ export function PdfReaderInfoModal({
                 onClick={onPrint}
                 className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-bg"
               >
-                <IconPrint className="h-4 w-4 shrink-0" aria-hidden />
-                Imprimir
+                {shareInsteadOfPrint ? (
+                  <IconShare className="h-4 w-4 shrink-0" aria-hidden />
+                ) : (
+                  <IconPrint className="h-4 w-4 shrink-0" aria-hidden />
+                )}
+                {shareInsteadOfPrint ? 'Compartilhar' : 'Imprimir'}
               </button>
             ) : null}
           </div>
