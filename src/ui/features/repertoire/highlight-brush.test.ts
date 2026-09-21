@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHighlightBrushRects,
   constrainHighlightStrokeToHorizontalAxis,
+  constrainHighlightStrokeToVerticalAxis,
+  isCoverRectLargeEnough,
   highlightBrushDimensions,
+  normalizedRectFromPoints,
   highlightBrushPreviewPixels,
   highlightBrushRectAtPoint,
   highlightStrokeHitDistance,
@@ -66,6 +69,33 @@ describe('highlight-brush', () => {
       { x: 0.5, y: 0.4 },
       { x: 0.8, y: 0.4 },
     ]);
+  });
+
+  it('constrains highlight strokes to the initial x coordinate', () => {
+    expect(
+      constrainHighlightStrokeToVerticalAxis([
+        { x: 0.4, y: 0.2 },
+        { x: 0.55, y: 0.5 },
+        { x: 0.3, y: 0.8 },
+      ]),
+    ).toEqual([
+      { x: 0.4, y: 0.2 },
+      { x: 0.4, y: 0.5 },
+      { x: 0.4, y: 0.8 },
+    ]);
+  });
+
+  it('builds a normalized rectangle from drag points', () => {
+    const rect = normalizedRectFromPoints({ x: 0.7, y: 0.2 }, { x: 0.3, y: 0.6 });
+    expect(rect.x).toBe(0.3);
+    expect(rect.y).toBe(0.2);
+    expect(rect.width).toBeCloseTo(0.4);
+    expect(rect.height).toBeCloseTo(0.4);
+  });
+
+  it('requires a minimum size for cover rectangles', () => {
+    expect(isCoverRectLargeEnough({ x: 0.1, y: 0.1, width: 0.01, height: 0.01 })).toBe(true);
+    expect(isCoverRectLargeEnough({ x: 0.1, y: 0.1, width: 0.001, height: 0.01 })).toBe(false);
   });
 
   it('maps stroke width to on-screen preview pixels', () => {

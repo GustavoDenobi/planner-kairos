@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import type { AnnotationInteractionMode } from '@/ui/features/repertoire/AnnotationOverlay';
 import {
+  IconCover,
   IconEraser,
   IconHighlighter,
   IconLaser,
@@ -23,6 +24,7 @@ const ANNOTATION_TOOLS: Array<{
 }> = [
   { mode: 'pen', label: 'Caneta', Icon: IconPen },
   { mode: 'highlight', label: 'Marca-texto', Icon: IconHighlighter },
+  { mode: 'cover', label: 'Correção', Icon: IconCover },
   { mode: 'text', label: 'Texto', Icon: IconTextSize },
   { mode: 'laser', label: 'Laser', Icon: IconLaser },
   { mode: 'eraser', label: 'Borracha', Icon: IconEraser },

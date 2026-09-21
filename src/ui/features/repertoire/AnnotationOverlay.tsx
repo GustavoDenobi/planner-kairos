@@ -6,6 +6,7 @@ import type {
   StrokeGeometry,
   TextGeometry,
 } from '@/domain/repertoire';
+import { resolveCoverColor } from '@/domain/repertoire';
 import { resolveAnnotationTextFontFamily } from '@/ui/features/repertoire/annotation-text-metrics';
 import { LASER_FADE_OUT_MS, resolveAnnotationAppearance } from '@/domain/repertoire';
 import {
@@ -15,11 +16,22 @@ import {
 } from '@/ui/features/repertoire/annotation-coordinates';
 import {
   buildHighlightBrushRects,
-  constrainHighlightPointToHorizontalAxis,
-  constrainHighlightStrokeToHorizontalAxis,
+  constrainHighlightPoint,
+  constrainHighlightStroke,
+  isCoverRectLargeEnough,
+  normalizedRectFromPoints,
+  type CoverDrawMode,
+  type HighlightStrokeMode,
 } from '@/ui/features/repertoire/highlight-brush';
 
-export type AnnotationInteractionMode = 'read' | 'pen' | 'highlight' | 'text' | 'eraser' | 'laser';
+export type AnnotationInteractionMode =
+  | 'read'
+  | 'pen'
+  | 'highlight'
+  | 'cover'
+  | 'text'
+  | 'eraser'
+  | 'laser';
 
 export type LaserStroke = {
   id: string;
@@ -118,6 +130,16 @@ type HighlightLayerProps = SharedProps & {
   highlightColor: string;
   highlightStrokeWidth: number;
   draftStroke: NormalizedPoint[] | null;
+  draftRect: HighlightGeometry | null;
+  showDraft: boolean;
+};
+
+type CoverLayerProps = SharedProps & {
+  inverted: boolean;
+  pageAspectRatio: number;
+  coverStrokeWidth: number;
+  draftStroke: NormalizedPoint[] | null;
+  draftRect: HighlightGeometry | null;
   showDraft: boolean;
 };
 
@@ -142,14 +164,20 @@ type InteractionLayerProps = SharedProps & {
   pageAspectRatio: number;
   penStrokeWidth: number;
   highlightStrokeWidth: number;
-  highlightHorizontal: boolean;
+  highlightStrokeMode: HighlightStrokeMode;
+  coverStrokeWidth: number;
+  coverDrawMode: CoverDrawMode;
   laserStrokeWidth: number;
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (geometry: StrokeGeometry) => void;
   onHighlightComplete: (geometry: StrokeGeometry) => void;
+  onHighlightRectComplete: (geometry: HighlightGeometry) => void;
+  onCoverComplete: (geometry: StrokeGeometry) => void;
+  onCoverRectComplete: (geometry: HighlightGeometry) => void;
   onLaserStrokeComplete: (geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
   onDraftStrokeChange: (stroke: NormalizedPoint[] | null) => void;
+  onDraftRectChange: (rect: HighlightGeometry | null) => void;
   onTextPlace: (point: NormalizedPoint) => void;
   onTextSelect: (annotation: PdfAnnotation) => void;
   onTextMove: (annotationId: string, point: NormalizedPoint) => void;
@@ -229,6 +257,7 @@ export function AnnotationHighlightLayer({
   highlightColor,
   highlightStrokeWidth,
   draftStroke,
+  draftRect,
   showDraft,
 }: HighlightLayerProps) {
   const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
@@ -303,6 +332,113 @@ export function AnnotationHighlightLayer({
             />
           ))}
         </g>
+      )}
+      {showDraft && draftRect && (
+        <rect
+          x={draftRect.x}
+          y={draftRect.y}
+          width={draftRect.width}
+          height={draftRect.height}
+          fill={highlightColor}
+          stroke="none"
+          style={{ mixBlendMode: draftBlendMode }}
+        />
+      )}
+    </svg>
+  );
+}
+
+export function AnnotationCoverLayer({
+  pageNumber,
+  annotations,
+  visibleLayers,
+  editingFocus,
+  inverted,
+  pageAspectRatio,
+  coverStrokeWidth,
+  draftStroke,
+  draftRect,
+  showDraft,
+}: CoverLayerProps) {
+  const coverColor = resolveCoverColor(inverted);
+  const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
+    (annotation) => annotation.type === 'cover',
+  );
+  const draftBrushRects =
+    showDraft && draftStroke
+      ? buildHighlightBrushRects(draftStroke, coverStrokeWidth, pageAspectRatio)
+      : [];
+
+  return (
+    <svg {...SVG_BASE}>
+      {pageAnnotations.map((annotation) => {
+        const opacity = annotationLayerOpacity(annotation, editingFocus);
+
+        if (isStrokeGeometry(annotation.geometry)) {
+          const brushRects = buildHighlightBrushRects(
+            annotation.geometry.points,
+            annotation.geometry.strokeWidth,
+            pageAspectRatio,
+          );
+          return (
+            <g key={annotation.id} opacity={opacity}>
+              {brushRects.map((rect, index) => (
+                <rect
+                  key={`${annotation.id}-${index}`}
+                  x={rect.x}
+                  y={rect.y}
+                  width={rect.width}
+                  height={rect.height}
+                  fill={coverColor}
+                  stroke="none"
+                />
+              ))}
+            </g>
+          );
+        }
+
+        if ('width' in annotation.geometry) {
+          const geometry = annotation.geometry as HighlightGeometry;
+          return (
+            <rect
+              key={annotation.id}
+              x={geometry.x}
+              y={geometry.y}
+              width={geometry.width}
+              height={geometry.height}
+              fill={coverColor}
+              stroke="none"
+              opacity={opacity}
+            />
+          );
+        }
+
+        return null;
+      })}
+      {draftBrushRects.length > 0 && (
+        <g>
+          {draftBrushRects.map((rect, index) => (
+            <rect
+              key={`cover-draft-stroke-${index}`}
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              fill={coverColor}
+              stroke="none"
+            />
+          ))}
+        </g>
+      )}
+      {showDraft && draftRect && (
+        <rect
+          x={draftRect.x}
+          y={draftRect.y}
+          width={draftRect.width}
+          height={draftRect.height}
+          fill={coverColor}
+          stroke="none"
+        />
       )}
     </svg>
   );
@@ -404,14 +540,20 @@ export function AnnotationInteractionLayer({
   pageAspectRatio,
   penStrokeWidth,
   highlightStrokeWidth,
-  highlightHorizontal,
+  highlightStrokeMode,
+  coverStrokeWidth,
+  coverDrawMode,
   laserStrokeWidth,
   canEraseAnnotation,
   onStrokeComplete,
   onHighlightComplete,
+  onHighlightRectComplete,
+  onCoverComplete,
+  onCoverRectComplete,
   onLaserStrokeComplete,
   onEraseAnnotation,
   onDraftStrokeChange,
+  onDraftRectChange,
   onTextPlace,
   onTextSelect,
   onTextMove,
@@ -420,6 +562,7 @@ export function AnnotationInteractionLayer({
 }: InteractionLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const draftStrokeRef = useRef<NormalizedPoint[] | null>(null);
+  const draftRectRef = useRef<{ anchor: NormalizedPoint; current: NormalizedPoint } | null>(null);
   const textDragRef = useRef<{
     annotationId: string;
     startPoint: NormalizedPoint;
@@ -439,8 +582,10 @@ export function AnnotationInteractionLayer({
 
   const clearDraft = useCallback(() => {
     draftStrokeRef.current = null;
+    draftRectRef.current = null;
     onDraftStrokeChange(null);
-  }, [onDraftStrokeChange]);
+    onDraftRectChange(null);
+  }, [onDraftRectChange, onDraftStrokeChange]);
 
   useEffect(() => {
     if (gesturesActive) {
@@ -502,7 +647,16 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
+      if (
+        (mode === 'highlight' && highlightStrokeMode === 'rect')
+        || (mode === 'cover' && coverDrawMode === 'rect')
+      ) {
+        draftRectRef.current = { anchor: point, current: point };
+        onDraftRectChange(normalizedRectFromPoints(point, point));
+        return;
+      }
+
+      if (mode === 'pen' || mode === 'highlight' || mode === 'cover' || mode === 'laser') {
         draftStrokeRef.current = [point];
         onDraftStrokeChange([point]);
       }
@@ -510,9 +664,12 @@ export function AnnotationInteractionLayer({
     [
       canEraseAnnotation,
       clearDraft,
+      coverDrawMode,
       getPoint,
+      highlightStrokeMode,
       interactive,
       mode,
+      onDraftRectChange,
       onDraftStrokeChange,
       onEraseAnnotation,
       onTextPlace,
@@ -559,10 +716,27 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if ((mode === 'pen' || mode === 'highlight' || mode === 'laser') && draftStrokeRef.current) {
+      if (
+        ((mode === 'highlight' && highlightStrokeMode === 'rect')
+          || (mode === 'cover' && coverDrawMode === 'rect'))
+        && draftRectRef.current
+      ) {
+        const draft = draftRectRef.current;
+        draftRectRef.current = { anchor: draft.anchor, current: point };
+        onDraftRectChange(normalizedRectFromPoints(draft.anchor, point));
+        return;
+      }
+
+      if ((mode === 'pen' || mode === 'highlight' || mode === 'cover' || mode === 'laser') && draftStrokeRef.current) {
+        const strokeMode =
+          mode === 'highlight' && highlightStrokeMode !== 'rect'
+            ? highlightStrokeMode
+            : mode === 'cover' && coverDrawMode !== 'rect'
+              ? coverDrawMode
+              : 'free';
         const nextPoint =
-          mode === 'highlight' && highlightHorizontal
-            ? constrainHighlightPointToHorizontalAxis(point, draftStrokeRef.current[0]!.y)
+          (mode === 'highlight' || mode === 'cover') && strokeMode !== 'free'
+            ? constrainHighlightPoint(point, strokeMode, draftStrokeRef.current[0]!)
             : point;
         const nextStroke = [...draftStrokeRef.current, nextPoint];
         draftStrokeRef.current = nextStroke;
@@ -571,10 +745,12 @@ export function AnnotationInteractionLayer({
     },
     [
       canEraseAnnotation,
+      coverDrawMode,
       getPoint,
-      highlightHorizontal,
+      highlightStrokeMode,
       interactive,
       mode,
+      onDraftRectChange,
       onDraftStrokeChange,
       onEraseAnnotation,
       onTextMove,
@@ -595,10 +771,15 @@ export function AnnotationInteractionLayer({
       return;
     }
 
-    if (mode === 'highlight') {
-      const points =
-        highlightHorizontal ? constrainHighlightStrokeToHorizontalAxis(stroke) : stroke;
+    if (mode === 'highlight' && highlightStrokeMode !== 'rect') {
+      const points = constrainHighlightStroke(stroke, highlightStrokeMode);
       onHighlightComplete({ points, strokeWidth: highlightStrokeWidth });
+      return;
+    }
+
+    if (mode === 'cover' && coverDrawMode !== 'rect') {
+      const points = constrainHighlightStroke(stroke, coverDrawMode);
+      onCoverComplete({ points, strokeWidth: coverStrokeWidth });
       return;
     }
 
@@ -607,15 +788,37 @@ export function AnnotationInteractionLayer({
     }
   }, [
     clearDraft,
-    highlightHorizontal,
+    coverDrawMode,
+    coverStrokeWidth,
+    highlightStrokeMode,
     highlightStrokeWidth,
     laserStrokeWidth,
     mode,
+    onCoverComplete,
     onHighlightComplete,
     onLaserStrokeComplete,
     onStrokeComplete,
     penStrokeWidth,
   ]);
+
+  const finishDraftRect = useCallback(
+    (onComplete: (geometry: HighlightGeometry) => void) => {
+      const draft = draftRectRef.current;
+      clearDraft();
+
+      if (!draft) {
+        return;
+      }
+
+      const rect = normalizedRectFromPoints(draft.anchor, draft.current);
+      if (!isCoverRectLargeEnough(rect)) {
+        return;
+      }
+
+      onComplete(rect);
+    },
+    [clearDraft],
+  );
 
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
@@ -645,11 +848,34 @@ export function AnnotationInteractionLayer({
         return;
       }
 
-      if (mode === 'pen' || mode === 'highlight' || mode === 'laser') {
+      if (mode === 'highlight' && highlightStrokeMode === 'rect') {
+        finishDraftRect(onHighlightRectComplete);
+        return;
+      }
+
+      if (mode === 'cover' && coverDrawMode === 'rect') {
+        finishDraftRect(onCoverRectComplete);
+        return;
+      }
+
+      if (mode === 'pen' || mode === 'highlight' || mode === 'cover' || mode === 'laser') {
         finishStroke();
       }
     },
-    [finishStroke, getPoint, interactive, mode, onTextDragComplete, onTextSelect, pageAnnotations],
+    [
+      coverDrawMode,
+      finishDraftRect,
+      finishStroke,
+      getPoint,
+      highlightStrokeMode,
+      interactive,
+      mode,
+      onCoverRectComplete,
+      onHighlightRectComplete,
+      onTextDragComplete,
+      onTextSelect,
+      pageAnnotations,
+    ],
   );
 
   return (

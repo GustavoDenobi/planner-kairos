@@ -1,4 +1,4 @@
-import type { NormalizedPoint, StrokeGeometry } from '@/domain/repertoire';
+import type { HighlightGeometry, NormalizedPoint, StrokeGeometry } from '@/domain/repertoire';
 
 /** On-screen height = brush width × this ratio. */
 export const HIGHLIGHT_BRUSH_HEIGHT_RATIO = 3.5;
@@ -116,11 +116,43 @@ function rectHitDistance(rect: NormalizedRect, point: NormalizedPoint): number {
   return Math.hypot(point.x - closestX, point.y - closestY);
 }
 
+export type HighlightStrokeMode = 'free' | 'horizontal' | 'vertical' | 'rect';
+
+export type CoverDrawMode = HighlightStrokeMode;
+
+/** Minimum normalized width/height for a cover rectangle to be committed. */
+export const COVER_RECT_MIN_SIZE = 0.005;
+
+export function normalizedRectFromPoints(
+  anchor: NormalizedPoint,
+  opposite: NormalizedPoint,
+): HighlightGeometry {
+  const x = Math.min(anchor.x, opposite.x);
+  const y = Math.min(anchor.y, opposite.y);
+  return {
+    x,
+    y,
+    width: Math.abs(opposite.x - anchor.x),
+    height: Math.abs(opposite.y - anchor.y),
+  };
+}
+
+export function isCoverRectLargeEnough(rect: HighlightGeometry): boolean {
+  return rect.width >= COVER_RECT_MIN_SIZE && rect.height >= COVER_RECT_MIN_SIZE;
+}
+
 export function constrainHighlightPointToHorizontalAxis(
   point: NormalizedPoint,
   anchorY: number,
 ): NormalizedPoint {
   return { x: point.x, y: anchorY };
+}
+
+export function constrainHighlightPointToVerticalAxis(
+  point: NormalizedPoint,
+  anchorX: number,
+): NormalizedPoint {
+  return { x: anchorX, y: point.y };
 }
 
 export function constrainHighlightStrokeToHorizontalAxis(
@@ -132,6 +164,44 @@ export function constrainHighlightStrokeToHorizontalAxis(
 
   const anchorY = points[0]!.y;
   return points.map((point) => constrainHighlightPointToHorizontalAxis(point, anchorY));
+}
+
+export function constrainHighlightStrokeToVerticalAxis(
+  points: NormalizedPoint[],
+): NormalizedPoint[] {
+  if (points.length === 0) {
+    return points;
+  }
+
+  const anchorX = points[0]!.x;
+  return points.map((point) => constrainHighlightPointToVerticalAxis(point, anchorX));
+}
+
+export function constrainHighlightPoint(
+  point: NormalizedPoint,
+  mode: HighlightStrokeMode,
+  anchor: NormalizedPoint,
+): NormalizedPoint {
+  if (mode === 'horizontal') {
+    return constrainHighlightPointToHorizontalAxis(point, anchor.y);
+  }
+  if (mode === 'vertical') {
+    return constrainHighlightPointToVerticalAxis(point, anchor.x);
+  }
+  return point;
+}
+
+export function constrainHighlightStroke(
+  points: NormalizedPoint[],
+  mode: HighlightStrokeMode,
+): NormalizedPoint[] {
+  if (mode === 'horizontal') {
+    return constrainHighlightStrokeToHorizontalAxis(points);
+  }
+  if (mode === 'vertical') {
+    return constrainHighlightStrokeToVerticalAxis(points);
+  }
+  return points;
 }
 
 export function highlightStrokeHitDistance(

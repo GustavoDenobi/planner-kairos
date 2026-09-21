@@ -14,6 +14,7 @@ import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
   CreatePdfNavigationShortcutInput,
+  HighlightGeometry,
   NormalizedPoint,
   PdfAnnotation,
   PdfNavigationShortcut,
@@ -28,6 +29,8 @@ import type {
 } from '@/domain/repertoire';
 import {
   clampStrokeWidth,
+  COVER_ANNOTATION_COLOR,
+  COVER_STROKE_WIDTH,
   formatPresetColor,
   HIGHLIGHT_STROKE_WIDTH,
   LASER_DEFAULT_PRESET_ID,
@@ -59,6 +62,7 @@ import {
   IconZoomIn,
 } from '@/ui/components/icons';
 import {
+  AnnotationCoverLayer,
   AnnotationHighlightLayer,
   AnnotationInteractionLayer,
   AnnotationLaserLayer,
@@ -79,6 +83,7 @@ import {
   isDraftAnnotationId,
   toNormalizedCoords,
 } from '@/ui/features/repertoire/annotation-coordinates';
+import type { CoverDrawMode, HighlightStrokeMode } from '@/ui/features/repertoire/highlight-brush';
 import { NavigationShortcutOverlay } from '@/ui/features/repertoire/NavigationShortcutOverlay';
 import { TocEntryOverlay } from '@/ui/features/repertoire/TocEntryOverlay';
 import {
@@ -352,7 +357,9 @@ type PdfPageFrameProps = {
   highlightColor: string;
   penStrokeWidth: number;
   highlightStrokeWidth: number;
-  highlightHorizontal: boolean;
+  highlightStrokeMode: HighlightStrokeMode;
+  coverStrokeWidth: number;
+  coverDrawMode: CoverDrawMode;
   laserStrokes: LaserStroke[];
   laserColor: string;
   laserStrokeWidth: number;
@@ -360,6 +367,9 @@ type PdfPageFrameProps = {
   canEraseAnnotation: (annotation: PdfAnnotation) => boolean;
   onStrokeComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
   onHighlightComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
+  onHighlightRectComplete: (pageNumber: number, geometry: HighlightGeometry) => void;
+  onCoverComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
+  onCoverRectComplete: (pageNumber: number, geometry: HighlightGeometry) => void;
   onLaserStrokeComplete: (pageNumber: number, geometry: StrokeGeometry) => void;
   onEraseAnnotation: (annotationId: string) => void;
   onTextPlace: (pageNumber: number, point: NormalizedPoint) => void;
@@ -403,7 +413,9 @@ function PdfPageFrameComponent({
   highlightColor,
   penStrokeWidth,
   highlightStrokeWidth,
-  highlightHorizontal,
+  highlightStrokeMode,
+  coverStrokeWidth,
+  coverDrawMode,
   laserStrokes,
   laserColor,
   laserStrokeWidth,
@@ -411,6 +423,9 @@ function PdfPageFrameComponent({
   canEraseAnnotation,
   onStrokeComplete,
   onHighlightComplete,
+  onHighlightRectComplete,
+  onCoverComplete,
+  onCoverRectComplete,
   onLaserStrokeComplete,
   onEraseAnnotation,
   onTextPlace,
@@ -437,6 +452,7 @@ function PdfPageFrameComponent({
 }: PdfPageFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [draftStroke, setDraftStroke] = useState<NormalizedPoint[] | null>(null);
+  const [draftRect, setDraftRect] = useState<HighlightGeometry | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -507,6 +523,27 @@ function PdfPageFrameComponent({
       onHighlightComplete(pageNumber, geometry);
     },
     [onHighlightComplete, pageNumber],
+  );
+
+  const handleHighlightRectComplete = useCallback(
+    (geometry: HighlightGeometry) => {
+      onHighlightRectComplete(pageNumber, geometry);
+    },
+    [onHighlightRectComplete, pageNumber],
+  );
+
+  const handleCoverComplete = useCallback(
+    (geometry: StrokeGeometry) => {
+      onCoverComplete(pageNumber, geometry);
+    },
+    [onCoverComplete, pageNumber],
+  );
+
+  const handleCoverRectComplete = useCallback(
+    (geometry: HighlightGeometry) => {
+      onCoverRectComplete(pageNumber, geometry);
+    },
+    [onCoverRectComplete, pageNumber],
   );
 
   const handleLaserStrokeComplete = useCallback(
@@ -590,7 +627,20 @@ function PdfPageFrameComponent({
           highlightColor={highlightColor}
           highlightStrokeWidth={highlightStrokeWidth}
           draftStroke={draftStroke}
+          draftRect={draftRect}
           showDraft={interactionMode === 'highlight'}
+        />
+        <AnnotationCoverLayer
+          pageNumber={pageNumber}
+          annotations={annotations}
+          visibleLayers={visibleLayers}
+          editingFocus={editingFocus}
+          inverted={inverted}
+          pageAspectRatio={pageAspectRatio}
+          coverStrokeWidth={coverStrokeWidth}
+          draftStroke={draftStroke}
+          draftRect={draftRect}
+          showDraft={interactionMode === 'cover'}
         />
         <AnnotationInteractionLayer
           pageNumber={pageNumber}
@@ -603,14 +653,20 @@ function PdfPageFrameComponent({
           pageAspectRatio={pageAspectRatio}
           penStrokeWidth={penStrokeWidth}
           highlightStrokeWidth={highlightStrokeWidth}
-          highlightHorizontal={highlightHorizontal}
+          highlightStrokeMode={highlightStrokeMode}
+          coverStrokeWidth={coverStrokeWidth}
+          coverDrawMode={coverDrawMode}
           laserStrokeWidth={laserStrokeWidth}
           canEraseAnnotation={canEraseAnnotation}
           onStrokeComplete={handleStrokeComplete}
           onHighlightComplete={handleHighlightComplete}
+          onHighlightRectComplete={handleHighlightRectComplete}
+          onCoverComplete={handleCoverComplete}
+          onCoverRectComplete={handleCoverRectComplete}
           onLaserStrokeComplete={handleLaserStrokeComplete}
           onEraseAnnotation={onEraseAnnotation}
           onDraftStrokeChange={setDraftStroke}
+          onDraftRectChange={setDraftRect}
           onTextPlace={handleTextPlace}
           onTextSelect={onTextSelect}
           onTextMove={onTextMove}
@@ -2274,9 +2330,25 @@ export function PdfViewer({
     [persistAnnotationToolPrefs],
   );
 
-  const handleHighlightHorizontalChange = useCallback(
-    (highlightHorizontal: boolean) => {
-      persistAnnotationToolPrefs({ highlightHorizontal });
+  const handleHighlightStrokeModeChange = useCallback(
+    (highlightStrokeMode: HighlightStrokeMode) => {
+      persistAnnotationToolPrefs({ highlightStrokeMode });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
+  const handleCoverStrokeWidthChange = useCallback(
+    (coverStrokeWidth: number) => {
+      persistAnnotationToolPrefs({
+        coverStrokeWidth: clampStrokeWidth(coverStrokeWidth, COVER_STROKE_WIDTH),
+      });
+    },
+    [persistAnnotationToolPrefs],
+  );
+
+  const handleCoverDrawModeChange = useCallback(
+    (coverDrawMode: CoverDrawMode) => {
+      persistAnnotationToolPrefs({ coverDrawMode });
     },
     [persistAnnotationToolPrefs],
   );
@@ -2362,7 +2434,9 @@ export function PdfViewer({
   const laserColor = resolvePresetStroke('stroke', LASER_DEFAULT_PRESET_ID, inverted);
   const penStrokeWidth = annotationToolPrefs.penStrokeWidth;
   const highlightStrokeWidth = annotationToolPrefs.highlightStrokeWidth;
-  const highlightHorizontal = annotationToolPrefs.highlightHorizontal;
+  const highlightStrokeMode = annotationToolPrefs.highlightStrokeMode;
+  const coverStrokeWidth = annotationToolPrefs.coverStrokeWidth;
+  const coverDrawMode = annotationToolPrefs.coverDrawMode;
   const laserStrokeWidth = LASER_STROKE_WIDTH;
 
   const activeDirectedSet = directedSetOptions.find((option) => option.id === activeDirectedSetId);
@@ -2660,8 +2734,8 @@ export function PdfViewer({
     ],
   );
 
-  const handleHighlightComplete = useCallback(
-    (pageNumber: number, geometry: StrokeGeometry) => {
+  const addHighlightDraftAnnotation = useCallback(
+    (pageNumber: number, geometry: StrokeGeometry | HighlightGeometry) => {
       if (annotationReadOnly) {
         return;
       }
@@ -2684,6 +2758,59 @@ export function PdfViewer({
       annotationReadOnly,
       addDraftAnnotation,
     ],
+  );
+
+  const handleHighlightComplete = useCallback(
+    (pageNumber: number, geometry: StrokeGeometry) => {
+      addHighlightDraftAnnotation(pageNumber, geometry);
+    },
+    [addHighlightDraftAnnotation],
+  );
+
+  const handleHighlightRectComplete = useCallback(
+    (pageNumber: number, geometry: HighlightGeometry) => {
+      addHighlightDraftAnnotation(pageNumber, geometry);
+    },
+    [addHighlightDraftAnnotation],
+  );
+
+  const addCoverDraftAnnotation = useCallback(
+    (pageNumber: number, geometry: StrokeGeometry | HighlightGeometry) => {
+      if (annotationReadOnly) {
+        return;
+      }
+
+      addDraftAnnotation({
+        pageNumber,
+        layer: activeLayer,
+        type: 'cover',
+        geometry,
+        color: COVER_ANNOTATION_COLOR,
+        sectionId: activeLayer === 'section' ? activeSectionId : null,
+        annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
+      });
+    },
+    [
+      activeLayer,
+      activeSectionId,
+      activeDirectedSetId,
+      annotationReadOnly,
+      addDraftAnnotation,
+    ],
+  );
+
+  const handleCoverComplete = useCallback(
+    (pageNumber: number, geometry: StrokeGeometry) => {
+      addCoverDraftAnnotation(pageNumber, geometry);
+    },
+    [addCoverDraftAnnotation],
+  );
+
+  const handleCoverRectComplete = useCallback(
+    (pageNumber: number, geometry: HighlightGeometry) => {
+      addCoverDraftAnnotation(pageNumber, geometry);
+    },
+    [addCoverDraftAnnotation],
   );
 
   const textDragBeforeRef = useRef<PdfAnnotation | null>(null);
@@ -3061,7 +3188,9 @@ export function PdfViewer({
     highlightColor,
     penStrokeWidth,
     highlightStrokeWidth,
-    highlightHorizontal,
+    highlightStrokeMode,
+    coverStrokeWidth,
+    coverDrawMode,
     laserStrokes,
     laserColor,
     laserStrokeWidth,
@@ -3073,6 +3202,9 @@ export function PdfViewer({
     canEraseAnnotation,
     onStrokeComplete: handleStrokeComplete,
     onHighlightComplete: handleHighlightComplete,
+    onHighlightRectComplete: handleHighlightRectComplete,
+    onCoverComplete: handleCoverComplete,
+    onCoverRectComplete: handleCoverRectComplete,
     onLaserStrokeComplete: handleLaserStrokeComplete,
     onEraseAnnotation: handleEraseAnnotation,
     onTextPlace: handleTextPlace,
@@ -3183,7 +3315,11 @@ export function PdfViewer({
   );
 
   const renderAnnotationToolOptions = () => {
-    if (interactionMode !== 'pen' && interactionMode !== 'highlight') {
+    if (
+      interactionMode !== 'pen'
+      && interactionMode !== 'highlight'
+      && interactionMode !== 'cover'
+    ) {
       return null;
     }
 
@@ -3194,12 +3330,16 @@ export function PdfViewer({
         selectedPresetId={
           interactionMode === 'pen'
             ? annotationToolPrefs.penPresetId
-            : annotationToolPrefs.highlightPresetId
+            : interactionMode === 'highlight'
+              ? annotationToolPrefs.highlightPresetId
+              : annotationToolPrefs.penPresetId
         }
         strokeWidth={
           interactionMode === 'pen'
             ? annotationToolPrefs.penStrokeWidth
-            : annotationToolPrefs.highlightStrokeWidth
+            : interactionMode === 'highlight'
+              ? annotationToolPrefs.highlightStrokeWidth
+              : annotationToolPrefs.coverStrokeWidth
         }
         pageRenderWidth={pageRenderWidth}
         onPresetChange={
@@ -3210,10 +3350,14 @@ export function PdfViewer({
         onStrokeWidthChange={
           interactionMode === 'pen'
             ? handlePenStrokeWidthChange
-            : handleHighlightStrokeWidthChange
+            : interactionMode === 'highlight'
+              ? handleHighlightStrokeWidthChange
+              : handleCoverStrokeWidthChange
         }
-        highlightHorizontal={annotationToolPrefs.highlightHorizontal}
-        onHighlightHorizontalChange={handleHighlightHorizontalChange}
+        highlightStrokeMode={annotationToolPrefs.highlightStrokeMode}
+        onHighlightStrokeModeChange={handleHighlightStrokeModeChange}
+        coverDrawMode={annotationToolPrefs.coverDrawMode}
+        onCoverDrawModeChange={handleCoverDrawModeChange}
       />
     );
   };

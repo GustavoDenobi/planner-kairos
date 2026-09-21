@@ -31,6 +31,9 @@ export const HIGHLIGHT_STROKE_WIDTH: StrokeWidthRange = {
   step: 0.0025,
 };
 
+/** Cover brush reuses the highlight width range. */
+export const COVER_STROKE_WIDTH = HIGHLIGHT_STROKE_WIDTH;
+
 export const TEXT_FONT_SIZE: StrokeWidthRange = {
   min: 0.01,
   max: 0.08,
@@ -77,7 +80,15 @@ function presetsForType(type: AnnotationType): AnnotationToolPreset[] {
   if (type === 'highlight') {
     return HIGHLIGHT_COLOR_PRESETS;
   }
+  if (type === 'cover') {
+    return [];
+  }
   return PEN_COLOR_PRESETS;
+}
+
+/** Opaque paper tone for cover annotations (layer sits outside CSS invert). */
+export function resolveCoverColor(inverted: boolean): string {
+  return inverted ? '#000000' : '#ffffff';
 }
 
 export function formatPresetColor(id: string): string {
@@ -145,6 +156,9 @@ export function resolvePresetAppearance(
   if (type === 'highlight') {
     return { stroke, blendMode: inverted ? 'screen' : 'multiply' };
   }
+  if (type === 'cover') {
+    return { stroke: resolveCoverColor(inverted) };
+  }
   return { stroke };
 }
 
@@ -166,6 +180,10 @@ export function resolveAnnotationAppearance(
       stroke: resolveHighlightColor(annotation.layer, inverted),
       blendMode: inverted ? 'screen' : 'multiply',
     };
+  }
+
+  if (annotation.type === 'cover') {
+    return { stroke: resolveCoverColor(inverted) };
   }
 
   return { stroke: annotation.color };

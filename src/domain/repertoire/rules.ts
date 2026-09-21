@@ -220,7 +220,7 @@ export function validateAnnotationGeometry(
   type: AnnotationType,
   geometry: AnnotationGeometry,
 ): string | null {
-  if (type === 'stroke' || type === 'highlight') {
+  if (type === 'stroke') {
     if (!isStrokeGeometry(geometry)) {
       return 'invalid_geometry';
     }
@@ -236,6 +236,72 @@ export function validateAnnotationGeometry(
       }
     }
     return null;
+  }
+
+  if (type === 'highlight') {
+    if (isStrokeGeometry(geometry)) {
+      if (geometry.points.length < 2) {
+        return 'invalid_stroke_points';
+      }
+      if (!Number.isFinite(geometry.strokeWidth) || geometry.strokeWidth <= 0) {
+        return 'invalid_stroke_width';
+      }
+      for (const point of geometry.points) {
+        if (!isNormalizedCoord(point.x) || !isNormalizedCoord(point.y)) {
+          return 'invalid_coordinates';
+        }
+      }
+      return null;
+    }
+
+    if ('width' in geometry && 'height' in geometry) {
+      if (
+        !isNormalizedCoord(geometry.x)
+        || !isNormalizedCoord(geometry.y)
+        || !Number.isFinite(geometry.width)
+        || !Number.isFinite(geometry.height)
+        || geometry.width <= 0
+        || geometry.height <= 0
+      ) {
+        return 'invalid_coordinates';
+      }
+      return null;
+    }
+
+    return 'invalid_geometry';
+  }
+
+  if (type === 'cover') {
+    if (isStrokeGeometry(geometry)) {
+      if (geometry.points.length < 2) {
+        return 'invalid_stroke_points';
+      }
+      if (!Number.isFinite(geometry.strokeWidth) || geometry.strokeWidth <= 0) {
+        return 'invalid_stroke_width';
+      }
+      for (const point of geometry.points) {
+        if (!isNormalizedCoord(point.x) || !isNormalizedCoord(point.y)) {
+          return 'invalid_coordinates';
+        }
+      }
+      return null;
+    }
+
+    if ('width' in geometry && 'height' in geometry) {
+      if (
+        !isNormalizedCoord(geometry.x)
+        || !isNormalizedCoord(geometry.y)
+        || !Number.isFinite(geometry.width)
+        || !Number.isFinite(geometry.height)
+        || geometry.width <= 0
+        || geometry.height <= 0
+      ) {
+        return 'invalid_coordinates';
+      }
+      return null;
+    }
+
+    return 'invalid_geometry';
   }
 
   if (type === 'text') {

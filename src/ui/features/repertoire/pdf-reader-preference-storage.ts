@@ -4,6 +4,7 @@ import {
 } from '@/ui/features/repertoire/metronome-engine';
 import {
   clampStrokeWidth,
+  COVER_STROKE_WIDTH,
   findPreset,
   HIGHLIGHT_STROKE_WIDTH,
   PEN_COLOR_PRESETS,
@@ -13,6 +14,7 @@ import {
   normalizeTextFontFamily,
   type TextFontFamily,
 } from '@/domain/repertoire';
+import type { CoverDrawMode, HighlightStrokeMode } from '@/ui/features/repertoire/highlight-brush';
 
 export type PdfNavigationMode = 'vertical' | 'horizontal';
 
@@ -21,7 +23,9 @@ export type AnnotationToolPreferences = {
   penStrokeWidth: number;
   highlightPresetId: string;
   highlightStrokeWidth: number;
-  highlightHorizontal: boolean;
+  highlightStrokeMode: HighlightStrokeMode;
+  coverStrokeWidth: number;
+  coverDrawMode: CoverDrawMode;
   textPresetId: string;
   textFontSize: number;
   textFontFamily: TextFontFamily;
@@ -49,7 +53,9 @@ export const DEFAULT_ANNOTATION_TOOL_PREFERENCES: AnnotationToolPreferences = {
   penStrokeWidth: PEN_STROKE_WIDTH.default,
   highlightPresetId: 'yellow',
   highlightStrokeWidth: HIGHLIGHT_STROKE_WIDTH.default,
-  highlightHorizontal: false,
+  highlightStrokeMode: 'free',
+  coverStrokeWidth: COVER_STROKE_WIDTH.default,
+  coverDrawMode: 'free',
   textPresetId: PEN_COLOR_PRESETS[0]!.id,
   textFontSize: TEXT_FONT_SIZE.default,
   textFontFamily: DEFAULT_TEXT_FONT_FAMILY,
@@ -71,6 +77,25 @@ function storageKey(userId: string): string {
 
 function legacyInvertKey(userId: string): string {
   return `${LEGACY_INVERT_KEY}:${userId}`;
+}
+
+function parseHighlightStrokeMode(
+  value: unknown,
+  legacyHorizontal?: boolean,
+): HighlightStrokeMode {
+  if (
+    value === 'free'
+    || value === 'horizontal'
+    || value === 'vertical'
+    || value === 'rect'
+  ) {
+    return value;
+  }
+  return legacyHorizontal === true ? 'horizontal' : 'free';
+}
+
+function parseCoverDrawMode(value: unknown): CoverDrawMode {
+  return parseHighlightStrokeMode(value);
 }
 
 function parseMetronomeVolume(value: unknown): number {
@@ -131,7 +156,17 @@ function parseAnnotationToolPreferences(
         : DEFAULT_ANNOTATION_TOOL_PREFERENCES.highlightStrokeWidth,
       HIGHLIGHT_STROKE_WIDTH,
     ),
-    highlightHorizontal: raw?.highlightHorizontal === true,
+    highlightStrokeMode: parseHighlightStrokeMode(
+      raw?.highlightStrokeMode,
+      raw?.highlightHorizontal,
+    ),
+    coverStrokeWidth: clampStrokeWidth(
+      typeof raw?.coverStrokeWidth === 'number'
+        ? raw.coverStrokeWidth
+        : DEFAULT_ANNOTATION_TOOL_PREFERENCES.coverStrokeWidth,
+      COVER_STROKE_WIDTH,
+    ),
+    coverDrawMode: parseCoverDrawMode(raw?.coverDrawMode),
     textPresetId,
     textFontSize: clampStrokeWidth(
       typeof raw?.textFontSize === 'number'
@@ -257,7 +292,9 @@ export function saveAnnotationToolPreferences(
         merged.highlightStrokeWidth,
         HIGHLIGHT_STROKE_WIDTH,
       ),
-      highlightHorizontal: merged.highlightHorizontal === true,
+      highlightStrokeMode: parseHighlightStrokeMode(merged.highlightStrokeMode),
+      coverStrokeWidth: clampStrokeWidth(merged.coverStrokeWidth, COVER_STROKE_WIDTH),
+      coverDrawMode: parseCoverDrawMode(merged.coverDrawMode),
       textPresetId: findPreset('text', merged.textPresetId).id,
       textFontSize: clampStrokeWidth(merged.textFontSize, TEXT_FONT_SIZE),
       textFontFamily: normalizeTextFontFamily(merged.textFontFamily),

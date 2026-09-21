@@ -109,8 +109,15 @@ function annotationHitDistance(
   point: NormalizedPoint,
   pageAspectRatio: number,
 ): number {
-  if (annotation.type === 'highlight' && isStrokeGeometry(annotation.geometry)) {
+  if (
+    (annotation.type === 'highlight' || annotation.type === 'cover')
+    && isStrokeGeometry(annotation.geometry)
+  ) {
     return highlightStrokeHitDistance(annotation.geometry, point, pageAspectRatio);
+  }
+
+  if (annotation.type === 'cover' && 'width' in annotation.geometry && 'height' in annotation.geometry) {
+    return legacyHighlightHitDistance(annotation.geometry, point);
   }
 
   if (annotation.type === 'text' && isTextGeometry(annotation.geometry)) {

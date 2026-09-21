@@ -78,6 +78,7 @@ export {
 } from './musical-symbols';
 export {
   ANNOTATION_COLORS,
+  COVER_ANNOTATION_COLOR,
   HIGHLIGHT_COLORS,
   HIGHLIGHT_COLORS_INVERTED,
   resolveHighlightColor,
@@ -85,6 +86,7 @@ export {
 export type { AnnotationAppearance, AnnotationToolPreset, StrokeWidthRange } from './annotation-tool-presets';
 export {
   ANNOTATION_PRESET_PREFIX,
+  COVER_STROKE_WIDTH,
   HIGHLIGHT_COLOR_PRESETS,
   HIGHLIGHT_STROKE_WIDTH,
   LASER_DEFAULT_PRESET_ID,
@@ -100,6 +102,7 @@ export {
   invertRgbHex,
   parsePresetColor,
   resolveAnnotationAppearance,
+  resolveCoverColor,
   resolvePresetAppearance,
   resolvePresetStroke,
   resolvePresetVisualStroke,

@@ -293,6 +293,15 @@ export function IconHighlighter(props: IconProps) {
   );
 }
 
+export function IconCover(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="5" y="7" width="14" height="10" rx="1" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
 export function IconEraser(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

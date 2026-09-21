@@ -1,6 +1,6 @@
 export type AnnotationLayer = 'personal' | 'section' | 'directed';
 
-export type AnnotationType = 'stroke' | 'highlight' | 'text';
+export type AnnotationType = 'stroke' | 'highlight' | 'text' | 'cover';
 
 export type NormalizedPoint = {
   x: number;
@@ -70,6 +70,9 @@ export type UpdatePdfAnnotationInput = {
   geometry?: AnnotationGeometry;
   color?: string;
 };
+
+/** Stored color token for opaque paper-tone cover annotations. */
+export const COVER_ANNOTATION_COLOR = 'paper';
 
 export const ANNOTATION_COLORS = {
   personal: '#2563eb',

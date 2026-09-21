@@ -259,7 +259,7 @@ describe('validateAnnotationGeometry', () => {
     ).toBe('invalid_stroke_points');
   });
 
-  it('validates highlight geometry as freehand stroke', () => {
+  it('validates highlight geometry as freehand stroke or rectangle', () => {
     expect(
       validateAnnotationGeometry('highlight', {
         points: [
@@ -269,6 +269,42 @@ describe('validateAnnotationGeometry', () => {
         strokeWidth: 0.028,
       }),
     ).toBeNull();
+    expect(
+      validateAnnotationGeometry('highlight', {
+        x: 0.2,
+        y: 0.3,
+        width: 0.25,
+        height: 0.1,
+      }),
+    ).toBeNull();
+  });
+
+  it('validates cover geometry as stroke or rectangle', () => {
+    expect(
+      validateAnnotationGeometry('cover', {
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.3, y: 0.4 },
+        ],
+        strokeWidth: 0.015,
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('cover', {
+        x: 0.2,
+        y: 0.3,
+        width: 0.25,
+        height: 0.1,
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('cover', {
+        x: 0.2,
+        y: 0.3,
+        width: 0,
+        height: 0.1,
+      }),
+    ).toBe('invalid_coordinates');
   });
 
   it('validates text geometry', () => {
