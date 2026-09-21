@@ -1,6 +1,6 @@
 export type AnnotationLayer = 'personal' | 'section' | 'directed';
 
-export type AnnotationType = 'stroke' | 'highlight' | 'text' | 'cover';
+export type AnnotationType = 'stroke' | 'highlight' | 'text' | 'cover' | 'note';
 
 export type NormalizedPoint = {
   x: number;
@@ -35,9 +35,20 @@ export type TextGeometry = {
   fontStyle?: TextFontStyle;
 };
 
-export type AnnotationGeometry = StrokeGeometry | HighlightGeometry | TextGeometry;
+export type NoteGeometry = {
+  x: number;
+  y: number;
+  title?: string;
+  body: string;
+};
+
+export type AnnotationGeometry = StrokeGeometry | HighlightGeometry | TextGeometry | NoteGeometry;
 
 export const TEXT_ANNOTATION_MAX_LENGTH = 200;
+export const NOTE_TITLE_MAX_LENGTH = 80;
+export const NOTE_BODY_MAX_LENGTH = 4000;
+/** Stored color token; the marker uses the annotation layer color. */
+export const NOTE_ANNOTATION_COLOR = 'note';
 
 export type PdfAnnotation = {
   id: string;

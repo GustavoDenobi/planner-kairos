@@ -25,6 +25,9 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
   const tapTimestampsRef = useRef<number[]>([]);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [beatPulse, setBeatPulse] = useState(0);
+  const [downbeatPulse, setDownbeatPulse] = useState(false);
+  const beatPulseTimeoutsRef = useRef<number[]>([]);
   const [bpm, setBpmState] = useState(DEFAULT_METRONOME_BPM);
   const [beatsPerMeasure, setBeatsPerMeasureState] = useState<MetronomeBeatsPerMeasure>(
     DEFAULT_METRONOME_BEATS,
@@ -70,6 +73,22 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     setVolumeState(preferences.metronomeVolume ?? DEFAULT_METRONOME_VOLUME);
   }, [userId]);
 
+  const clearBeatPulseTimeouts = useCallback(() => {
+    for (const timeoutId of beatPulseTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+    beatPulseTimeoutsRef.current = [];
+  }, []);
+
+  const scheduleBeatPulse = useCallback((beatIndex: number, delaySec: number) => {
+    const timeoutId = window.setTimeout(() => {
+      beatPulseTimeoutsRef.current = beatPulseTimeoutsRef.current.filter((id) => id !== timeoutId);
+      setDownbeatPulse(beatIndex === 0);
+      setBeatPulse((value) => value + 1);
+    }, Math.max(0, delaySec) * 1000);
+    beatPulseTimeoutsRef.current.push(timeoutId);
+  }, []);
+
   const ensureEngine = useCallback(() => {
     if (!engineRef.current) {
       engineRef.current = new MetronomeEngine({
@@ -83,8 +102,12 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
       engineRef.current.setVolume(volume);
     }
 
+    engineRef.current.setOnBeat((beatIndex, delaySec) => {
+      scheduleBeatPulse(beatIndex, delaySec);
+    });
+
     return engineRef.current;
-  }, [bpm, beatsPerMeasure, volume]);
+  }, [bpm, beatsPerMeasure, scheduleBeatPulse, volume]);
 
   useEffect(() => {
     if (!engineRef.current || !isPlaying) {
@@ -99,8 +122,11 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
   const stop = useCallback(() => {
     engineRef.current?.stop();
     engineRef.current = null;
+    clearBeatPulseTimeouts();
+    setBeatPulse(0);
+    setDownbeatPulse(false);
     setIsPlaying(false);
-  }, []);
+  }, [clearBeatPulseTimeouts]);
 
   useEffect(() => {
     return () => {
@@ -109,6 +135,10 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
       }
       engineRef.current?.stop();
       engineRef.current = null;
+      for (const timeoutId of beatPulseTimeoutsRef.current) {
+        window.clearTimeout(timeoutId);
+      }
+      beatPulseTimeoutsRef.current = [];
     };
   }, []);
 
@@ -160,6 +190,8 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
 
   return {
     isPlaying,
+    beatPulse,
+    downbeatPulse,
     bpm,
     beatsPerMeasure,
     volume,

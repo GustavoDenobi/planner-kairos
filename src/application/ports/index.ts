@@ -11,7 +11,11 @@ export type { MusicianRepository, MusicianName } from './musician-repository';
 export type { MusicianClaimRepository } from './musician-claim-repository';
 export type { PartRepository, PartWithDivisions } from './part-repository';
 export type { SectionRepository } from './section-repository';
-export type { AssignmentRepository, AssignmentAudienceRow } from './assignment-repository';
+export type {
+  AssignmentRepository,
+  AssignmentAudienceRow,
+  AssignmentGroupingRow,
+} from './assignment-repository';
 export type { PieceCategoryRepository } from './piece-category-repository';
 export type { PieceThemeRepository } from './piece-theme-repository';
 export type { PieceRepository, SearchPiecesOptions } from './piece-repository';

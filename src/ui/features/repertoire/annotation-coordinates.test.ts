@@ -59,6 +59,21 @@ describe('findAnnotationAtPoint', () => {
     ).toBe('text-1');
   });
 
+  it('finds a collapsed note near the marker', () => {
+    const noteAnnotation: PdfAnnotation = {
+      ...strokeAnnotation,
+      id: 'note-1',
+      type: 'note',
+      geometry: { x: 0.2, y: 0.3, title: 'Coda', body: 'Voltar ao sinal.' },
+    };
+    expect(
+      findAnnotationAtPoint([noteAnnotation], { x: 0.22, y: 0.31 }, ERASER_HIT_RADIUS)?.id,
+    ).toBe('note-1');
+    expect(
+      findAnnotationAtPoint([noteAnnotation], { x: 0.9, y: 0.9 }, ERASER_HIT_RADIUS),
+    ).toBeNull();
+  });
+
   it('finds a stroke near the pointer', () => {
     expect(findAnnotationAtPoint([strokeAnnotation], { x: 0.3, y: 0.3 }, ERASER_HIT_RADIUS)?.id).toBe(
       'a-1',

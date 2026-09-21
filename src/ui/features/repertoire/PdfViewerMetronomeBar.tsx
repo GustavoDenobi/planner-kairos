@@ -21,6 +21,8 @@ type PdfViewerMetronomeBarProps = {
 export function PdfViewerMetronomeBar({ userId, onClose }: PdfViewerMetronomeBarProps) {
   const {
     isPlaying,
+    beatPulse,
+    downbeatPulse,
     bpm,
     beatsPerMeasure,
     volume,
@@ -64,8 +66,11 @@ export function PdfViewerMetronomeBar({ userId, onClose }: PdfViewerMetronomeBar
         </button>
 
         <span
+          key={isPlaying ? beatPulse : 'idle'}
           aria-label="Batidas por minuto"
-          className="min-w-10 text-center tabular-nums text-sm font-medium text-text"
+          className={`inline-flex h-8 min-w-10 items-center justify-center rounded-lg px-2 tabular-nums text-sm font-medium text-text ${
+            isPlaying && beatPulse > 0 ? 'metronome-bpm-pulse' : ''
+          } ${isPlaying && beatPulse > 0 && downbeatPulse ? 'metronome-bpm-pulse-downbeat' : ''}`}
         >
           {bpm}
         </span>

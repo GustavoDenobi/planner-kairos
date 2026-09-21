@@ -32,7 +32,14 @@ export type {
 } from './event-recurrence';
 export type { RecurrenceRule, WeeklyRule, MonthlyRule } from './recurrence-rule';
 export type { GeneratedOccurrence } from './recurrence-engine';
-export type { EventParticipant, EventAbsence } from './event-absence';
+export type {
+  EventParticipant,
+  EventParticipantMembership,
+  EventParticipantAssignment,
+  EventAbsence,
+} from './event-absence';
+export type { AbsenceGroupingMode, AbsenceParticipantBucket } from './absence-grouping';
+export { groupEventParticipants } from './absence-grouping';
 export type {
   MusicianBirthdayItem,
   MusicianBirthdaySource,

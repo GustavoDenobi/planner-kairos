@@ -479,6 +479,17 @@ export function IconGraduationCap(props: IconProps) {
   );
 }
 
+export function IconNote(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M8 3h8a2 2 0 0 1 2 2v11l-4 4H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M14 20v-4h4" />
+      <path d="M9 8h6" />
+      <path d="M9 12h4" />
+    </svg>
+  );
+}
+
 export function IconFileText(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

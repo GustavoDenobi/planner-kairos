@@ -5,7 +5,12 @@ import type {
   CreatePdfAnnotationInput,
   StrokeGeometry,
 } from './piece-file-annotation';
-import { TEXT_ANNOTATION_MAX_LENGTH } from './piece-file-annotation';
+import {
+  NOTE_BODY_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+  TEXT_ANNOTATION_MAX_LENGTH,
+  type NoteGeometry,
+} from './piece-file-annotation';
 import type { PieceFileKind, PieceFilePartLink, PieceFileWithLinks } from './piece-file';
 import type { PieceCategoryInput } from './piece-category';
 import type { PieceInput } from './piece';
@@ -210,6 +215,10 @@ function isStrokeGeometry(geometry: AnnotationGeometry): geometry is StrokeGeome
   return 'points' in geometry;
 }
 
+function isNoteGeometry(geometry: AnnotationGeometry): geometry is NoteGeometry {
+  return 'body' in geometry && !('content' in geometry) && !('points' in geometry);
+}
+
 function isTextGeometry(
   geometry: AnnotationGeometry,
 ): geometry is Extract<AnnotationGeometry, { content: string }> {
@@ -302,6 +311,22 @@ export function validateAnnotationGeometry(
     }
 
     return 'invalid_geometry';
+  }
+
+  if (type === 'note') {
+    if (!isNoteGeometry(geometry)) {
+      return 'invalid_geometry';
+    }
+    if (!isNormalizedCoord(geometry.x) || !isNormalizedCoord(geometry.y)) {
+      return 'invalid_coordinates';
+    }
+    if (geometry.title != null && geometry.title.length > NOTE_TITLE_MAX_LENGTH) {
+      return 'invalid_note_title';
+    }
+    if (geometry.body.length > NOTE_BODY_MAX_LENGTH) {
+      return 'invalid_note_body';
+    }
+    return null;
   }
 
   if (type === 'text') {

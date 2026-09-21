@@ -87,6 +87,7 @@ function createRepos() {
     listForGroups: async () => [],
     listForGroup: async () => [],
     listPartNamesByMusicianIds: async () => new Map(),
+    listGroupingRowsForGroups: async () => [],
     getById: async () => null,
     create: vi.fn(),
     update: vi.fn(),

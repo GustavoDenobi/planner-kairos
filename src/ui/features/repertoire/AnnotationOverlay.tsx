@@ -30,6 +30,7 @@ export type AnnotationInteractionMode =
   | 'highlight'
   | 'cover'
   | 'text'
+  | 'note'
   | 'eraser'
   | 'laser';
 
@@ -87,7 +88,7 @@ function isDirectedLayerVisible(
   return visibleLayers.directed[annotation.annotationSetId] ?? true;
 }
 
-function filterPageAnnotations(
+export function filterPageAnnotations(
   annotations: PdfAnnotation[],
   pageNumber: number,
   visibleLayers: VisibleLayers,
@@ -182,6 +183,7 @@ type InteractionLayerProps = SharedProps & {
   onTextSelect: (annotation: PdfAnnotation) => void;
   onTextMove: (annotationId: string, point: NormalizedPoint) => void;
   onTextDragComplete?: (annotationId: string) => void;
+  onNotePlace: (point: NormalizedPoint) => void;
   textEditing?: boolean;
 };
 
@@ -558,6 +560,7 @@ export function AnnotationInteractionLayer({
   onTextSelect,
   onTextMove,
   onTextDragComplete,
+  onNotePlace,
   textEditing = false,
 }: InteractionLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -647,6 +650,11 @@ export function AnnotationInteractionLayer({
         return;
       }
 
+      if (mode === 'note') {
+        onNotePlace(point);
+        return;
+      }
+
       if (
         (mode === 'highlight' && highlightStrokeMode === 'rect')
         || (mode === 'cover' && coverDrawMode === 'rect')
@@ -672,6 +680,7 @@ export function AnnotationInteractionLayer({
       onDraftRectChange,
       onDraftStrokeChange,
       onEraseAnnotation,
+      onNotePlace,
       onTextPlace,
       pageAnnotations,
       pageAspectRatio,

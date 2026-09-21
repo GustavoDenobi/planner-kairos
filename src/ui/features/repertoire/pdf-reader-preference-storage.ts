@@ -158,7 +158,7 @@ function parseAnnotationToolPreferences(
     ),
     highlightStrokeMode: parseHighlightStrokeMode(
       raw?.highlightStrokeMode,
-      raw?.highlightHorizontal,
+      (raw as { highlightHorizontal?: boolean } | undefined)?.highlightHorizontal,
     ),
     coverStrokeWidth: clampStrokeWidth(
       typeof raw?.coverStrokeWidth === 'number'

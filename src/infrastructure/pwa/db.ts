@@ -19,7 +19,7 @@ export type CachedAnnotationRecord = {
   pieceFileId: string;
   pageNumber: number;
   layer: 'personal' | 'section' | 'directed';
-  type: 'stroke' | 'highlight' | 'text' | 'cover';
+  type: 'stroke' | 'highlight' | 'text' | 'cover' | 'note';
   geometryJson: string;
   color: string;
   authorUserId: string;

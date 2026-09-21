@@ -1,5 +1,5 @@
 import type { AnnotationType, PdfAnnotation } from './piece-file-annotation';
-import { resolveHighlightColor } from './piece-file-annotation';
+import { ANNOTATION_COLORS, resolveHighlightColor } from './piece-file-annotation';
 
 export type AnnotationToolPreset = {
   id: string;
@@ -184,6 +184,10 @@ export function resolveAnnotationAppearance(
 
   if (annotation.type === 'cover') {
     return { stroke: resolveCoverColor(inverted) };
+  }
+
+  if (annotation.type === 'note') {
+    return { stroke: ANNOTATION_COLORS[annotation.layer] };
   }
 
   return { stroke: annotation.color };

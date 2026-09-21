@@ -279,6 +279,39 @@ describe('validateAnnotationGeometry', () => {
     ).toBeNull();
   });
 
+  it('validates note geometry', () => {
+    expect(
+      validateAnnotationGeometry('note', {
+        x: 0.2,
+        y: 0.3,
+        title: 'Ensaio',
+        body: 'Entrar **piano**.',
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('note', {
+        x: 0.2,
+        y: 0.3,
+        body: '',
+      }),
+    ).toBeNull();
+    expect(
+      validateAnnotationGeometry('note', {
+        x: 0.2,
+        y: 0.3,
+        title: 'x'.repeat(81),
+        body: 'ok',
+      }),
+    ).toBe('invalid_note_title');
+    expect(
+      validateAnnotationGeometry('note', {
+        x: 0.2,
+        y: 0.3,
+        body: 'x'.repeat(4001),
+      }),
+    ).toBe('invalid_note_body');
+  });
+
   it('validates cover geometry as stroke or rectangle', () => {
     expect(
       validateAnnotationGeometry('cover', {

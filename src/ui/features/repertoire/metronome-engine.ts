@@ -8,7 +8,7 @@ export type MetronomeEngineOptions = {
   bpm: number;
   beatsPerMeasure: MetronomeBeatsPerMeasure;
   volume: number;
-  onBeat?: (beatIndex: number) => void;
+  onBeat?: (beatIndex: number, delaySec: number) => void;
 };
 
 const SCHEDULE_AHEAD_SEC = 0.1;
@@ -44,7 +44,7 @@ export class MetronomeEngine {
   private bpm: number;
   private beatsPerMeasure: MetronomeBeatsPerMeasure;
   private volume: number;
-  private onBeat?: (beatIndex: number) => void;
+  private onBeat?: (beatIndex: number, delaySec: number) => void;
 
   constructor(options: MetronomeEngineOptions) {
     this.bpm = clampMetronomeBpm(options.bpm);
@@ -74,7 +74,7 @@ export class MetronomeEngine {
     this.volume = Math.min(1, Math.max(0, volume));
   }
 
-  setOnBeat(onBeat: ((beatIndex: number) => void) | undefined): void {
+  setOnBeat(onBeat: ((beatIndex: number, delaySec: number) => void) | undefined): void {
     this.onBeat = onBeat;
   }
 
@@ -115,8 +115,9 @@ export class MetronomeEngine {
 
     while (this.nextBeatTime < this.ctx.currentTime + SCHEDULE_AHEAD_SEC) {
       const beatInMeasure = this.beatIndex % this.beatsPerMeasure;
+      const delaySec = Math.max(0, this.nextBeatTime - this.ctx.currentTime);
       this.playClick(this.nextBeatTime, beatInMeasure === 0);
-      this.onBeat?.(beatInMeasure);
+      this.onBeat?.(beatInMeasure, delaySec);
       this.nextBeatTime += interval;
       this.beatIndex += 1;
     }

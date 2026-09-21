@@ -110,6 +110,7 @@ function createRepos(options?: {
         groupId: row.groupId,
       })),
     listPartNamesByMusicianIds: async () => new Map(),
+    listGroupingRowsForGroups: async () => [],
     getById: async () => null,
     create: vi.fn(),
     update: vi.fn(),

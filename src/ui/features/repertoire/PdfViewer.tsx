@@ -16,6 +16,7 @@ import type {
   CreatePdfNavigationShortcutInput,
   HighlightGeometry,
   NormalizedPoint,
+  NoteGeometry,
   PdfAnnotation,
   PdfNavigationShortcut,
   PieceFileTocEntry,
@@ -31,6 +32,7 @@ import {
   clampStrokeWidth,
   COVER_ANNOTATION_COLOR,
   COVER_STROKE_WIDTH,
+  NOTE_ANNOTATION_COLOR,
   formatPresetColor,
   HIGHLIGHT_STROKE_WIDTH,
   LASER_DEFAULT_PRESET_ID,
@@ -74,6 +76,11 @@ import {
   type VisibleLayers,
 } from '@/ui/features/repertoire/AnnotationOverlay';
 import { AnnotationToolOptions } from '@/ui/features/repertoire/AnnotationToolOptions';
+import { CollapsibleNoteLayer } from '@/ui/features/repertoire/CollapsibleNoteLayer';
+import {
+  NoteAnnotationEditor,
+  type NoteAnnotationEditSession,
+} from '@/ui/features/repertoire/NoteAnnotationEditor';
 import { AnnotationToolPicker } from '@/ui/features/repertoire/AnnotationToolPicker';
 import {
   AnnotationLayerVisibilityDropdown,
@@ -385,6 +392,20 @@ type PdfPageFrameProps = {
     textFontSize: number;
     textFontFamily: TextFontFamily;
   }) => void;
+  isAnnotating: boolean;
+  expandedNoteIds: ReadonlySet<string>;
+  focusedNoteId: string | null;
+  noteDisplayOffsets: Record<string, { dx: number; dy: number }>;
+  noteEditSession: NoteAnnotationEditSession | null;
+  onToggleNoteExpanded: (annotationId: string) => void;
+  onFocusNote: (annotationId: string) => void;
+  onEditNote: (annotation: PdfAnnotation) => void;
+  onNoteMove: (annotationId: string, point: NormalizedPoint, options: { persist: boolean }) => void;
+  onNoteDragEnd: (annotationId: string, persist: boolean) => void;
+  onNotePlace: (pageNumber: number, point: NormalizedPoint) => void;
+  onNoteEditCommit: (session: NoteAnnotationEditSession) => void;
+  onNoteEditCancel: () => void;
+  onNoteEditDelete?: () => void;
   gesturesActive: boolean;
   navigationShortcuts: PdfNavigationShortcut[];
   onNavigationShortcutPress: (shortcut: PdfNavigationShortcut) => void;
@@ -437,6 +458,20 @@ function PdfPageFrameComponent({
   onTextEditCancel,
   onTextEditDelete,
   onTextEditorStylePreferenceChange,
+  isAnnotating,
+  expandedNoteIds,
+  focusedNoteId,
+  noteDisplayOffsets,
+  noteEditSession,
+  onToggleNoteExpanded,
+  onFocusNote,
+  onEditNote,
+  onNoteMove,
+  onNoteDragEnd,
+  onNotePlace,
+  onNoteEditCommit,
+  onNoteEditCancel,
+  onNoteEditDelete,
   gesturesActive,
   navigationShortcuts,
   onNavigationShortcutPress,
@@ -560,6 +595,13 @@ function PdfPageFrameComponent({
     [onTextPlace, pageNumber],
   );
 
+  const handleNotePlace = useCallback(
+    (point: NormalizedPoint) => {
+      onNotePlace(pageNumber, point);
+    },
+    [onNotePlace, pageNumber],
+  );
+
   const pageAspectRatio = layoutSize.width / layoutSize.height;
   const pageTextEditSession =
     textEditSession && textEditSession.pageNumber === pageNumber ? textEditSession : null;
@@ -671,6 +713,7 @@ function PdfPageFrameComponent({
           onTextSelect={onTextSelect}
           onTextMove={onTextMove}
           onTextDragComplete={onTextDragComplete}
+          onNotePlace={handleNotePlace}
           textEditing={pageTextEditSession != null}
         />
       </>
@@ -683,6 +726,42 @@ function PdfPageFrameComponent({
           onCancel={onTextEditCancel}
           onDelete={canDeleteTextEdit ? onTextEditDelete : undefined}
           onStylePreferenceChange={onTextEditorStylePreferenceChange}
+        />
+      ) : null}
+      <CollapsibleNoteLayer
+        pageNumber={pageNumber}
+        annotations={annotations}
+        visibleLayers={visibleLayers}
+        editingFocus={editingFocus}
+        expandedNoteIds={expandedNoteIds}
+        focusedNoteId={focusedNoteId}
+        displayOffsets={noteDisplayOffsets}
+        isAnnotating={isAnnotating}
+        editingNoteId={
+          noteEditSession?.pageNumber === pageNumber ? noteEditSession.editingId ?? null : null
+        }
+        interactionBlocksNotes={interactionMode === 'eraser'}
+        canEditNote={canEraseAnnotation}
+        onToggleExpanded={onToggleNoteExpanded}
+        onFocus={onFocusNote}
+        onEdit={onEditNote}
+        onNoteMove={onNoteMove}
+        onNoteDragEnd={onNoteDragEnd}
+      />
+      {noteEditSession?.pageNumber === pageNumber ? (
+        <NoteAnnotationEditor
+          session={noteEditSession}
+          onCommit={onNoteEditCommit}
+          onCancel={onNoteEditCancel}
+          onDelete={
+            noteEditSession.editingId
+            && annotations.some(
+              (annotation) =>
+                annotation.id === noteEditSession.editingId && canEraseAnnotation(annotation),
+            )
+              ? onNoteEditDelete
+              : undefined
+          }
         />
       ) : null}
       <NavigationShortcutOverlay
@@ -938,6 +1017,13 @@ export function PdfViewer({
   const [pendingDeletionIds, setPendingDeletionIds] = useState<string[]>([]);
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, UpdatePdfAnnotationInput>>({});
   const [textEditSession, setTextEditSession] = useState<TextAnnotationEditSession | null>(null);
+  const [expandedNoteIds, setExpandedNoteIds] = useState<Set<string>>(() => new Set());
+  const [focusedNoteId, setFocusedNoteId] = useState<string | null>(null);
+  const [noteEditSession, setNoteEditSession] = useState<NoteAnnotationEditSession | null>(null);
+  const [noteDisplayOffsets, setNoteDisplayOffsets] = useState<
+    Record<string, { dx: number; dy: number }>
+  >({});
+  const noteDragBeforeRef = useRef<PdfAnnotation | null>(null);
   const [sessionUndoStack, setSessionUndoStack] = useState<SessionUndoEntry[]>([]);
   const autoSaveTimeoutRef = useRef<number | null>(null);
   const savedIndicatorTimeoutRef = useRef<number | null>(null);
@@ -2642,7 +2728,7 @@ export function PdfViewer({
   persistDraftChangesRef.current = persistDraftChanges;
 
   useEffect(() => {
-    if (!isAnnotating || !userId) {
+    if (!userId) {
       return;
     }
 
@@ -2668,7 +2754,6 @@ export function PdfViewer({
     draftAnnotations,
     pendingDeletionIds,
     pendingUpdates,
-    isAnnotating,
     hasUnsavedChanges,
     userId,
     persistDraftChanges,
@@ -2684,10 +2769,9 @@ export function PdfViewer({
         window.clearTimeout(savedIndicatorTimeoutRef.current);
       }
       if (
-        isAnnotatingRef.current &&
-        (draftAnnotationsRef.current.length > 0
-          || pendingDeletionIdsRef.current.length > 0
-          || Object.keys(pendingUpdatesRef.current).length > 0)
+        draftAnnotationsRef.current.length > 0
+        || pendingDeletionIdsRef.current.length > 0
+        || Object.keys(pendingUpdatesRef.current).length > 0
       ) {
         void persistDraftChangesRef.current();
       }
@@ -2980,6 +3064,187 @@ export function PdfViewer({
     [displayAnnotations],
   );
 
+  const clearNoteUi = useCallback((annotationId: string) => {
+    setExpandedNoteIds((current) => {
+      if (!current.has(annotationId)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(annotationId);
+      return next;
+    });
+    setNoteDisplayOffsets((current) => {
+      if (!(annotationId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[annotationId];
+      return next;
+    });
+    setFocusedNoteId((current) => (current === annotationId ? null : current));
+  }, []);
+
+  const handleToggleNoteExpanded = useCallback((annotationId: string) => {
+    setExpandedNoteIds((current) => {
+      const next = new Set(current);
+      if (next.has(annotationId)) {
+        next.delete(annotationId);
+      } else {
+        next.add(annotationId);
+      }
+      return next;
+    });
+    setFocusedNoteId(annotationId);
+  }, []);
+
+  const handleFocusNote = useCallback((annotationId: string) => {
+    setFocusedNoteId(annotationId);
+  }, []);
+
+  const handleEditNote = useCallback((annotation: PdfAnnotation) => {
+    if (annotation.type !== 'note' || !('body' in annotation.geometry) || 'content' in annotation.geometry) {
+      return;
+    }
+
+    setNoteEditSession({
+      pageNumber: annotation.pageNumber,
+      geometry: annotation.geometry,
+      editingId: annotation.id,
+    });
+    setFocusedNoteId(annotation.id);
+  }, []);
+
+  const handleNoteMove = useCallback(
+    (annotationId: string, point: NormalizedPoint, options: { persist: boolean }) => {
+      const current = displayAnnotations.find((annotation) => annotation.id === annotationId);
+      if (
+        !current
+        || current.type !== 'note'
+        || !('body' in current.geometry)
+        || 'content' in current.geometry
+      ) {
+        return;
+      }
+
+      const geometry = current.geometry as NoteGeometry;
+      if (options.persist) {
+        if (!noteDragBeforeRef.current || noteDragBeforeRef.current.id !== annotationId) {
+          noteDragBeforeRef.current = current;
+        }
+        setNoteDisplayOffsets((offsets) => {
+          if (!(annotationId in offsets)) {
+            return offsets;
+          }
+          const next = { ...offsets };
+          delete next[annotationId];
+          return next;
+        });
+        applyLocalAnnotationUpdate(annotationId, {
+          geometry: {
+            ...geometry,
+            x: point.x,
+            y: point.y,
+          },
+        });
+        return;
+      }
+
+      setNoteDisplayOffsets((offsets) => ({
+        ...offsets,
+        [annotationId]: {
+          dx: point.x - geometry.x,
+          dy: point.y - geometry.y,
+        },
+      }));
+    },
+    [applyLocalAnnotationUpdate, displayAnnotations],
+  );
+
+  const handleNoteDragEnd = useCallback(
+    (annotationId: string, persist: boolean) => {
+      if (!persist) {
+        noteDragBeforeRef.current = null;
+        return;
+      }
+
+      const before = noteDragBeforeRef.current;
+      noteDragBeforeRef.current = null;
+      if (!before || before.id !== annotationId) {
+        return;
+      }
+
+      const after = displayAnnotations.find((annotation) => annotation.id === annotationId);
+      if (!after || JSON.stringify(after.geometry) === JSON.stringify(before.geometry)) {
+        return;
+      }
+
+      hasAnnotatedRef.current = true;
+      setSessionUndoStack((current) => [...current, { kind: 'update', before, after }]);
+    },
+    [displayAnnotations],
+  );
+
+  const handleNotePlace = useCallback(
+    (pageNumber: number, point: NormalizedPoint) => {
+      if (annotationReadOnly) {
+        return;
+      }
+
+      setNoteEditSession({
+        pageNumber,
+        geometry: { x: point.x, y: point.y, body: '' },
+      });
+    },
+    [annotationReadOnly],
+  );
+
+  const handleNoteEditCommit = useCallback(
+    (session: NoteAnnotationEditSession) => {
+      setNoteEditSession(null);
+
+      if (!session.editingId) {
+        if (annotationReadOnly) {
+          return;
+        }
+
+        addDraftAnnotation({
+          pageNumber: session.pageNumber,
+          layer: activeLayer,
+          type: 'note',
+          geometry: session.geometry,
+          color: NOTE_ANNOTATION_COLOR,
+          sectionId: activeLayer === 'section' ? activeSectionId : null,
+          annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
+        });
+        return;
+      }
+
+      const before =
+        displayAnnotations.find((annotation) => annotation.id === session.editingId) ?? null;
+      const after = applyLocalAnnotationUpdate(session.editingId, {
+        geometry: session.geometry,
+      });
+
+      if (before && after) {
+        hasAnnotatedRef.current = true;
+        setSessionUndoStack((current) => [...current, { kind: 'update', before, after }]);
+      }
+    },
+    [
+      activeDirectedSetId,
+      activeLayer,
+      activeSectionId,
+      addDraftAnnotation,
+      annotationReadOnly,
+      applyLocalAnnotationUpdate,
+      displayAnnotations,
+    ],
+  );
+
+  const handleNoteEditCancel = useCallback(() => {
+    setNoteEditSession(null);
+  }, []);
+
   const handleLaserStrokeComplete = useCallback(
     (pageNumber: number, geometry: StrokeGeometry) => {
       const id = crypto.randomUUID();
@@ -3007,6 +3272,7 @@ export function PdfViewer({
 
   const handleEraseAnnotation = useCallback(
     (annotationId: string) => {
+      clearNoteUi(annotationId);
       setPendingUpdates((current) => {
         if (!(annotationId in current)) {
           return current;
@@ -3043,8 +3309,18 @@ export function PdfViewer({
         { kind: 'delete', annotation: saved, wasDraft: false },
       ]);
     },
-    [draftAnnotations, annotations],
+    [draftAnnotations, annotations, clearNoteUi],
   );
+
+  const handleNoteEditDelete = useCallback(() => {
+    const editingId = noteEditSession?.editingId;
+    if (!editingId) {
+      return;
+    }
+
+    handleEraseAnnotation(editingId);
+    setNoteEditSession(null);
+  }, [handleEraseAnnotation, noteEditSession?.editingId]);
 
   const handleTextEditDelete = useCallback(() => {
     const editingId = textEditSession?.editingId;
@@ -3216,6 +3492,20 @@ export function PdfViewer({
     onTextEditCancel: handleTextEditCancel,
     onTextEditDelete: handleTextEditDelete,
     onTextEditorStylePreferenceChange: handleTextEditorStylePreferenceChange,
+    isAnnotating,
+    expandedNoteIds,
+    focusedNoteId,
+    noteDisplayOffsets,
+    noteEditSession,
+    onToggleNoteExpanded: handleToggleNoteExpanded,
+    onFocusNote: handleFocusNote,
+    onEditNote: handleEditNote,
+    onNoteMove: handleNoteMove,
+    onNoteDragEnd: handleNoteDragEnd,
+    onNotePlace: handleNotePlace,
+    onNoteEditCommit: handleNoteEditCommit,
+    onNoteEditCancel: handleNoteEditCancel,
+    onNoteEditDelete: handleNoteEditDelete,
     gesturesActive: isGesturing || shortcutPickRequest != null || tocPickActive,
     navigationShortcuts: sortedNavigationShortcuts,
     onNavigationShortcutPress: goToShortcut,

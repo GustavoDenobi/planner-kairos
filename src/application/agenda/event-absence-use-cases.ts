@@ -28,14 +28,14 @@ async function loadEventAbsencesSnapshot(
   }
 
   const groupIds = event.groups.map((group) => group.id);
-  const [groupAssignments, absences] = await Promise.all([
-    assignmentRepo.listForGroups(organizationId, groupIds),
+  const [groupingRows, absences] = await Promise.all([
+    assignmentRepo.listGroupingRowsForGroups(organizationId, groupIds),
     absenceRepo.listForEvent(organizationId, eventId),
   ]);
 
   const musicianIds = [
     ...new Set([
-      ...groupAssignments.map((row) => row.musicianId),
+      ...groupingRows.map((row) => row.musicianId),
       ...event.musicians.map((musician) => musician.id),
     ]),
   ];
@@ -47,11 +47,19 @@ async function loadEventAbsencesSnapshot(
   const groupNameById = new Map(event.groups.map((group) => [group.id, group.name]));
 
   const participants = resolveEventParticipants({
-    groupAssignments: groupAssignments.map((row) => ({
-      musicianId: row.musicianId,
-      musicianName: row.musicianName,
-      groupName: groupNameById.get(row.groupId) ?? '',
-    })).filter((row) => row.groupName.length > 0),
+    groupAssignments: groupingRows
+      .map((row) => ({
+        musicianId: row.musicianId,
+        musicianName: row.musicianName,
+        groupId: row.groupId,
+        groupName: groupNameById.get(row.groupId) ?? '',
+        sectionId: row.sectionId,
+        sectionName: row.sectionName,
+        sectionSortOrder: row.sectionSortOrder,
+        partId: row.partId,
+        partName: row.partName,
+      }))
+      .filter((row) => row.groupName.length > 0),
     directMusicians: event.musicians,
     partNamesByMusicianId,
   });

@@ -36,6 +36,7 @@
   --color-bg: #f0f1f4;
   --color-surface: #ffffff;
   --color-primary: #466be5;
+  --color-metronome-downbeat: #17a3c7;
   --color-accent: #f59e0b;
   --color-text: #18181b;
   --color-muted: #52525b;
@@ -49,6 +50,7 @@
   --color-bg: #09090b;
   --color-surface: #18181b;
   --color-primary: #3a7fd8;
+  --color-metronome-downbeat: #3ec8e6;
   --color-accent: #fbbf24;
   --color-text: #f4f4f5;
   --color-muted: #a1a1aa;
@@ -351,10 +353,41 @@ html[data-keyboard-open] [data-modal-overlay] {
   }
 }
 
+@keyframes metronome-bpm-pulse {
+  0%,
+  35% {
+    background-color: var(--metronome-pulse-color, var(--color-primary));
+    color: #fff;
+    transform: scale(1.08);
+  }
+
+  100% {
+    background-color: transparent;
+    color: var(--color-text);
+    transform: scale(1);
+  }
+}
+
+.metronome-bpm-pulse {
+  animation-name: metronome-bpm-pulse;
+  animation-duration: 160ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  transform-origin: center;
+}
+
+.metronome-bpm-pulse-downbeat {
+  --metronome-pulse-color: var(--color-metronome-downbeat);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .navigation-shortcut-target-pulse {
     animation: none;
     opacity: 0;
+  }
+
+  .metronome-bpm-pulse {
+    animation: none;
   }
 
   .navigation-shortcut-target-dot {

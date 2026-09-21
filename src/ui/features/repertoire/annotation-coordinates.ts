@@ -42,6 +42,16 @@ function isTextGeometry(geometry: PdfAnnotation['geometry']): geometry is TextGe
   return 'content' in geometry && 'fontSize' in geometry;
 }
 
+function isNoteGeometry(
+  geometry: PdfAnnotation['geometry'],
+): geometry is Extract<PdfAnnotation['geometry'], { body: string }> {
+  return 'body' in geometry && !('content' in geometry);
+}
+
+/** Collapsed note marker size, as a fraction of page width/height. */
+export const NOTE_MARKER_HIT_WIDTH = 0.12;
+export const NOTE_MARKER_HIT_HEIGHT = 0.04;
+
 function distanceBetween(a: NormalizedPoint, b: NormalizedPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -118,6 +128,18 @@ function annotationHitDistance(
 
   if (annotation.type === 'cover' && 'width' in annotation.geometry && 'height' in annotation.geometry) {
     return legacyHighlightHitDistance(annotation.geometry, point);
+  }
+
+  if (annotation.type === 'note' && isNoteGeometry(annotation.geometry)) {
+    return legacyHighlightHitDistance(
+      {
+        x: annotation.geometry.x,
+        y: annotation.geometry.y,
+        width: NOTE_MARKER_HIT_WIDTH,
+        height: NOTE_MARKER_HIT_HEIGHT,
+      },
+      point,
+    );
   }
 
   if (annotation.type === 'text' && isTextGeometry(annotation.geometry)) {

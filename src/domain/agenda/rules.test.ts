@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { groupEventParticipants } from './absence-grouping';
+import type { EventParticipant, EventParticipantAssignment } from './event-absence';
 import {
   eventDisplayTitle,
   resolveEventColor,
@@ -11,6 +13,21 @@ import {
   resolveEventParticipants,
   validateEventAudienceForGroupWriter,
 } from './rules';
+
+function participantAssignment(
+  overrides: Partial<EventParticipantAssignment> &
+    Pick<EventParticipantAssignment, 'musicianId' | 'musicianName' | 'groupName'>,
+): EventParticipantAssignment {
+  return {
+    groupId: overrides.groupName,
+    sectionId: null,
+    sectionName: null,
+    sectionSortOrder: null,
+    partId: null,
+    partName: null,
+    ...overrides,
+  };
+}
 
 describe('validateEventTypeInput', () => {
   it('rejects empty name', () => {
@@ -376,8 +393,8 @@ describe('resolveEventParticipants', () => {
   it('merges group members and direct musicians without duplicates', () => {
     const result = resolveEventParticipants({
       groupAssignments: [
-        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' },
-        { musicianId: 'm2', musicianName: 'Bruno', groupName: 'Orquestra' },
+        participantAssignment({ musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' }),
+        participantAssignment({ musicianId: 'm2', musicianName: 'Bruno', groupName: 'Orquestra' }),
       ],
       directMusicians: [
         { id: 'm2', fullName: 'Bruno Silva', userId: null },
@@ -393,17 +410,19 @@ describe('resolveEventParticipants', () => {
     expect(result.map((item) => item.musicianId)).toEqual(['m1', 'm2', 'm3']);
     expect(result[0]?.groupNames).toEqual(['Orquestra']);
     expect(result[0]?.partNames).toEqual(['Violino']);
+    expect(result[0]?.memberships).toHaveLength(1);
     expect(result[1]?.fullName).toBe('Bruno');
     expect(result[1]?.groupNames).toEqual(['Orquestra']);
     expect(result[1]?.partNames).toEqual(['Viola']);
     expect(result[2]?.groupNames).toEqual([]);
+    expect(result[2]?.memberships).toEqual([]);
   });
 
   it('collects multiple group names for the same musician', () => {
     const result = resolveEventParticipants({
       groupAssignments: [
-        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Coro' },
-        { musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' },
+        participantAssignment({ musicianId: 'm1', musicianName: 'Ana', groupName: 'Coro' }),
+        participantAssignment({ musicianId: 'm1', musicianName: 'Ana', groupName: 'Orquestra' }),
       ],
       directMusicians: [],
       partNamesByMusicianId: new Map(),
@@ -411,13 +430,14 @@ describe('resolveEventParticipants', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.groupNames).toEqual(['Coro', 'Orquestra']);
+    expect(result[0]?.memberships).toHaveLength(2);
   });
 
   it('sorts participants by name in pt-BR locale', () => {
     const result = resolveEventParticipants({
       groupAssignments: [
-        { musicianId: 'm1', musicianName: 'Zélia', groupName: 'Grupo A' },
-        { musicianId: 'm2', musicianName: 'Álvaro', groupName: 'Grupo B' },
+        participantAssignment({ musicianId: 'm1', musicianName: 'Zélia', groupName: 'Grupo A' }),
+        participantAssignment({ musicianId: 'm2', musicianName: 'Álvaro', groupName: 'Grupo B' }),
       ],
       directMusicians: [],
       partNamesByMusicianId: new Map(),
@@ -434,5 +454,123 @@ describe('resolveEventParticipants', () => {
         partNamesByMusicianId: new Map(),
       }),
     ).toEqual([]);
+  });
+});
+
+function participant(overrides: Partial<EventParticipant> & Pick<EventParticipant, 'musicianId' | 'fullName'>): EventParticipant {
+  return {
+    groupNames: [],
+    partNames: [],
+    memberships: [],
+    ...overrides,
+  };
+}
+
+describe('groupEventParticipants', () => {
+  const ana = participant({
+    musicianId: 'ana',
+    fullName: 'Ana',
+    groupNames: ['Coro', 'Orquestra'],
+    partNames: ['Trompete'],
+    memberships: [
+      {
+        groupId: 'coro',
+        groupName: 'Coro',
+        sectionId: 'sopranos',
+        sectionName: 'Sopranos',
+        sectionSortOrder: 1,
+        partId: 'soprano',
+        partName: 'Soprano',
+      },
+      {
+        groupId: 'orquestra',
+        groupName: 'Orquestra',
+        sectionId: 'cordas',
+        sectionName: 'Cordas',
+        sectionSortOrder: 1,
+        partId: 'violino',
+        partName: 'Violino',
+      },
+      {
+        groupId: 'orquestra',
+        groupName: 'Orquestra',
+        sectionId: 'metais',
+        sectionName: 'Metais',
+        sectionSortOrder: 2,
+        partId: 'violino',
+        partName: 'Violino',
+      },
+    ],
+  });
+  const bruno = participant({
+    musicianId: 'bruno',
+    fullName: 'Bruno',
+    groupNames: ['Orquestra'],
+    partNames: ['Trompete'],
+    memberships: [
+      {
+        groupId: 'orquestra',
+        groupName: 'Orquestra',
+        sectionId: null,
+        sectionName: null,
+        sectionSortOrder: null,
+        partId: null,
+        partName: null,
+      },
+    ],
+  });
+  const carlos = participant({
+    musicianId: 'carlos',
+    fullName: 'Carlos',
+    partNames: ['Viola'],
+  });
+
+  it('repeats a musician in each section and keeps people without a section at the end', () => {
+    const buckets = groupEventParticipants([ana, bruno, carlos], 'section', 2);
+
+    expect(buckets.map((bucket) => bucket.label)).toEqual([
+      'Sopranos · Coro',
+      'Cordas · Orquestra',
+      'Metais · Orquestra',
+      'Sem naipe',
+    ]);
+    expect(buckets[0]?.participants.map((item) => item.musicianId)).toEqual(['ana']);
+    expect(buckets[1]?.participants.map((item) => item.musicianId)).toEqual(['ana']);
+    expect(buckets[2]?.participants.map((item) => item.musicianId)).toEqual(['ana']);
+    expect(buckets[3]?.participants.map((item) => item.musicianId)).toEqual(['bruno', 'carlos']);
+  });
+
+  it('uses only the section name when the event has one group', () => {
+    const buckets = groupEventParticipants([ana], 'section', 1);
+    expect(buckets.map((bucket) => bucket.label)).toEqual(['Sopranos', 'Cordas', 'Metais']);
+  });
+
+  it('keeps the same part as one bucket and falls back to part names only for direct musicians', () => {
+    const buckets = groupEventParticipants([ana, bruno, carlos], 'part');
+
+    expect(buckets.map((bucket) => bucket.label)).toEqual(['Soprano', 'Viola', 'Violino', 'Sem parte']);
+    expect(buckets.find((bucket) => bucket.label === 'Violino')?.participants).toHaveLength(1);
+    expect(buckets.find((bucket) => bucket.label === 'Sem parte')?.participants.map((item) => item.musicianId)).toEqual([
+      'bruno',
+    ]);
+    expect(buckets.find((bucket) => bucket.label === 'Viola')?.participants.map((item) => item.musicianId)).toEqual([
+      'carlos',
+    ]);
+  });
+
+  it('repeats a musician in each group', () => {
+    const buckets = groupEventParticipants([ana, bruno, carlos], 'group');
+
+    expect(buckets.map((bucket) => bucket.label)).toEqual(['Coro', 'Orquestra', 'Sem grupo']);
+    expect(buckets[0]?.participants.map((item) => item.musicianId)).toEqual(['ana']);
+    expect(buckets[1]?.participants.map((item) => item.musicianId)).toEqual(['ana', 'bruno']);
+    expect(buckets[2]?.participants.map((item) => item.musicianId)).toEqual(['carlos']);
+  });
+
+  it('returns a single unnamed bucket when grouping by name', () => {
+    const buckets = groupEventParticipants([carlos, ana], 'name');
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0]?.label).toBe('');
+    expect(buckets[0]?.participants.map((item) => item.fullName)).toEqual(['Ana', 'Carlos']);
   });
 });

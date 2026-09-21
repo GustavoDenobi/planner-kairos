@@ -52,12 +52,18 @@ export type {
   CreatePdfAnnotationInput,
   HighlightGeometry,
   NormalizedPoint,
+  NoteGeometry,
   PdfAnnotation,
   StrokeGeometry,
   TextGeometry,
   UpdatePdfAnnotationInput,
 } from './piece-file-annotation';
-export { TEXT_ANNOTATION_MAX_LENGTH } from './piece-file-annotation';
+export {
+  NOTE_ANNOTATION_COLOR,
+  NOTE_BODY_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+  TEXT_ANNOTATION_MAX_LENGTH,
+} from './piece-file-annotation';
 export type { TextFontFamily } from './text-font-families';
 export {
   DEFAULT_TEXT_FONT_FAMILY,

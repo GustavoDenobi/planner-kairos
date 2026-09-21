@@ -12,6 +12,18 @@ export type AssignmentAudienceRow = {
   groupId: string;
 };
 
+export type AssignmentGroupingRow = {
+  musicianId: string;
+  musicianName: string;
+  groupId: string;
+  groupName: string;
+  sectionId: string | null;
+  sectionName: string | null;
+  sectionSortOrder: number | null;
+  partId: string | null;
+  partName: string | null;
+};
+
 export type AssignmentRepository = {
   listForMusician(
     organizationId: string,
@@ -25,6 +37,10 @@ export type AssignmentRepository = {
     organizationId: string,
     groupIds: string[],
   ): Promise<AssignmentAudienceRow[]>;
+  listGroupingRowsForGroups(
+    organizationId: string,
+    groupIds: string[],
+  ): Promise<AssignmentGroupingRow[]>;
   listPartNamesByMusicianIds(
     organizationId: string,
     musicianIds: string[],

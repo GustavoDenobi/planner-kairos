@@ -1,0 +1,1 @@
+ALTER TYPE annotation_type ADD VALUE IF NOT EXISTS 'note';

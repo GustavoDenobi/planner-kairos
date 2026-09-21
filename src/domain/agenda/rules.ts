@@ -1,6 +1,6 @@
 import type { EventInput, EventAudienceMusician } from './event';
 import type { EventKind, EventType, EventTypeInput } from './event-type';
-import type { EventParticipant } from './event-absence';
+import type { EventParticipant, EventParticipantAssignment } from './event-absence';
 import type {
   ProgramItemInput,
   ProgramItemStatus,
@@ -342,26 +342,34 @@ export function canWriteEvent(input: {
 }
 
 export function resolveEventParticipants(input: {
-  groupAssignments: Array<{ musicianId: string; musicianName: string; groupName: string }>;
+  groupAssignments: EventParticipantAssignment[];
   directMusicians: EventAudienceMusician[];
   partNamesByMusicianId: Map<string, string[]>;
 }): EventParticipant[] {
   const byMusicianId = new Map<string, EventParticipant>();
 
   for (const assignment of input.groupAssignments) {
+    const membership = {
+      groupId: assignment.groupId,
+      groupName: assignment.groupName,
+      sectionId: assignment.sectionId,
+      sectionName: assignment.sectionName,
+      sectionSortOrder: assignment.sectionSortOrder,
+      partId: assignment.partId,
+      partName: assignment.partName,
+    };
     const existing = byMusicianId.get(assignment.musicianId);
     if (existing) {
-      if (!existing.groupNames.includes(assignment.groupName)) {
-        existing.groupNames.push(assignment.groupName);
-      }
+      existing.memberships.push(membership);
       continue;
     }
 
     byMusicianId.set(assignment.musicianId, {
       musicianId: assignment.musicianId,
       fullName: assignment.musicianName,
-      groupNames: [assignment.groupName],
+      groupNames: [],
       partNames: input.partNamesByMusicianId.get(assignment.musicianId) ?? [],
+      memberships: [membership],
     });
   }
 
@@ -372,6 +380,7 @@ export function resolveEventParticipants(input: {
         fullName: musician.fullName,
         groupNames: [],
         partNames: input.partNamesByMusicianId.get(musician.id) ?? [],
+        memberships: [],
       });
     }
   }
@@ -379,9 +388,9 @@ export function resolveEventParticipants(input: {
   return [...byMusicianId.values()]
     .map((participant) => ({
       ...participant,
-      groupNames: [...participant.groupNames].sort((left, right) =>
-        left.localeCompare(right, 'pt-BR'),
-      ),
+      groupNames: [...new Set(participant.memberships.map((membership) => membership.groupName))]
+        .filter((groupName) => groupName.length > 0)
+        .sort((left, right) => left.localeCompare(right, 'pt-BR')),
     }))
     .sort((left, right) => left.fullName.localeCompare(right.fullName, 'pt-BR'));
 }

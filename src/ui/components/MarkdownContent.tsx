@@ -16,10 +16,14 @@ function inlineMarkdown(text: string): string {
     );
 }
 
-export function renderSimpleMarkdown(markdown: string): string {
+export function renderSimpleMarkdown(markdown: string, compact = false): string {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const html: string[] = [];
   let inList = false;
+  const headingClass = compact
+    ? 'mt-1 font-semibold text-text first:mt-0'
+    : 'mt-3 font-semibold text-text first:mt-0';
+  const listClass = compact ? 'list-disc space-y-0 pl-5' : 'list-disc space-y-1 pl-5';
 
   function closeList() {
     if (inList) {
@@ -42,7 +46,7 @@ export function renderSimpleMarkdown(markdown: string): string {
       const level = heading[1].length;
       const tag = level === 1 ? 'h3' : level === 2 ? 'h4' : 'h5';
       html.push(
-        `<${tag} class="mt-3 font-semibold text-text first:mt-0">${inlineMarkdown(heading[2])}</${tag}>`,
+        `<${tag} class="${headingClass}">${inlineMarkdown(heading[2])}</${tag}>`,
       );
       continue;
     }
@@ -50,7 +54,7 @@ export function renderSimpleMarkdown(markdown: string): string {
     const listItem = trimmed.match(/^[-*]\s+(.+)$/);
     if (listItem) {
       if (!inList) {
-        html.push('<ul class="list-disc space-y-1 pl-5">');
+        html.push(`<ul class="${listClass}">`);
         inList = true;
       }
       html.push(`<li>${inlineMarkdown(listItem[1])}</li>`);
@@ -68,13 +72,20 @@ export function renderSimpleMarkdown(markdown: string): string {
 type MarkdownContentProps = {
   markdown: string;
   className?: string;
+  compact?: boolean;
 };
 
-export function MarkdownContent({ markdown, className = '' }: MarkdownContentProps) {
+export function MarkdownContent({
+  markdown,
+  className = '',
+  compact = false,
+}: MarkdownContentProps) {
   return (
     <div
-      className={`select-text space-y-2 text-sm leading-relaxed text-muted ${className}`}
-      dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(markdown) }}
+      className={`select-text text-muted ${
+        compact ? 'space-y-1 text-xs leading-snug' : 'space-y-2 text-sm leading-relaxed'
+      } ${className}`}
+      dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(markdown, compact) }}
     />
   );
 }

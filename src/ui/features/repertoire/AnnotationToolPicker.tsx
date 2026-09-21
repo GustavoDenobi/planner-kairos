@@ -5,6 +5,7 @@ import {
   IconEraser,
   IconHighlighter,
   IconLaser,
+  IconNote,
   IconPen,
   IconTextSize,
 } from '@/ui/components/icons';
@@ -26,6 +27,7 @@ const ANNOTATION_TOOLS: Array<{
   { mode: 'highlight', label: 'Marca-texto', Icon: IconHighlighter },
   { mode: 'cover', label: 'Correção', Icon: IconCover },
   { mode: 'text', label: 'Texto', Icon: IconTextSize },
+  { mode: 'note', label: 'Nota', Icon: IconNote },
   { mode: 'laser', label: 'Laser', Icon: IconLaser },
   { mode: 'eraser', label: 'Borracha', Icon: IconEraser },
 ];

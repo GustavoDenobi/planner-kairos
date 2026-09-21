@@ -1,4 +1,7 @@
-import type { AssignmentRepository } from '@/application/ports/assignment-repository';
+import type {
+  AssignmentGroupingRow,
+  AssignmentRepository,
+} from '@/application/ports/assignment-repository';
 import type {
   Assignment,
   AssignmentInput,
@@ -135,6 +138,43 @@ export function createAssignmentRepository(): AssignmentRepository {
           musicianName: musician?.full_name ?? '',
           musicianUserId: musician?.user_id ?? null,
           groupId: row.group_id,
+        };
+      });
+    },
+
+    async listGroupingRowsForGroups(organizationId, groupIds) {
+      if (groupIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('assignments')
+        .select(
+          'musician_id, group_id, section_id, part_id, musicians(full_name), groups(name), sections(name, sort_order), parts(name)',
+        )
+        .eq('organization_id', organizationId)
+        .in('group_id', groupIds);
+
+      if (error || !data) {
+        return [];
+      }
+
+      return data.map((row): AssignmentGroupingRow => {
+        const musician = row.musicians as unknown as { full_name: string } | null;
+        const group = row.groups as unknown as { name: string } | null;
+        const section = row.sections as unknown as { name: string; sort_order: number } | null;
+        const part = row.parts as unknown as { name: string } | null;
+        const partName = part?.name?.trim() ?? '';
+        return {
+          musicianId: row.musician_id,
+          musicianName: musician?.full_name ?? '',
+          groupId: row.group_id,
+          groupName: group?.name ?? '',
+          sectionId: row.section_id,
+          sectionName: section?.name?.trim() || null,
+          sectionSortOrder: row.section_id ? (section?.sort_order ?? null) : null,
+          partId: row.part_id,
+          partName: partName.length > 0 ? partName : null,
         };
       });
     },
