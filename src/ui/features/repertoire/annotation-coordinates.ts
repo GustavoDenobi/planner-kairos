@@ -5,6 +5,7 @@ import {
   PEN_STROKE_WIDTH as PEN_STROKE_WIDTH_RANGE,
 } from '@/domain/repertoire';
 import { highlightStrokeHitDistance } from '@/ui/features/repertoire/highlight-brush';
+import { penStrokeHitDistance } from '@/ui/features/repertoire/pen-stroke-path';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -56,43 +57,6 @@ function distanceBetween(a: NormalizedPoint, b: NormalizedPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.hypot(dx, dy);
-}
-
-function distancePointToSegment(
-  point: NormalizedPoint,
-  start: NormalizedPoint,
-  end: NormalizedPoint,
-): number {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const lengthSquared = dx * dx + dy * dy;
-
-  if (lengthSquared === 0) {
-    return distanceBetween(point, start);
-  }
-
-  const t = clamp(
-    ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared,
-    0,
-    1,
-  );
-
-  return distanceBetween(point, { x: start.x + t * dx, y: start.y + t * dy });
-}
-
-function strokeHitDistance(geometry: StrokeGeometry, point: NormalizedPoint): number {
-  let minDistance = Number.POSITIVE_INFINITY;
-
-  for (let index = 1; index < geometry.points.length; index += 1) {
-    const segmentDistance = distancePointToSegment(
-      point,
-      geometry.points[index - 1]!,
-      geometry.points[index]!,
-    );
-    minDistance = Math.min(minDistance, segmentDistance);
-  }
-
-  return minDistance;
 }
 
 function legacyHighlightHitDistance(
@@ -148,7 +112,7 @@ function annotationHitDistance(
   }
 
   if (isStrokeGeometry(annotation.geometry)) {
-    return strokeHitDistance(annotation.geometry, point);
+    return penStrokeHitDistance(annotation.geometry.points, point);
   }
 
   if ('width' in annotation.geometry && 'height' in annotation.geometry) {

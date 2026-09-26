@@ -14,6 +14,7 @@ import {
   findErasableAnnotationAtPoint,
   toNormalizedCoords,
 } from '@/ui/features/repertoire/annotation-coordinates';
+import { penStrokePath } from '@/ui/features/repertoire/pen-stroke-path';
 import {
   buildHighlightBrushRects,
   constrainHighlightPoint,
@@ -233,10 +234,14 @@ export function AnnotationPenLayer({
       {pageAnnotations.map((annotation) => {
         const geometry = annotation.geometry as StrokeGeometry;
         const appearance = resolveAnnotationAppearance(annotation, inverted);
+        const path = penStrokePath(geometry.points);
+        if (!path) {
+          return null;
+        }
         return (
-          <polyline
+          <path
             key={annotation.id}
-            points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
+            d={path}
             fill="none"
             stroke={appearance.stroke}
             strokeWidth={geometry.strokeWidth}
@@ -247,8 +252,8 @@ export function AnnotationPenLayer({
         );
       })}
       {showDraft && draftStroke && draftStroke.length >= 1 && (
-        <polyline
-          points={draftStroke.map((point) => `${point.x},${point.y}`).join(' ')}
+        <path
+          d={penStrokePath(draftStroke)}
           fill="none"
           stroke={penColor}
           strokeWidth={penStrokeWidth}

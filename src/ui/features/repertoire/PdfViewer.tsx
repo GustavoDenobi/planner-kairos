@@ -89,7 +89,7 @@ import {
   AnnotationLayerVisibilityDropdown,
   type LayerVisibilityOption,
 } from '@/ui/features/repertoire/AnnotationLayerVisibilityDropdown';
-import { simplifyStrokeGeometry } from '@/ui/features/repertoire/highlight-brush';
+import { simplifyPenStrokeGeometry, simplifyStrokeGeometry } from '@/ui/features/repertoire/highlight-brush';
 import {
   isDraftAnnotationId,
   toNormalizedCoords,
@@ -3065,7 +3065,7 @@ export function PdfViewer({
         pageNumber,
         layer: activeLayer,
         type: 'stroke',
-        geometry: simplifyStrokeGeometry(geometry),
+        geometry: simplifyPenStrokeGeometry(geometry),
         color: formatPresetColor(annotationToolPrefs.penPresetId),
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
@@ -3946,13 +3946,18 @@ export function PdfViewer({
     }
 
     if (saveStatus === 'saving' || saveStatus === 'pending') {
+      const isSaving = saveStatus === 'saving';
       return (
         <span
           className={`${statusIconClass} text-muted`}
           aria-live="polite"
-          aria-label="Salvando"
+          aria-label={isSaving ? 'Salvando' : 'Aguardando para salvar'}
         >
-          <IconLoader className="h-4 w-4 animate-spin" aria-hidden />
+          <IconLoader
+            className="h-4 w-4 animate-spin"
+            style={{ animationDuration: isSaving ? '0.45s' : '2.4s' }}
+            aria-hidden
+          />
         </span>
       );
     }

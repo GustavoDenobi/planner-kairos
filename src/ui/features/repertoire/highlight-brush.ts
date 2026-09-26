@@ -308,13 +308,19 @@ function douglasPeucker(points: NormalizedPoint[], epsilon: number): NormalizedP
   return simplified;
 }
 
+/** Pen compaction stays well inside the stroke width so handwriting keeps its shape. */
+export const PEN_SIMPLIFY_WIDTH_RATIO = 0.2;
+
 /** Compacts a newly drawn stroke. Callers must not run this on geometry already stored. */
-export function simplifyStrokeGeometry(geometry: StrokeGeometry): StrokeGeometry {
+export function simplifyStrokeGeometry(
+  geometry: StrokeGeometry,
+  epsilon = STROKE_SIMPLIFY_EPSILON,
+): StrokeGeometry {
   if (geometry.points.length <= 2) {
     return geometry;
   }
 
-  const points = douglasPeucker(geometry.points, STROKE_SIMPLIFY_EPSILON);
+  const points = douglasPeucker(geometry.points, epsilon);
   if (points.length < 2) {
     return {
       ...geometry,
@@ -327,6 +333,12 @@ export function simplifyStrokeGeometry(geometry: StrokeGeometry): StrokeGeometry
   }
 
   return { ...geometry, points };
+}
+
+/** Compacts a new pen stroke. Highlight and cover keep the wider fixed epsilon. */
+export function simplifyPenStrokeGeometry(geometry: StrokeGeometry): StrokeGeometry {
+  const epsilon = Math.max(geometry.strokeWidth * PEN_SIMPLIFY_WIDTH_RATIO, 0.00005);
+  return simplifyStrokeGeometry(geometry, epsilon);
 }
 
 /** On-screen pen stroke diameter in CSS pixels (matches SVG overlay rendering). */
