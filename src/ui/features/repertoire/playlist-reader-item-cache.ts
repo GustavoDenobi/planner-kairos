@@ -1,6 +1,9 @@
 import type * as pdfjs from 'pdfjs-dist';
 import type { PdfAnnotation, PdfNavigationShortcut, PieceFileTocEntry, ReadingPlaylistItemDetail } from '@/domain/repertoire';
-import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
+import type {
+  AnnotationReadingOptions,
+  AnnotationViewerContext,
+} from '@/application/ports/offline-annotation-store';
 import type { OfflineUseCases } from '@/application/offline';
 import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
 
@@ -23,6 +26,7 @@ export async function loadPlaylistItemData(
   organizationId: string,
   item: ReadingPlaylistItemDetail,
   viewer?: AnnotationViewerContext,
+  readingOptions?: AnnotationReadingOptions,
 ): Promise<CachedPlaylistItem | null> {
   if (!isPlaylistItemAvailable(item) || !item.pieceId) {
     return null;
@@ -47,6 +51,7 @@ export async function loadPlaylistItemData(
       organizationId,
       item.pieceFileId,
       viewer,
+      readingOptions,
     );
     if (annotationsResult.ok) {
       annotations = annotationsResult.value;

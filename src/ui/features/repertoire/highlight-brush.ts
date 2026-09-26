@@ -100,20 +100,49 @@ export function buildHighlightBrushRects(
   return densified.map((point) => highlightBrushRectAtPoint(point, brushWidth, pageAspectRatio));
 }
 
-function rectHitDistance(rect: NormalizedRect, point: NormalizedPoint): number {
-  const inside =
-    point.x >= rect.x &&
-    point.x <= rect.x + rect.width &&
-    point.y >= rect.y &&
-    point.y <= rect.y + rect.height;
+function distanceBetween(a: NormalizedPoint, b: NormalizedPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
-  if (inside) {
-    return 0;
+function distancePointToSegment(
+  point: NormalizedPoint,
+  start: NormalizedPoint,
+  end: NormalizedPoint,
+): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) {
+    return distanceBetween(point, start);
   }
 
-  const closestX = Math.min(Math.max(point.x, rect.x), rect.x + rect.width);
-  const closestY = Math.min(Math.max(point.y, rect.y), rect.y + rect.height);
-  return Math.hypot(point.x - closestX, point.y - closestY);
+  const t = Math.min(
+    1,
+    Math.max(0, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+  );
+
+  return distanceBetween(point, { x: start.x + t * dx, y: start.y + t * dy });
+}
+
+function strokeCenterlineDistance(points: NormalizedPoint[], point: NormalizedPoint): number {
+  if (points.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if (points.length === 1) {
+    return distanceBetween(point, points[0]!);
+  }
+
+  let minDistance = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < points.length; index += 1) {
+    minDistance = Math.min(
+      minDistance,
+      distancePointToSegment(point, points[index - 1]!, points[index]!),
+    );
+  }
+
+  return minDistance;
 }
 
 export type HighlightStrokeMode = 'free' | 'horizontal' | 'vertical' | 'rect';
@@ -204,19 +233,100 @@ export function constrainHighlightStroke(
   return points;
 }
 
+/**
+ * Distance from a point to a highlight/cover stroke without rebuilding brush stamps.
+ * Zero when the point lies within the brush reach of the centerline.
+ */
 export function highlightStrokeHitDistance(
   geometry: StrokeGeometry,
   point: NormalizedPoint,
   pageAspectRatio: number,
 ): number {
-  const rects = buildHighlightBrushRects(geometry.points, geometry.strokeWidth, pageAspectRatio);
-  let minDistance = Number.POSITIVE_INFINITY;
+  const { width, height } = highlightBrushDimensions(geometry.strokeWidth, pageAspectRatio);
+  const reach = Math.max(width, height) / 2;
+  const centerline = strokeCenterlineDistance(geometry.points, point);
+  if (!Number.isFinite(centerline)) {
+    return centerline;
+  }
+  return Math.max(0, centerline - reach);
+}
 
-  for (const rect of rects) {
-    minDistance = Math.min(minDistance, rectHitDistance(rect, point));
+/** Max deviation, in normalized page units, when compacting a newly drawn stroke. */
+export const STROKE_SIMPLIFY_EPSILON = 0.0015;
+
+function perpendicularDistance(
+  point: NormalizedPoint,
+  start: NormalizedPoint,
+  end: NormalizedPoint,
+): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return distanceBetween(point, start);
   }
 
-  return minDistance;
+  const t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+  return distanceBetween(point, { x: start.x + t * dx, y: start.y + t * dy });
+}
+
+function douglasPeucker(points: NormalizedPoint[], epsilon: number): NormalizedPoint[] {
+  const kept = new Array<boolean>(points.length).fill(false);
+  kept[0] = true;
+  kept[points.length - 1] = true;
+  const stack: Array<[number, number]> = [[0, points.length - 1]];
+
+  while (stack.length > 0) {
+    const range = stack.pop();
+    if (!range) {
+      break;
+    }
+    const [start, end] = range;
+    let maxDistance = 0;
+    let maxIndex = -1;
+
+    for (let index = start + 1; index < end; index += 1) {
+      const distance = perpendicularDistance(points[index]!, points[start]!, points[end]!);
+      if (distance > maxDistance) {
+        maxDistance = distance;
+        maxIndex = index;
+      }
+    }
+
+    if (maxIndex !== -1 && maxDistance > epsilon) {
+      kept[maxIndex] = true;
+      stack.push([start, maxIndex], [maxIndex, end]);
+    }
+  }
+
+  const simplified: NormalizedPoint[] = [];
+  for (let index = 0; index < points.length; index += 1) {
+    if (kept[index]) {
+      simplified.push(points[index]!);
+    }
+  }
+  return simplified;
+}
+
+/** Compacts a newly drawn stroke. Callers must not run this on geometry already stored. */
+export function simplifyStrokeGeometry(geometry: StrokeGeometry): StrokeGeometry {
+  if (geometry.points.length <= 2) {
+    return geometry;
+  }
+
+  const points = douglasPeucker(geometry.points, STROKE_SIMPLIFY_EPSILON);
+  if (points.length < 2) {
+    return {
+      ...geometry,
+      points: [geometry.points[0]!, geometry.points[geometry.points.length - 1]!],
+    };
+  }
+
+  if (points.length === geometry.points.length) {
+    return geometry;
+  }
+
+  return { ...geometry, points };
 }
 
 /** On-screen pen stroke diameter in CSS pixels (matches SVG overlay rendering). */

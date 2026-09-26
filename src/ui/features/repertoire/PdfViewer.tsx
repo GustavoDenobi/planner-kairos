@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 import * as pdfjs from 'pdfjs-dist';
 import { deliverPdfDocument, isShareCancellation } from '@/ui/features/repertoire/pdf-delivery';
 import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
@@ -46,6 +47,7 @@ import {
   resolvePresetStroke,
 } from '@/domain/repertoire';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
+import { Modal } from '@/ui/components/Modal';
 import {
   IconArrowUpDown,
   IconChevronLeft,
@@ -64,6 +66,7 @@ import {
   IconZoomIn,
 } from '@/ui/components/icons';
 import {
+  ANNOTATION_LAYER_Z_INDEX,
   AnnotationCoverLayer,
   AnnotationHighlightLayer,
   AnnotationInteractionLayer,
@@ -86,6 +89,7 @@ import {
   AnnotationLayerVisibilityDropdown,
   type LayerVisibilityOption,
 } from '@/ui/features/repertoire/AnnotationLayerVisibilityDropdown';
+import { simplifyStrokeGeometry } from '@/ui/features/repertoire/highlight-brush';
 import {
   isDraftAnnotationId,
   toNormalizedCoords,
@@ -146,6 +150,19 @@ const SWIPE_THRESHOLD_PX = 48;
 const SHORTCUT_TARGET_TOP_OFFSET_PX = 50;
 const SHORTCUT_TARGET_PULSE_MS = 2100;
 const PAGE_NAV_BAR_BOTTOM_ZONE_RATIO = 0.5;
+
+type AnnotationSaveProgress = {
+  completed: number;
+  total: number;
+};
+
+function hasPendingAnnotationChanges(
+  drafts: readonly unknown[],
+  deletionIds: readonly unknown[],
+  updates: object,
+): boolean {
+  return drafts.length > 0 || deletionIds.length > 0 || Object.keys(updates).length > 0;
+}
 
 function isInteractivePointerTarget(target: EventTarget | null): boolean {
   return (
@@ -222,6 +239,7 @@ function formatSectionLeadLabel(lead: SectionLeadOption): string {
 export type DirectedSetOption = {
   id: string;
   label: string;
+  authorLabel?: string;
   canEdit: boolean;
 };
 
@@ -298,6 +316,10 @@ type PdfViewerProps = {
   sectionLeadOptions: SectionLeadOption[];
   directedSetOptions?: DirectedSetOption[];
   canEditDirectedLayer?: boolean;
+  canLoadThirdPartyDirectedLayers?: boolean;
+  includeThirdPartyDirectedLayers?: boolean;
+  onIncludeThirdPartyDirectedLayers?: () => void;
+  isLoadingThirdPartyDirectedLayers?: boolean;
   directedSetSelectRequest?: { id: string; nonce: number } | null;
   onManageDirectedSet?: (context?: { activeDirectedSetId?: string | null }) => void;
   playlist?: PdfViewerPlaylistContext;
@@ -310,9 +332,9 @@ type PdfViewerProps = {
     onOpenPicker: () => void;
   };
   inlineAudioBar?: ReactNode;
-  onAnnotationCreate: (
-    input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>,
-  ) => Promise<PdfAnnotation | null>;
+  onAnnotationCreateMany: (
+    inputs: Array<Omit<CreatePdfAnnotationInput, 'pieceFileId'>>,
+  ) => Promise<PdfAnnotation[] | null>;
   onAnnotationUpdate: (
     annotationId: string,
     input: UpdatePdfAnnotationInput,
@@ -418,6 +440,7 @@ type PdfPageFrameProps = {
   shortcutPickRequest: ShortcutPickRequest;
   tocPickActive: boolean;
   onShortcutPageTap: (pageNumber: number, point: NormalizedPoint) => void;
+  registerEditorFlush: (flush: () => void) => () => void;
 };
 
 function PdfPageFrameComponent({
@@ -484,6 +507,7 @@ function PdfPageFrameComponent({
   shortcutPickRequest,
   tocPickActive,
   onShortcutPageTap,
+  registerEditorFlush,
 }: PdfPageFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [draftStroke, setDraftStroke] = useState<NormalizedPoint[] | null>(null);
@@ -628,63 +652,70 @@ function PdfPageFrameComponent({
           }`}
           style={{ width: layoutSize.width, height: layoutSize.height }}
         />
-        <>
-          <AnnotationPenLayer
-            pageNumber={pageNumber}
-            annotations={annotations}
-            visibleLayers={visibleLayers}
-            editingFocus={editingFocus}
-            inverted={inverted}
-            penColor={penColor}
-            penStrokeWidth={penStrokeWidth}
-            draftStroke={draftStroke}
-            showDraft={interactionMode === 'pen'}
-          />
-          <AnnotationTextLayer
-            pageNumber={pageNumber}
-            annotations={annotations}
-            visibleLayers={visibleLayers}
-            editingFocus={editingFocus}
-            inverted={inverted}
-            pageAspectRatio={pageAspectRatio}
-          />
-          <AnnotationLaserLayer
-            pageNumber={pageNumber}
-            laserStrokes={laserStrokes}
-            laserColor={laserColor}
-            laserStrokeWidth={laserStrokeWidth}
-            draftStroke={draftStroke}
-            showDraft={interactionMode === 'laser'}
-          />
-        </>
       </div>
-      <>
-        <AnnotationHighlightLayer
+      <AnnotationCoverLayer
+        pageNumber={pageNumber}
+        annotations={annotations}
+        visibleLayers={visibleLayers}
+        editingFocus={editingFocus}
+        inverted={inverted}
+        pageAspectRatio={pageAspectRatio}
+        coverStrokeWidth={coverStrokeWidth}
+        draftStroke={draftStroke}
+        draftRect={draftRect}
+        showDraft={interactionMode === 'cover'}
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 ${inverted ? 'invert' : ''}`}
+        style={{ zIndex: ANNOTATION_LAYER_Z_INDEX.ink }}
+      >
+        <AnnotationPenLayer
+          pageNumber={pageNumber}
+          annotations={annotations}
+          visibleLayers={visibleLayers}
+          editingFocus={editingFocus}
+          inverted={inverted}
+          penColor={penColor}
+          penStrokeWidth={penStrokeWidth}
+          draftStroke={draftStroke}
+          showDraft={interactionMode === 'pen'}
+        />
+        <AnnotationTextLayer
           pageNumber={pageNumber}
           annotations={annotations}
           visibleLayers={visibleLayers}
           editingFocus={editingFocus}
           inverted={inverted}
           pageAspectRatio={pageAspectRatio}
-          highlightColor={highlightColor}
-          highlightStrokeWidth={highlightStrokeWidth}
-          draftStroke={draftStroke}
-          draftRect={draftRect}
-          showDraft={interactionMode === 'highlight'}
         />
-        <AnnotationCoverLayer
+      </div>
+      <AnnotationHighlightLayer
+        pageNumber={pageNumber}
+        annotations={annotations}
+        visibleLayers={visibleLayers}
+        editingFocus={editingFocus}
+        inverted={inverted}
+        pageAspectRatio={pageAspectRatio}
+        highlightColor={highlightColor}
+        highlightStrokeWidth={highlightStrokeWidth}
+        draftStroke={draftStroke}
+        draftRect={draftRect}
+        showDraft={interactionMode === 'highlight'}
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 ${inverted ? 'invert' : ''}`}
+        style={{ zIndex: ANNOTATION_LAYER_Z_INDEX.laser }}
+      >
+        <AnnotationLaserLayer
           pageNumber={pageNumber}
-          annotations={annotations}
-          visibleLayers={visibleLayers}
-          editingFocus={editingFocus}
-          inverted={inverted}
-          pageAspectRatio={pageAspectRatio}
-          coverStrokeWidth={coverStrokeWidth}
+          laserStrokes={laserStrokes}
+          laserColor={laserColor}
+          laserStrokeWidth={laserStrokeWidth}
           draftStroke={draftStroke}
-          draftRect={draftRect}
-          showDraft={interactionMode === 'cover'}
+          showDraft={interactionMode === 'laser'}
         />
-        <AnnotationInteractionLayer
+      </div>
+      <AnnotationInteractionLayer
           pageNumber={pageNumber}
           annotations={annotations}
           visibleLayers={visibleLayers}
@@ -716,7 +747,6 @@ function PdfPageFrameComponent({
           onNotePlace={handleNotePlace}
           textEditing={pageTextEditSession != null}
         />
-      </>
       {pageTextEditSession ? (
         <TextAnnotationEditor
           session={pageTextEditSession}
@@ -726,6 +756,7 @@ function PdfPageFrameComponent({
           onCancel={onTextEditCancel}
           onDelete={canDeleteTextEdit ? onTextEditDelete : undefined}
           onStylePreferenceChange={onTextEditorStylePreferenceChange}
+          registerFlush={registerEditorFlush}
         />
       ) : null}
       <CollapsibleNoteLayer
@@ -753,6 +784,7 @@ function PdfPageFrameComponent({
           session={noteEditSession}
           onCommit={onNoteEditCommit}
           onCancel={onNoteEditCancel}
+          registerFlush={registerEditorFlush}
           onDelete={
             noteEditSession.editingId
             && annotations.some(
@@ -924,7 +956,39 @@ function draftToCreateInput(
   };
 }
 
-const AUTO_SAVE_DEBOUNCE_MS = 500;
+const AUTO_SAVE_DEBOUNCE_MS = 5000;
+const EMPTY_PAGE_ANNOTATIONS: PdfAnnotation[] = [];
+
+function stabilizePageSlices(
+  annotations: PdfAnnotation[],
+  previous: Map<number, PdfAnnotation[]>,
+): Map<number, PdfAnnotation[]> {
+  const grouped = new Map<number, PdfAnnotation[]>();
+  for (const annotation of annotations) {
+    const bucket = grouped.get(annotation.pageNumber);
+    if (bucket) {
+      bucket.push(annotation);
+    } else {
+      grouped.set(annotation.pageNumber, [annotation]);
+    }
+  }
+
+  const stable = new Map<number, PdfAnnotation[]>();
+  for (const [pageNumber, next] of grouped) {
+    const prior = previous.get(pageNumber);
+    if (
+      prior
+      && prior.length === next.length
+      && prior.every((annotation, index) => annotation === next[index])
+    ) {
+      stable.set(pageNumber, prior);
+    } else {
+      stable.set(pageNumber, next);
+    }
+  }
+
+  return stable;
+}
 const SAVED_INDICATOR_MS = 2000;
 
 type AnnotationSaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -941,6 +1005,10 @@ export function PdfViewer({
   sectionLeadOptions,
   directedSetOptions = [],
   canEditDirectedLayer = false,
+  canLoadThirdPartyDirectedLayers = false,
+  includeThirdPartyDirectedLayers = false,
+  onIncludeThirdPartyDirectedLayers,
+  isLoadingThirdPartyDirectedLayers = false,
   directedSetSelectRequest = null,
   onManageDirectedSet,
   playlist,
@@ -950,7 +1018,7 @@ export function PdfViewer({
   allowDownload = true,
   audioPicker,
   inlineAudioBar,
-  onAnnotationCreate,
+  onAnnotationCreateMany,
   onAnnotationUpdate,
   onAnnotationDelete,
   navigationShortcuts = [],
@@ -1040,7 +1108,21 @@ export function PdfViewer({
   pendingDeletionIdsRef.current = pendingDeletionIds;
   const pendingUpdatesRef = useRef(pendingUpdates);
   pendingUpdatesRef.current = pendingUpdates;
-  const persistDraftChangesRef = useRef<() => Promise<boolean>>(async () => true);
+  const persistDraftChangesRef = useRef<
+    (onProgress?: (progress: AnnotationSaveProgress) => void) => Promise<boolean>
+  >(async () => true);
+  const saveDoneRef = useRef<Promise<boolean> | null>(null);
+  const exitingAnnotationRef = useRef(false);
+  const [annotationExitProgress, setAnnotationExitProgress] = useState<AnnotationSaveProgress | null>(
+    null,
+  );
+  const editorFlushersRef = useRef(new Set<() => void>());
+  const registerEditorFlush = useCallback((flush: () => void) => {
+    editorFlushersRef.current.add(flush);
+    return () => {
+      editorFlushersRef.current.delete(flush);
+    };
+  }, []);
   const [laserStrokes, setLaserStrokes] = useState<LaserStroke[]>([]);
   const laserTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [interactionMode, setInteractionMode] = useState<AnnotationInteractionMode>('read');
@@ -1192,6 +1274,7 @@ export function PdfViewer({
         options.push({
           id: option.id,
           label: option.label,
+          authorLabel: option.authorLabel,
           visible: visibleLayers.directed[option.id] ?? true,
           canEdit: option.canEdit,
           editValue: option.canEdit ? `directed:${option.id}` : undefined,
@@ -1457,31 +1540,96 @@ export function PdfViewer({
   }, [onManageDirectedSet, activeEditLayerValue]);
 
   const exitAnnotationMode = useCallback(async () => {
-    if (autoSaveTimeoutRef.current !== null) {
-      window.clearTimeout(autoSaveTimeoutRef.current);
-      autoSaveTimeoutRef.current = null;
+    if (exitingAnnotationRef.current) {
+      return;
     }
-    if (
-      draftAnnotationsRef.current.length > 0 ||
-      pendingDeletionIdsRef.current.length > 0
-    ) {
-      await persistDraftChangesRef.current();
+    exitingAnnotationRef.current = true;
+
+    try {
+      const flushers = [...editorFlushersRef.current];
+      if (flushers.length > 0) {
+        flushSync(() => {
+          for (const flush of flushers) {
+            flush();
+          }
+        });
+      }
+
+      if (autoSaveTimeoutRef.current !== null) {
+        window.clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+
+      const needsSave =
+        hasPendingAnnotationChanges(
+          draftAnnotationsRef.current,
+          pendingDeletionIdsRef.current,
+          pendingUpdatesRef.current,
+        ) || isSavingRef.current;
+
+      if (needsSave) {
+        setAnnotationExitProgress({ completed: 0, total: 0 });
+        let saved = true;
+        while (
+          hasPendingAnnotationChanges(
+            draftAnnotationsRef.current,
+            pendingDeletionIdsRef.current,
+            pendingUpdatesRef.current,
+          ) || isSavingRef.current
+        ) {
+          if (isSavingRef.current && saveDoneRef.current) {
+            saved = await saveDoneRef.current;
+            if (!saved) {
+              break;
+            }
+            continue;
+          }
+
+          if (
+            !hasPendingAnnotationChanges(
+              draftAnnotationsRef.current,
+              pendingDeletionIdsRef.current,
+              pendingUpdatesRef.current,
+            )
+          ) {
+            saved = true;
+            break;
+          }
+
+          saved = await persistDraftChangesRef.current((progress) => {
+            setAnnotationExitProgress(progress);
+          });
+          if (!saved) {
+            break;
+          }
+        }
+
+        if (!saved) {
+          setAnnotationExitProgress(null);
+          return;
+        }
+      }
+
+      if (savedIndicatorTimeoutRef.current !== null) {
+        window.clearTimeout(savedIndicatorTimeoutRef.current);
+        savedIndicatorTimeoutRef.current = null;
+      }
+      isSavingRef.current = false;
+      saveQueuedRef.current = false;
+      hasAnnotatedRef.current = false;
+      setSaveStatus('idle');
+      setSessionUndoStack([]);
+      setIsAnnotating(false);
+      setInteractionMode('read');
+      setDraftAnnotations([]);
+      setPendingDeletionIds([]);
+      setPendingUpdates({});
+      clearLaserStrokes();
+      setMobileToolbarPanel(null);
+      setAnnotationExitProgress(null);
+    } finally {
+      exitingAnnotationRef.current = false;
     }
-    if (savedIndicatorTimeoutRef.current !== null) {
-      window.clearTimeout(savedIndicatorTimeoutRef.current);
-      savedIndicatorTimeoutRef.current = null;
-    }
-    isSavingRef.current = false;
-    saveQueuedRef.current = false;
-    hasAnnotatedRef.current = false;
-    setSaveStatus('idle');
-    setSessionUndoStack([]);
-    setIsAnnotating(false);
-    setInteractionMode('read');
-    setDraftAnnotations([]);
-    setPendingDeletionIds([]);
-    clearLaserStrokes();
-    setMobileToolbarPanel(null);
   }, [clearLaserStrokes]);
 
   useEffect(() => {
@@ -1703,7 +1851,7 @@ export function PdfViewer({
     }
 
     void fitToWidth();
-  }, [pdf, numPages, navigation, fitToPage, fitToWidth]);
+  }, [pdf, numPages, navigation, isAnnotating, fitToPage, fitToWidth]);
 
   useEffect(() => {
     if (!pdf || numPages === 0 || navigation !== 'horizontal') {
@@ -1958,16 +2106,38 @@ export function PdfViewer({
     navigateHorizontal('next');
   }, [currentPage, isAnnotating, numPages, navigateHorizontal, navigation, playlist]);
 
+  const flushPendingAnnotationChanges = useCallback(() => {
+    const flushers = [...editorFlushersRef.current];
+    if (flushers.length > 0) {
+      flushSync(() => {
+        for (const flush of flushers) {
+          flush();
+        }
+      });
+    }
+
+    if (autoSaveTimeoutRef.current !== null) {
+      window.clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+
+    if (
+      draftAnnotationsRef.current.length > 0
+      || pendingDeletionIdsRef.current.length > 0
+      || Object.keys(pendingUpdatesRef.current).length > 0
+    ) {
+      void persistDraftChangesRef.current();
+    }
+  }, []);
+
   const goToPage = useCallback(
     (targetPage: number) => {
-      if (isAnnotating) {
-        return;
-      }
-
       const page = Math.min(Math.max(1, targetPage), numPages);
       if (page === currentPage) {
         return;
       }
+
+      flushPendingAnnotationChanges();
 
       if (navigation === 'horizontal') {
         setShouldAnimate(true);
@@ -1986,7 +2156,14 @@ export function PdfViewer({
         scrollVerticalToPageProgrammatically(page);
       });
     },
-    [currentPage, isAnnotating, navigation, numPages, resetPan, scrollVerticalToPageProgrammatically],
+    [
+      currentPage,
+      flushPendingAnnotationChanges,
+      navigation,
+      numPages,
+      resetPan,
+      scrollVerticalToPageProgrammatically,
+    ],
   );
 
   const goToFirstPage = useCallback(() => {
@@ -2075,11 +2252,14 @@ export function PdfViewer({
 
   const goToTocEntry = useCallback(
     (entry: PieceFileTocEntry) => {
-      if (isAnnotating || shortcutPickRequest != null || tocPickActive) {
+      if (shortcutPickRequest != null || tocPickActive) {
         return;
       }
 
       const targetPage = Math.min(Math.max(1, entry.targetPageNumber), numPages);
+      if (targetPage !== currentPage) {
+        flushPendingAnnotationChanges();
+      }
       setShouldAnimate(false);
       currentPageRef.current = targetPage;
       setCurrentPage(targetPage);
@@ -2107,7 +2287,8 @@ export function PdfViewer({
       }
     },
     [
-      isAnnotating,
+      currentPage,
+      flushPendingAnnotationChanges,
       shortcutPickRequest,
       tocPickActive,
       numPages,
@@ -2505,6 +2686,26 @@ export function PdfViewer({
     ];
   }, [annotations, draftAnnotations, pendingDeletionIds, pendingUpdates]);
 
+  const pageSliceCacheRef = useRef<Map<number, PdfAnnotation[]>>(new Map());
+  const annotationsByPage = useMemo(() => {
+    const stable = stabilizePageSlices(displayAnnotations, pageSliceCacheRef.current);
+    pageSliceCacheRef.current = stable;
+    return stable;
+  }, [displayAnnotations]);
+
+  const annotationEditingFocus = useMemo((): AnnotationEditingFocus | null => {
+    if (!isAnnotating) {
+      return null;
+    }
+    if (activeLayer === 'section' && activeSectionId) {
+      return { layer: 'section', sectionId: activeSectionId };
+    }
+    if (activeLayer === 'directed' && activeDirectedSetId) {
+      return { layer: 'directed', annotationSetId: activeDirectedSetId };
+    }
+    return { layer: 'personal' };
+  }, [activeDirectedSetId, activeLayer, activeSectionId, isAnnotating]);
+
   const penAppearance = resolvePresetAppearance(
     'stroke',
     annotationToolPrefs.penPresetId,
@@ -2586,7 +2787,9 @@ export function PdfViewer({
     [userId, leadOptions, directedSetOptions],
   );
 
-  const persistDraftChanges = useCallback(async (): Promise<boolean> => {
+  const persistDraftChanges = useCallback(async (
+    onProgress?: (progress: AnnotationSaveProgress) => void,
+  ): Promise<boolean> => {
     if (!userId) {
       return false;
     }
@@ -2608,8 +2811,24 @@ export function PdfViewer({
       return true;
     }
 
+    let resolveSaveDone: (saved: boolean) => void = () => {};
+    const saveDone = new Promise<boolean>((resolve) => {
+      resolveSaveDone = resolve;
+    });
+    saveDoneRef.current = saveDone;
     isSavingRef.current = true;
     setSaveStatus('saving');
+
+    const updateIdsToProcess = Object.keys(updatesToProcess);
+    const progressTotal =
+      deletionsToProcess.length
+      + (draftsToProcess.length > 0 ? 1 : 0)
+      + updateIdsToProcess.length;
+    let progressCompleted = 0;
+    const reportProgress = () => {
+      onProgress?.({ completed: progressCompleted, total: progressTotal });
+    };
+    reportProgress();
 
     const draftIdsToSave = new Set(draftsToProcess.map((draft) => draft.id));
     inFlightSaveDraftIdsRef.current = draftIdsToSave;
@@ -2617,26 +2836,37 @@ export function PdfViewer({
     const idMapping = new Map<string, string>();
     let allSucceeded = true;
 
+    try {
     for (const annotationId of deletionsToProcess) {
       await onAnnotationDelete(annotationId);
+      progressCompleted += 1;
+      reportProgress();
     }
 
-    for (const draft of draftsToProcess) {
-      const created = await onAnnotationCreate(draftToCreateInput(draft));
-      if (!created) {
+    if (draftsToProcess.length > 0) {
+      const created = await onAnnotationCreateMany(draftsToProcess.map(draftToCreateInput));
+      progressCompleted += 1;
+      reportProgress();
+      if (!created || created.length !== draftsToProcess.length) {
         allSucceeded = false;
-        break;
+      } else {
+        draftsToProcess.forEach((draft, index) => {
+          const saved = created[index];
+          if (saved) {
+            idMapping.set(draft.id, saved.id);
+          }
+        });
       }
-      idMapping.set(draft.id, created.id);
     }
 
-    const updateIdsToProcess = Object.keys(updatesToProcess);
     for (const annotationId of updateIdsToProcess) {
       const updated = await onAnnotationUpdate(annotationId, updatesToProcess[annotationId]!);
       if (!updated) {
         allSucceeded = false;
         break;
       }
+      progressCompleted += 1;
+      reportProgress();
     }
 
     if (allSucceeded) {
@@ -2649,6 +2879,23 @@ export function PdfViewer({
         }
       }
       undoneDuringSaveDraftIdsRef.current = new Set();
+
+      draftAnnotationsRef.current = draftAnnotationsRef.current.filter(
+        (draft) => !draftIdsToSave.has(draft.id),
+      );
+      pendingDeletionIdsRef.current = pendingDeletionIdsRef.current.filter(
+        (annotationId) => !deletionIdsToSave.has(annotationId),
+      );
+      for (const annotationId of deletionIdsFromUndoneSave) {
+        if (!pendingDeletionIdsRef.current.includes(annotationId)) {
+          pendingDeletionIdsRef.current = [...pendingDeletionIdsRef.current, annotationId];
+        }
+      }
+      const nextPendingUpdates = { ...pendingUpdatesRef.current };
+      for (const annotationId of updateIdsToProcess) {
+        delete nextPendingUpdates[annotationId];
+      }
+      pendingUpdatesRef.current = nextPendingUpdates;
 
       setPendingDeletionIds((current) => {
         const next = current.filter((annotationId) => !deletionIdsToSave.has(annotationId));
@@ -2706,6 +2953,11 @@ export function PdfViewer({
       undoneDuringSaveDraftIdsRef.current = new Set();
       setSaveStatus('error');
     }
+    } catch {
+      allSucceeded = false;
+      undoneDuringSaveDraftIdsRef.current = new Set();
+      setSaveStatus('error');
+    }
 
     inFlightSaveDraftIdsRef.current = new Set();
     isSavingRef.current = false;
@@ -2719,12 +2971,18 @@ export function PdfViewer({
       );
     saveQueuedRef.current = false;
 
+    resolveSaveDone(allSucceeded);
+
     if (shouldRetry) {
       void persistDraftChangesRef.current();
     }
 
+    if (saveDoneRef.current === saveDone) {
+      saveDoneRef.current = null;
+    }
+
     return allSucceeded;
-  }, [userId, onAnnotationDelete, onAnnotationCreate, onAnnotationUpdate]);
+  }, [userId, onAnnotationDelete, onAnnotationCreateMany, onAnnotationUpdate]);
   persistDraftChangesRef.current = persistDraftChanges;
 
   useEffect(() => {
@@ -2759,15 +3017,8 @@ export function PdfViewer({
     persistDraftChanges,
   ]);
 
-  useEffect(
-    () => () => {
-      if (autoSaveTimeoutRef.current !== null) {
-        window.clearTimeout(autoSaveTimeoutRef.current);
-        autoSaveTimeoutRef.current = null;
-      }
-      if (savedIndicatorTimeoutRef.current !== null) {
-        window.clearTimeout(savedIndicatorTimeoutRef.current);
-      }
+  useEffect(() => {
+    const flushPendingAnnotations = () => {
       if (
         draftAnnotationsRef.current.length > 0
         || pendingDeletionIdsRef.current.length > 0
@@ -2775,9 +3026,21 @@ export function PdfViewer({
       ) {
         void persistDraftChangesRef.current();
       }
-    },
-    [],
-  );
+    };
+
+    window.addEventListener('pagehide', flushPendingAnnotations);
+    return () => {
+      window.removeEventListener('pagehide', flushPendingAnnotations);
+      if (autoSaveTimeoutRef.current !== null) {
+        window.clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      if (savedIndicatorTimeoutRef.current !== null) {
+        window.clearTimeout(savedIndicatorTimeoutRef.current);
+      }
+      flushPendingAnnotations();
+    };
+  }, []);
 
   const addDraftAnnotation = useCallback(
     (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
@@ -2802,7 +3065,7 @@ export function PdfViewer({
         pageNumber,
         layer: activeLayer,
         type: 'stroke',
-        geometry,
+        geometry: simplifyStrokeGeometry(geometry),
         color: formatPresetColor(annotationToolPrefs.penPresetId),
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
@@ -2828,7 +3091,7 @@ export function PdfViewer({
         pageNumber,
         layer: activeLayer,
         type: 'highlight',
-        geometry,
+        geometry: 'points' in geometry ? simplifyStrokeGeometry(geometry) : geometry,
         color: formatPresetColor(annotationToolPrefs.highlightPresetId),
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
@@ -2868,7 +3131,7 @@ export function PdfViewer({
         pageNumber,
         layer: activeLayer,
         type: 'cover',
-        geometry,
+        geometry: 'points' in geometry ? simplifyStrokeGeometry(geometry) : geometry,
         color: COVER_ANNOTATION_COLOR,
         sectionId: activeLayer === 'section' ? activeSectionId : null,
         annotationSetId: activeLayer === 'directed' ? activeDirectedSetId : null,
@@ -3444,19 +3707,11 @@ export function PdfViewer({
       : 'upload-entry-slide-in-prev'
     : '';
   const effectiveInteractionMode: AnnotationInteractionMode = isAnnotating ? interactionMode : 'read';
-  const annotationEditingFocus: AnnotationEditingFocus | null = !isAnnotating
-    ? null
-    : activeLayer === 'section' && activeSectionId
-      ? { layer: 'section', sectionId: activeSectionId }
-      : activeLayer === 'directed' && activeDirectedSetId
-        ? { layer: 'directed', annotationSetId: activeDirectedSetId }
-        : { layer: 'personal' };
 
   const pageFrameProps = {
     pdf,
     scale,
     inverted,
-    annotations: displayAnnotations,
     interactionMode: effectiveInteractionMode,
     visibleLayers,
     editingFocus: annotationEditingFocus,
@@ -3518,6 +3773,7 @@ export function PdfViewer({
     shortcutPickRequest,
     tocPickActive,
     onShortcutPageTap: handleShortcutPageTap,
+    registerEditorFlush,
   };
 
   const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
@@ -3548,12 +3804,20 @@ export function PdfViewer({
     }`;
   const annotationPanelRowClass = `${controlsRowClass} border-t border-border`;
 
+  const showThirdPartyLayersButton =
+    canLoadThirdPartyDirectedLayers &&
+    !includeThirdPartyDirectedLayers &&
+    Boolean(onIncludeThirdPartyDirectedLayers);
+
   const renderAnnotationLayerMenu = () => (
     <AnnotationLayerVisibilityDropdown
       options={layerMenuOptions}
       onToggle={toggleLayerVisibility}
       onEditLayer={layerMenuOptions.some((option) => option.canEdit) ? handleLayerEdit : undefined}
       onCreateLayer={canEditDirectedLayer && onManageDirectedSet ? handleCreateLayer : undefined}
+      onShowThirdPartyLayers={onIncludeThirdPartyDirectedLayers}
+      showThirdPartyLayersButton={showThirdPartyLayersButton}
+      isLoadingThirdPartyLayers={isLoadingThirdPartyDirectedLayers}
       activeEditValue={isAnnotating ? activeEditLayerValue : null}
       isAnnotating={isAnnotating}
       buttonClassName={toolbarIconButtonClass(false)}
@@ -3719,8 +3983,7 @@ export function PdfViewer({
               <button
                 type="button"
                 onClick={() => void exitAnnotationMode()}
-                disabled={saveStatus === 'saving'}
-                className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-50"
+                className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
                 aria-label="Voltar"
               >
                 <IconChevronLeft className="h-6 w-6" />
@@ -3879,6 +4142,7 @@ export function PdfViewer({
                 <PdfPageSlot
                   pageNumber={currentPage}
                   shouldRender
+                  annotations={annotationsByPage.get(currentPage) ?? EMPTY_PAGE_ANNOTATIONS}
                   {...pageFrameProps}
                 />
               </div>
@@ -3902,6 +4166,7 @@ export function PdfViewer({
                   key={pageNumber}
                   pageNumber={pageNumber}
                   shouldRender={visiblePages.has(pageNumber)}
+                  annotations={annotationsByPage.get(pageNumber) ?? EMPTY_PAGE_ANNOTATIONS}
                   {...pageFrameProps}
                 />
               ))}
@@ -3914,7 +4179,12 @@ export function PdfViewer({
           inverted={inverted}
           currentPage={currentPage}
           numPages={numPages}
-          visible={pageNavBarVisible && !isAnnotating && !shortcutPickRequest && !tocPickActive}
+          visible={
+            (isAnnotating || pageNavBarVisible)
+            && !shortcutPickRequest
+            && !tocPickActive
+          }
+          persistent={isAnnotating}
           showTocButton={showTocButton}
           onGoHome={goToFirstPage}
           onOpenToc={openTocPanel}
@@ -4060,6 +4330,48 @@ export function PdfViewer({
           downloadName={readerInfo.downloadName}
           onPrint={pdf && allowDownload ? handlePrint : undefined}
         />
+      ) : null}
+      {annotationExitProgress ? (
+        <Modal
+          open
+          closable={false}
+          onClose={() => {}}
+          title="Salvando anotações"
+        >
+          <p className="text-sm text-muted">
+            As alterações estão sendo gravadas. Aguarde um instante.
+          </p>
+          <div
+            className="relative mt-4 h-2 overflow-hidden rounded-full bg-primary/20"
+            role="progressbar"
+            aria-label="Progresso da gravação"
+            aria-valuemin={0}
+            aria-valuemax={annotationExitProgress.total > 0 ? annotationExitProgress.total : undefined}
+            aria-valuenow={
+              annotationExitProgress.total > 0 ? annotationExitProgress.completed : undefined
+            }
+          >
+            {annotationExitProgress.total > 0 ? (
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200"
+                style={{
+                  width: `${
+                    annotationExitProgress.completed >= annotationExitProgress.total
+                      ? 100
+                      : Math.max(
+                          8,
+                          Math.round(
+                            (annotationExitProgress.completed / annotationExitProgress.total) * 100,
+                          ),
+                        )
+                  }%`,
+                }}
+              />
+            ) : (
+              <div className="top-loading-bar-indicator absolute inset-y-0 w-1/3 bg-primary" />
+            )}
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

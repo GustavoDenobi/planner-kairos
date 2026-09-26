@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import type {
   HighlightGeometry,
   NormalizedPoint,
@@ -202,6 +202,17 @@ const SVG_BASE = {
   'aria-hidden': true as const,
 };
 
+/**
+ * Page stacking. Cover stays above the PDF and beneath every other tool.
+ * Ink (pen/text) and laser sit in their own CSS-invert groups in PdfViewer.
+ */
+export const ANNOTATION_LAYER_Z_INDEX = {
+  cover: 1,
+  ink: 2,
+  highlight: 3,
+  laser: 5,
+} as const;
+
 export function AnnotationPenLayer({
   pageNumber,
   annotations,
@@ -249,6 +260,193 @@ export function AnnotationPenLayer({
   );
 }
 
+type BrushCanvasKind = 'highlight' | 'cover';
+
+let brushScratch: HTMLCanvasElement | null = null;
+
+function brushScratchContext(
+  pixelWidth: number,
+  pixelHeight: number,
+  dpr: number,
+): CanvasRenderingContext2D | null {
+  if (!brushScratch) {
+    brushScratch = document.createElement('canvas');
+  }
+  if (brushScratch.width !== pixelWidth || brushScratch.height !== pixelHeight) {
+    brushScratch.width = pixelWidth;
+    brushScratch.height = pixelHeight;
+  }
+
+  const context = brushScratch.getContext('2d');
+  if (!context) {
+    return null;
+  }
+
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, pixelWidth, pixelHeight);
+  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.globalAlpha = 1;
+  return context;
+}
+
+function paintBrushGeometry(
+  context: CanvasRenderingContext2D,
+  annotation: PdfAnnotation,
+  options: {
+    width: number;
+    height: number;
+    pageAspectRatio: number;
+    fill: string;
+  },
+) {
+  context.fillStyle = options.fill;
+
+  if (isStrokeGeometry(annotation.geometry)) {
+    const brushRects = buildHighlightBrushRects(
+      annotation.geometry.points,
+      annotation.geometry.strokeWidth,
+      options.pageAspectRatio,
+    );
+    for (const rect of brushRects) {
+      context.fillRect(
+        rect.x * options.width,
+        rect.y * options.height,
+        rect.width * options.width,
+        rect.height * options.height,
+      );
+    }
+    return;
+  }
+
+  if ('width' in annotation.geometry && 'height' in annotation.geometry) {
+    const geometry = annotation.geometry;
+    context.fillRect(
+      geometry.x * options.width,
+      geometry.y * options.height,
+      geometry.width * options.width,
+      geometry.height * options.height,
+    );
+  }
+}
+
+function paintAnnotationBrushCanvas(
+  canvas: HTMLCanvasElement,
+  annotations: PdfAnnotation[],
+  options: {
+    width: number;
+    height: number;
+    pageAspectRatio: number;
+    editingFocus: AnnotationEditingFocus | null;
+    fillFor: (annotation: PdfAnnotation) => string;
+  },
+) {
+  const dpr = window.devicePixelRatio || 1;
+  const pixelWidth = Math.max(1, Math.round(options.width * dpr));
+  const pixelHeight = Math.max(1, Math.round(options.height * dpr));
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return;
+  }
+
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, pixelWidth, pixelHeight);
+
+  for (const annotation of annotations) {
+    const opacity = annotationLayerOpacity(annotation, options.editingFocus);
+    if (opacity <= 0) {
+      continue;
+    }
+
+    const scratch = brushScratchContext(pixelWidth, pixelHeight, dpr);
+    if (!scratch || !brushScratch) {
+      continue;
+    }
+
+    paintBrushGeometry(scratch, annotation, {
+      width: options.width,
+      height: options.height,
+      pageAspectRatio: options.pageAspectRatio,
+      fill: options.fillFor(annotation),
+    });
+
+    context.globalAlpha = opacity;
+    context.drawImage(brushScratch, 0, 0);
+  }
+
+  context.globalAlpha = 1;
+}
+
+const AnnotationBrushCanvas = memo(function AnnotationBrushCanvas({
+  kind,
+  pageNumber,
+  annotations,
+  visibleLayers,
+  editingFocus,
+  inverted,
+  pageAspectRatio,
+}: SharedProps & {
+  kind: BrushCanvasKind;
+  inverted: boolean;
+  pageAspectRatio: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const paint = () => {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+
+      const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
+        (annotation) => annotation.type === kind,
+      );
+      paintAnnotationBrushCanvas(canvas, pageAnnotations, {
+        width,
+        height,
+        pageAspectRatio,
+        editingFocus,
+        fillFor: (annotation) =>
+          kind === 'cover'
+            ? resolveCoverColor(inverted)
+            : resolveAnnotationAppearance(annotation, inverted).stroke,
+      });
+    };
+
+    paint();
+    const observer = new ResizeObserver(paint);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [annotations, editingFocus, inverted, kind, pageAspectRatio, pageNumber, visibleLayers]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={SVG_BASE.className}
+      style={
+        kind === 'highlight'
+          ? {
+              mixBlendMode: inverted ? 'screen' : 'multiply',
+              zIndex: ANNOTATION_LAYER_Z_INDEX.highlight,
+            }
+          : { zIndex: ANNOTATION_LAYER_Z_INDEX.cover }
+      }
+      aria-hidden
+    />
+  );
+});
+
 export function AnnotationHighlightLayer({
   pageNumber,
   annotations,
@@ -262,9 +460,6 @@ export function AnnotationHighlightLayer({
   draftRect,
   showDraft,
 }: HighlightLayerProps) {
-  const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
-    (annotation) => annotation.type === 'highlight',
-  );
   const draftBlendMode = inverted ? 'screen' : 'multiply';
   const draftRects =
     showDraft && draftStroke
@@ -272,57 +467,26 @@ export function AnnotationHighlightLayer({
       : [];
 
   return (
-    <svg {...SVG_BASE}>
-      {pageAnnotations.map((annotation) => {
-        const appearance = resolveAnnotationAppearance(annotation, inverted);
-        const blendMode = appearance.blendMode ?? 'multiply';
-        const opacity = annotationLayerOpacity(annotation, editingFocus);
-
-        if (isStrokeGeometry(annotation.geometry)) {
-          const brushRects = buildHighlightBrushRects(
-            annotation.geometry.points,
-            annotation.geometry.strokeWidth,
-            pageAspectRatio,
-          );
-          return (
-            <g key={annotation.id} style={{ mixBlendMode: blendMode }} opacity={opacity}>
-              {brushRects.map((rect, index) => (
-                <rect
-                  key={`${annotation.id}-${index}`}
-                  x={rect.x}
-                  y={rect.y}
-                  width={rect.width}
-                  height={rect.height}
-                  fill={appearance.stroke}
-                  stroke="none"
-                />
-              ))}
-            </g>
-          );
-        }
-
-        if ('width' in annotation.geometry) {
-          const geometry = annotation.geometry as HighlightGeometry;
-          return (
-            <rect
-              key={annotation.id}
-              x={geometry.x}
-              y={geometry.y}
-              width={geometry.width}
-              height={geometry.height}
-              fill={appearance.stroke}
-              stroke="none"
-              opacity={opacity}
-              style={{ mixBlendMode: blendMode }}
-            />
-          );
-        }
-
-        return null;
-      })}
-      {draftRects.length > 0 && (
-        <g style={{ mixBlendMode: draftBlendMode }}>
-          {draftRects.map((rect, index) => (
+    <>
+      <AnnotationBrushCanvas
+        kind="highlight"
+        pageNumber={pageNumber}
+        annotations={annotations}
+        visibleLayers={visibleLayers}
+        editingFocus={editingFocus}
+        inverted={inverted}
+        pageAspectRatio={pageAspectRatio}
+      />
+      <svg
+        {...SVG_BASE}
+        style={{
+          zIndex: ANNOTATION_LAYER_Z_INDEX.highlight,
+          mixBlendMode:
+            draftRects.length > 0 || (showDraft && draftRect) ? draftBlendMode : undefined,
+        }}
+      >
+        {draftRects.length > 0 &&
+          draftRects.map((rect, index) => (
             <rect
               key={`draft-${index}`}
               x={rect.x}
@@ -333,20 +497,18 @@ export function AnnotationHighlightLayer({
               stroke="none"
             />
           ))}
-        </g>
-      )}
-      {showDraft && draftRect && (
-        <rect
-          x={draftRect.x}
-          y={draftRect.y}
-          width={draftRect.width}
-          height={draftRect.height}
-          fill={highlightColor}
-          stroke="none"
-          style={{ mixBlendMode: draftBlendMode }}
-        />
-      )}
-    </svg>
+        {showDraft && draftRect && (
+          <rect
+            x={draftRect.x}
+            y={draftRect.y}
+            width={draftRect.width}
+            height={draftRect.height}
+            fill={highlightColor}
+            stroke="none"
+          />
+        )}
+      </svg>
+    </>
   );
 }
 
@@ -363,60 +525,23 @@ export function AnnotationCoverLayer({
   showDraft,
 }: CoverLayerProps) {
   const coverColor = resolveCoverColor(inverted);
-  const pageAnnotations = filterPageAnnotations(annotations, pageNumber, visibleLayers).filter(
-    (annotation) => annotation.type === 'cover',
-  );
   const draftBrushRects =
     showDraft && draftStroke
       ? buildHighlightBrushRects(draftStroke, coverStrokeWidth, pageAspectRatio)
       : [];
 
   return (
-    <svg {...SVG_BASE}>
-      {pageAnnotations.map((annotation) => {
-        const opacity = annotationLayerOpacity(annotation, editingFocus);
-
-        if (isStrokeGeometry(annotation.geometry)) {
-          const brushRects = buildHighlightBrushRects(
-            annotation.geometry.points,
-            annotation.geometry.strokeWidth,
-            pageAspectRatio,
-          );
-          return (
-            <g key={annotation.id} opacity={opacity}>
-              {brushRects.map((rect, index) => (
-                <rect
-                  key={`${annotation.id}-${index}`}
-                  x={rect.x}
-                  y={rect.y}
-                  width={rect.width}
-                  height={rect.height}
-                  fill={coverColor}
-                  stroke="none"
-                />
-              ))}
-            </g>
-          );
-        }
-
-        if ('width' in annotation.geometry) {
-          const geometry = annotation.geometry as HighlightGeometry;
-          return (
-            <rect
-              key={annotation.id}
-              x={geometry.x}
-              y={geometry.y}
-              width={geometry.width}
-              height={geometry.height}
-              fill={coverColor}
-              stroke="none"
-              opacity={opacity}
-            />
-          );
-        }
-
-        return null;
-      })}
+    <>
+      <AnnotationBrushCanvas
+        kind="cover"
+        pageNumber={pageNumber}
+        annotations={annotations}
+        visibleLayers={visibleLayers}
+        editingFocus={editingFocus}
+        inverted={inverted}
+        pageAspectRatio={pageAspectRatio}
+      />
+      <svg {...SVG_BASE} style={{ zIndex: ANNOTATION_LAYER_Z_INDEX.cover }}>
       {draftBrushRects.length > 0 && (
         <g>
           {draftBrushRects.map((rect, index) => (
@@ -442,7 +567,8 @@ export function AnnotationCoverLayer({
           stroke="none"
         />
       )}
-    </svg>
+      </svg>
+    </>
   );
 }
 
@@ -500,7 +626,7 @@ export function AnnotationLaserLayer({
   const pageStrokes = laserStrokes.filter((stroke) => stroke.pageNumber === pageNumber);
 
   return (
-    <svg {...SVG_BASE} style={{ zIndex: 5 }}>
+    <svg {...SVG_BASE} style={{ zIndex: ANNOTATION_LAYER_Z_INDEX.laser }}>
       {pageStrokes.map((stroke) => (
         <polyline
           key={stroke.id}

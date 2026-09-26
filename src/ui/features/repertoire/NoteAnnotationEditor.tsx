@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   NOTE_BODY_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
@@ -21,6 +21,7 @@ type NoteAnnotationEditorProps = {
   onCommit: (session: NoteAnnotationEditSession) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  registerFlush?: (flush: () => void) => () => void;
 };
 
 export function NoteAnnotationEditor({
@@ -28,6 +29,7 @@ export function NoteAnnotationEditor({
   onCommit,
   onCancel,
   onDelete,
+  registerFlush,
 }: NoteAnnotationEditorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(session.geometry.title ?? '');
@@ -51,6 +53,13 @@ export function NoteAnnotationEditor({
       },
     });
   }, [body, onCancel, onCommit, session, title]);
+
+  useEffect(() => {
+    if (!registerFlush) {
+      return;
+    }
+    return registerFlush(handleCommit);
+  }, [handleCommit, registerFlush]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;

@@ -1,5 +1,6 @@
 import type { AnnotationSetRepository } from '@/application/ports/annotation-set-repository';
 import type {
+  AnnotationReadingOptions,
   AnnotationViewerContext,
   LocalAnnotationSet,
   OfflineAnnotationStore,
@@ -113,6 +114,7 @@ export async function listAnnotationSetsForReading(
   organizationId: string,
   pieceFileId: string,
   viewer?: AnnotationViewerContext,
+  options?: AnnotationReadingOptions,
 ): Promise<Result<AnnotationSet[], string>> {
   if (isBrowserOnline()) {
     try {
@@ -126,9 +128,10 @@ export async function listAnnotationSetsForReading(
   }
 
   const localSets = await annotationStore.listSetsForFile(organizationId, pieceFileId);
-  const filtered = viewer
-    ? localSets.filter((set) => isAnnotationSetVisibleToViewer(set, viewer))
-    : localSets;
+  const filtered =
+    viewer && !options?.includeThirdPartyDirectedLayers
+      ? localSets.filter((set) => isAnnotationSetVisibleToViewer(set, viewer))
+      : localSets;
 
   return Result.ok(filtered.map(toAnnotationSet));
 }
@@ -355,8 +358,9 @@ export async function syncPendingAnnotationSetChanges(
 export function visibleDirectedSetIds(
   sets: LocalAnnotationSet[],
   viewer?: AnnotationViewerContext,
+  options?: AnnotationReadingOptions,
 ): Set<string> {
-  if (!viewer) {
+  if (!viewer || options?.includeThirdPartyDirectedLayers) {
     return new Set(sets.map((set) => set.id));
   }
   return new Set(

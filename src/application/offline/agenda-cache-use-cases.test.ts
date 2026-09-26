@@ -10,6 +10,7 @@ import {
   getCachedEventDetail,
   isRangeWithinCachedAgenda,
   listCachedEventsInRange,
+  offlineAgendaCacheMatchesCurrentRange,
 } from '@/application/offline/agenda-cache-use-cases';
 
 function createAgendaCache(initial: ReturnType<typeof buildSnapshot> | null = null): OfflineAgendaCache {
@@ -120,6 +121,29 @@ describe('isRangeWithinCachedAgenda', () => {
         '2026-11-18T00:00:00.000Z',
         '2026-12-01T00:00:00.000Z',
         '2026-12-08T00:00:00.000Z',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('offlineAgendaCacheMatchesCurrentRange', () => {
+  it('returns true when snapshot range matches the current offline window', () => {
+    const now = new Date('2026-08-20T15:00:00.000Z');
+    const { from, to } = getOfflineAgendaCacheRange(now);
+
+    expect(
+      offlineAgendaCacheMatchesCurrentRange(from.toISOString(), to.toISOString(), now),
+    ).toBe(true);
+  });
+
+  it('returns false when snapshot range is stale', () => {
+    const now = new Date('2026-08-20T15:00:00.000Z');
+
+    expect(
+      offlineAgendaCacheMatchesCurrentRange(
+        '2026-01-01T00:00:00.000Z',
+        '2026-02-01T00:00:00.000Z',
+        now,
       ),
     ).toBe(false);
   });

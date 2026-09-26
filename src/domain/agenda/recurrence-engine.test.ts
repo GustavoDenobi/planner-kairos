@@ -4,6 +4,7 @@ import {
   formatRecurrencePreview,
   maxRecurrenceEndDate,
   maxRecurrenceEndDateInputValue,
+  ruleForRescheduledSeries,
   validateRecurrenceEndDate,
 } from '@/domain/agenda/recurrence-engine';
 
@@ -96,5 +97,34 @@ describe('recurrence-engine', () => {
         '2026-08',
       ),
     ).toBe('Informe a data limite da recorrência.');
+  });
+
+  it('aligns a single weekday to the new start and keeps a matching multi-day rule', () => {
+    const shifted = ruleForRescheduledSeries(
+      { frequency: 'weekly', interval: 2, byWeekday: [2] },
+      '2026-08-26T10:00:00.000Z',
+    );
+    expect(shifted).toEqual({
+      ok: true,
+      rule: { frequency: 'weekly', interval: 2, byWeekday: [3] },
+    });
+
+    const kept = ruleForRescheduledSeries(
+      { frequency: 'weekly', interval: 2, byWeekday: [2, 4] },
+      '2026-08-25T10:00:00.000Z',
+    );
+    expect(kept).toEqual({
+      ok: true,
+      rule: { frequency: 'weekly', interval: 2, byWeekday: [2, 4] },
+    });
+  });
+
+  it('rejects a new weekday that is outside a multi-day weekly rule', () => {
+    expect(
+      ruleForRescheduledSeries(
+        { frequency: 'weekly', interval: 2, byWeekday: [2, 4] },
+        '2026-08-26T10:00:00.000Z',
+      ),
+    ).toEqual({ ok: false, error: 'recurrence_schedule_weekday' });
   });
 });

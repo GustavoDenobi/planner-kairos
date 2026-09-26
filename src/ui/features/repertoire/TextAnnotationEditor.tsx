@@ -43,6 +43,7 @@ type TextAnnotationEditorProps = {
     textFontSize: number;
     textFontFamily: TextFontFamily;
   }) => void;
+  registerFlush?: (flush: () => void) => () => void;
 };
 
 function normalizeTextGeometry(geometry: TextGeometry, content: string): TextGeometry {
@@ -64,6 +65,7 @@ export function TextAnnotationEditor({
   onCancel,
   onDelete,
   onStylePreferenceChange,
+  registerFlush,
 }: TextAnnotationEditorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -184,6 +186,13 @@ export function TextAnnotationEditor({
       geometry: normalizeTextGeometry(geometry, trimmed.slice(0, TEXT_ANNOTATION_MAX_LENGTH)),
     });
   }, [colorPresetId, content, geometry, onCancel, onCommit, session]);
+
+  useEffect(() => {
+    if (!registerFlush) {
+      return;
+    }
+    return registerFlush(handleCommit);
+  }, [handleCommit, registerFlush]);
 
   const insertSymbol = useCallback((char: string) => {
     const textarea = textareaRef.current;

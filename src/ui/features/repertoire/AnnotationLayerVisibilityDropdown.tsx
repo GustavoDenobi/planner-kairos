@@ -32,6 +32,8 @@ function clampPanelPosition(triggerRect: DOMRect, panelRect: DOMRect): CSSProper
 export type LayerVisibilityOption = {
   id: string;
   label: string;
+  /** Nome do autor exibido após o título (estilo muted). */
+  authorLabel?: string;
   visible: boolean;
   canEdit?: boolean;
   editValue?: string;
@@ -42,6 +44,9 @@ type AnnotationLayerVisibilityDropdownProps = {
   onToggle: (id: string) => void;
   onEditLayer?: (editValue: string) => void;
   onCreateLayer?: () => void;
+  onShowThirdPartyLayers?: () => void;
+  showThirdPartyLayersButton?: boolean;
+  isLoadingThirdPartyLayers?: boolean;
   activeEditValue?: string | null;
   isAnnotating?: boolean;
   buttonClassName?: string;
@@ -52,6 +57,9 @@ export function AnnotationLayerVisibilityDropdown({
   onToggle,
   onEditLayer,
   onCreateLayer,
+  onShowThirdPartyLayers,
+  showThirdPartyLayersButton = false,
+  isLoadingThirdPartyLayers = false,
   activeEditValue = null,
   isAnnotating = false,
   buttonClassName,
@@ -104,7 +112,7 @@ export function AnnotationLayerVisibilityDropdown({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  if (options.length === 0) {
+  if (options.length === 0 && !showThirdPartyLayersButton && !onCreateLayer) {
     return null;
   }
 
@@ -199,7 +207,12 @@ export function AnnotationLayerVisibilityDropdown({
                   >
                     {option.visible ? <IconCheck className="h-3 w-3" strokeWidth={3} /> : null}
                   </span>
-                  <span className="truncate">{option.label}</span>
+                  <span className="min-w-0 truncate">
+                    {option.label}
+                    {option.authorLabel ? (
+                      <span className="text-muted"> · {option.authorLabel}</span>
+                    ) : null}
+                  </span>
                 </button>
 
                 {option.canEdit && option.editValue && onEditLayer ? (
@@ -216,6 +229,22 @@ export function AnnotationLayerVisibilityDropdown({
               </div>
             );
           })}
+
+          {showThirdPartyLayersButton && onShowThirdPartyLayers ? (
+            <div className="border-t border-border px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onShowThirdPartyLayers();
+                  setOpen(false);
+                }}
+                disabled={isLoadingThirdPartyLayers}
+                className="flex w-full items-center rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-bg disabled:opacity-60"
+              >
+                {isLoadingThirdPartyLayers ? 'Carregando…' : 'Ver de terceiros'}
+              </button>
+            </div>
+          ) : null}
 
           {onCreateLayer ? (
             <div className="border-t border-border px-2 py-1.5">

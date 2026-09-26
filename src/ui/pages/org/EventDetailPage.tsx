@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { AssociableAudience } from '@/application/agenda';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
-import type { EventDetail, EventRecurrence, EventType } from '@/domain/agenda';
+import type { EventDetail, EventRecurrence, EventType, RecurrenceEditScope } from '@/domain/agenda';
 import {
   canWriteEvent,
   eventDisplayTitle,
   eventHasNoAudience,
   extraAudienceMusicianIds,
   isEventCancelled,
+  sameScheduleInstant,
 } from '@/domain/agenda';
 import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
@@ -27,7 +28,6 @@ import { agendaPath } from '@/ui/features/agenda/agenda-routes';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
 import { EventAudienceChips } from '@/ui/features/agenda/EventAudienceChips';
 import { EventAudienceFields } from '@/ui/features/agenda/EventAudienceFields';
-import type { RecurrenceEditScope } from '@/domain/agenda';
 import { EventFormFields } from '@/ui/features/agenda/EventFormFields';
 import {
   CancelRecurrenceConfirmModal,
@@ -52,6 +52,24 @@ function mergeOptions<T extends { id: string }>(primary: T[], extra: T[]): T[] {
     byId.set(item.id, current ? { ...current, ...item } : item);
   }
   return [...byId.values()];
+}
+
+function formScheduleChanged(event: EventDetail, startsAt: string, endsAt: string): boolean {
+  if (!startsAt) {
+    return false;
+  }
+  const nextStarts = new Date(startsAt);
+  if (Number.isNaN(nextStarts.getTime())) {
+    return false;
+  }
+  const nextEnds = endsAt ? new Date(endsAt) : null;
+  if (nextEnds && Number.isNaN(nextEnds.getTime())) {
+    return false;
+  }
+  return (
+    !sameScheduleInstant(event.startsAt, nextStarts.toISOString()) ||
+    !sameScheduleInstant(event.endsAt, nextEnds ? nextEnds.toISOString() : null)
+  );
 }
 
 export function EventDetailPage() {
@@ -451,6 +469,7 @@ export function EventDetailPage() {
   const displayTitle = eventDisplayTitle(event, event.type);
   const badgeStyle = eventTypeBadgeStyle(event.type);
   const eventCancelled = isEventCancelled(event);
+  const saveScheduleChanged = formScheduleChanged(event, startsAt, endsAt);
 
   const detailsForm = (
     <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
@@ -763,6 +782,7 @@ export function EventDetailPage() {
       <RecurrenceScopeModal
         open={recurrenceScopeMode === 'save'}
         mode="save"
+        scheduleChanged={saveScheduleChanged}
         onClose={() => setRecurrenceScopeMode(null)}
         onConfirm={(scope) => void handleSave(scope)}
         isConfirming={isSaving}

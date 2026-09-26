@@ -1,9 +1,11 @@
 import type {
+  AnnotationReadingOptions,
   AnnotationViewerContext,
   OfflineAnnotationStore,
 } from '@/application/ports/offline-annotation-store';
 import type { PieceFileAnnotationRepository } from '@/application/ports/piece-file-annotation-repository';
 import type {
+  AnnotationGeometry,
   CreatePdfAnnotationInput,
   PdfAnnotation,
   UpdatePdfAnnotationInput,
@@ -68,6 +70,7 @@ export async function listAnnotationsForReading(
   organizationId: string,
   pieceFileId: string,
   viewer?: AnnotationViewerContext,
+  options?: AnnotationReadingOptions,
 ): Promise<Result<PdfAnnotation[], string>> {
   if (isBrowserOnline()) {
     try {
@@ -103,7 +106,7 @@ export async function listAnnotationsForReading(
     pieceFileId,
     localSets,
   );
-  const visibleSetIds = visibleDirectedSetIds(localSets, viewer);
+  const visibleSetIds = visibleDirectedSetIds(localSets, viewer, options);
   const local = await annotationStore.listForFile(organizationId, pieceFileId);
   const pending = await annotationStore.listPendingForFile(organizationId, pieceFileId);
 
@@ -200,6 +203,115 @@ export async function createAnnotationWithOffline(
   });
 
   return Result.ok(toPdfAnnotation(localAnnotation));
+}
+
+function geometriesEqual(left: AnnotationGeometry, right: AnnotationGeometry): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameCreatePayload(annotation: PdfAnnotation, input: CreatePdfAnnotationInput): boolean {
+  return (
+    annotation.pieceFileId === input.pieceFileId
+    && annotation.pageNumber === input.pageNumber
+    && annotation.layer === input.layer
+    && annotation.type === input.type
+    && annotation.color === input.color
+    && (annotation.sectionId ?? null) === (input.sectionId ?? null)
+    && (annotation.annotationSetId ?? null) === (input.annotationSetId ?? null)
+    && geometriesEqual(annotation.geometry, input.geometry)
+  );
+}
+
+function alignCreatedAnnotations(
+  inputs: CreatePdfAnnotationInput[],
+  created: PdfAnnotation[],
+): PdfAnnotation[] | null {
+  if (created.length !== inputs.length) {
+    return null;
+  }
+
+  if (created.every((annotation, index) => sameCreatePayload(annotation, inputs[index]!))) {
+    return created;
+  }
+
+  const remaining = [...created];
+  const aligned: PdfAnnotation[] = [];
+  for (const input of inputs) {
+    const matchIndex = remaining.findIndex((annotation) => sameCreatePayload(annotation, input));
+    if (matchIndex < 0) {
+      return created;
+    }
+    aligned.push(remaining[matchIndex]!);
+    remaining.splice(matchIndex, 1);
+  }
+  return aligned;
+}
+
+export async function createAnnotationsWithOffline(
+  annotationRepo: PieceFileAnnotationRepository,
+  annotationStore: OfflineAnnotationStore,
+  organizationId: string,
+  pieceId: string,
+  authorUserId: string,
+  inputs: CreatePdfAnnotationInput[],
+): Promise<Result<PdfAnnotation[], string>> {
+  if (inputs.length === 0) {
+    return Result.ok([]);
+  }
+
+  if (isBrowserOnline()) {
+    try {
+      const created = await annotationRepo.createMany(organizationId, authorUserId, inputs);
+      const aligned = alignCreatedAnnotations(inputs, created);
+      if (!aligned) {
+        return Result.fail('create_failed');
+      }
+
+      for (const annotation of aligned) {
+        await annotationStore.upsert({
+          clientId: annotation.id,
+          id: annotation.id,
+          organizationId: annotation.organizationId,
+          pieceFileId: annotation.pieceFileId,
+          pageNumber: annotation.pageNumber,
+          layer: annotation.layer,
+          type: annotation.type,
+          geometry: annotation.geometry,
+          color: annotation.color,
+          authorUserId: annotation.authorUserId,
+          sectionId: annotation.sectionId,
+          annotationSetId: annotation.annotationSetId,
+          createdAt: annotation.createdAt,
+          updatedAt: annotation.updatedAt,
+          syncStatus: 'synced',
+        });
+      }
+
+      return Result.ok(aligned);
+    } catch (error) {
+      if (isPermanentSyncAuthError(error)) {
+        return Result.fail('not_allowed');
+      }
+    }
+  }
+
+  const created: PdfAnnotation[] = [];
+  for (const input of inputs) {
+    const result = await createAnnotationWithOffline(
+      annotationRepo,
+      annotationStore,
+      organizationId,
+      pieceId,
+      authorUserId,
+      input,
+    );
+    if (!result.ok) {
+      return Result.fail(result.error);
+    }
+    created.push(result.value);
+  }
+
+  return Result.ok(created);
 }
 
 export async function deleteAnnotationWithOffline(

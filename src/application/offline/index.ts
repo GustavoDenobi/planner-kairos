@@ -1,5 +1,8 @@
 import type { FileStorage } from '@/application/ports/file-storage';
-import type { OfflineAnnotationStore } from '@/application/ports/offline-annotation-store';
+import type {
+  AnnotationReadingOptions,
+  OfflineAnnotationStore,
+} from '@/application/ports/offline-annotation-store';
 import type { OfflineNavigationShortcutStore } from '@/application/ports/offline-navigation-shortcut-store';
 import type { OfflineTocEntryStore } from '@/application/ports/offline-toc-entry-store';
 import type { OfflineFileCache } from '@/application/ports/offline-file-cache';
@@ -58,6 +61,7 @@ import {
   updateTocEntryWithOffline,
 } from './toc-entry-offline-use-cases';
 import {
+  createAnnotationsWithOffline,
   createAnnotationWithOffline,
   deleteAnnotationWithOffline,
   listAnnotationsForReading,
@@ -241,6 +245,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
       organizationId: string,
       pieceFileId: string,
       viewer?: AnnotationViewerContext,
+      options?: AnnotationReadingOptions,
     ) =>
       listAnnotationsForReading(
         deps.annotationRepo,
@@ -248,12 +253,14 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         organizationId,
         pieceFileId,
         viewer,
+        options,
       ),
 
     listAnnotationSetsForReading: (
       organizationId: string,
       pieceFileId: string,
       viewer?: AnnotationViewerContext,
+      options?: AnnotationReadingOptions,
     ) =>
       listAnnotationSetsForReading(
         deps.annotationSetRepo,
@@ -261,6 +268,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         organizationId,
         pieceFileId,
         viewer,
+        options,
       ),
 
     createAnnotationSet: (
@@ -319,6 +327,21 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
         pieceId,
         authorUserId,
         input,
+      ),
+
+    createPieceFileAnnotations: (
+      organizationId: string,
+      pieceId: string,
+      authorUserId: string,
+      inputs: CreatePdfAnnotationInput[],
+    ) =>
+      createAnnotationsWithOffline(
+        deps.annotationRepo,
+        annotationStore,
+        organizationId,
+        pieceId,
+        authorUserId,
+        inputs,
       ),
 
     deletePieceFileAnnotation: (

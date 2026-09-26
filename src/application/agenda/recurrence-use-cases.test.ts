@@ -5,7 +5,7 @@ import type { EventRepository } from '@/application/ports/event-repository';
 import type { MembershipRepository } from '@/application/ports/membership-repository';
 import type { MusicianRepository } from '@/application/ports/musician-repository';
 import type { OrganizationRepository } from '@/application/ports/organization-repository';
-import { cancelRecurrence, scheduleRecurrence } from '@/application/agenda/recurrence-use-cases';
+import { cancelRecurrence, scheduleRecurrence, updateRecurrenceOccurrence } from '@/application/agenda/recurrence-use-cases';
 import type { EventDetail, EventRecurrence } from '@/domain/agenda';
 
 function recurrenceDetail(): EventRecurrence {
@@ -187,5 +187,101 @@ describe('recurrence-use-cases', () => {
       'rec-1',
       '2026-09-01T00:00:00.000Z',
     );
+  });
+
+  it('rejects all_future when the schedule changed', async () => {
+    const repos = createRepos();
+    const result = await updateRecurrenceOccurrence(
+      repos.eventRepo,
+      repos.recurrenceRepo,
+      repos.membershipRepo,
+      repos.musicianRepo,
+      repos.assignmentRepo,
+      repos.orgRepo,
+      'org-1',
+      'user-teacher',
+      'event-1',
+      'all_future',
+      {
+        typeId: 'type-1',
+        startsAt: '2026-08-25T10:00:00.000Z',
+        groupIds: ['class-1'],
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('recurrence_schedule_scope');
+    }
+    expect(repos.recurrenceRepo.updateTemplate).not.toHaveBeenCalled();
+    expect(repos.eventRepo.bulkUpdateFutureOccurrences).not.toHaveBeenCalled();
+  });
+
+  it('following rebuilds the series on the new weekday', async () => {
+    const repos = createRepos();
+    const result = await updateRecurrenceOccurrence(
+      repos.eventRepo,
+      repos.recurrenceRepo,
+      repos.membershipRepo,
+      repos.musicianRepo,
+      repos.assignmentRepo,
+      repos.orgRepo,
+      'org-1',
+      'user-teacher',
+      'event-1',
+      'following',
+      {
+        typeId: 'type-1',
+        startsAt: '2026-08-26T10:00:00.000Z',
+        groupIds: ['class-1'],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(repos.recurrenceRepo.createWithOccurrences).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          rule: { frequency: 'weekly', interval: 1, byWeekday: [3] },
+          startsAt: '2026-08-26T10:00:00.000Z',
+        }),
+        occurrences: expect.arrayContaining([
+          expect.objectContaining({ startsAt: '2026-08-26T10:00:00.000Z' }),
+        ]),
+      }),
+    );
+  });
+
+  it('following does not split when the new weekday is outside a multi-day rule', async () => {
+    const repos = createRepos();
+    vi.mocked(repos.recurrenceRepo.getById).mockResolvedValue({
+      ...recurrenceDetail(),
+      rule: { frequency: 'weekly', interval: 2, byWeekday: [2, 4] },
+    });
+
+    const result = await updateRecurrenceOccurrence(
+      repos.eventRepo,
+      repos.recurrenceRepo,
+      repos.membershipRepo,
+      repos.musicianRepo,
+      repos.assignmentRepo,
+      repos.orgRepo,
+      'org-1',
+      'user-teacher',
+      'event-1',
+      'following',
+      {
+        typeId: 'type-1',
+        startsAt: '2026-08-26T10:00:00.000Z',
+        groupIds: ['class-1'],
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('recurrence_schedule_weekday');
+    }
+    expect(repos.recurrenceRepo.deleteOccurrencesFromIndex).not.toHaveBeenCalled();
+    expect(repos.recurrenceRepo.cancel).not.toHaveBeenCalled();
   });
 });

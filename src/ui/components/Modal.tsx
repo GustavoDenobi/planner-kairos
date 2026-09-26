@@ -8,6 +8,7 @@ type ModalProps = {
   children: ReactNode;
   size?: 'md' | 'lg';
   allowBackdropInteraction?: boolean;
+  closable?: boolean;
 };
 
 const modalPanelMaxHeightStyle = {
@@ -22,6 +23,7 @@ export function Modal({
   children,
   size = 'md',
   allowBackdropInteraction = false,
+  closable = true,
 }: ModalProps) {
   useBodyScrollLock(open);
 
@@ -44,12 +46,16 @@ export function Modal({
         height: 'var(--app-vh)',
       }}
     >
-      <button
-        type="button"
-        className={`absolute inset-0 bg-black/50 ${allowBackdropInteraction ? 'pointer-events-none' : ''}`}
-        aria-label="Fechar"
-        onClick={onClose}
-      />
+      {closable ? (
+        <button
+          type="button"
+          className={`absolute inset-0 bg-black/50 ${allowBackdropInteraction ? 'pointer-events-none' : ''}`}
+          aria-label="Fechar"
+          onClick={onClose}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black/50" />
+      )}
       <div
         className={`relative flex w-full flex-col overflow-hidden ${maxWidthClass} rounded-xl border border-border bg-surface p-6 shadow-lg`}
         style={modalPanelMaxHeightStyle}
@@ -59,13 +65,15 @@ export function Modal({
       >
         <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <h2 id="modal-title" className="text-lg font-semibold text-text">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-bg hover:text-text"
-          >
-            Fechar
-          </button>
+          {closable ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-bg hover:text-text"
+            >
+              Fechar
+            </button>
+          ) : null}
         </div>
         <div className="min-h-0 overflow-y-auto overscroll-y-contain">{children}</div>
       </div>

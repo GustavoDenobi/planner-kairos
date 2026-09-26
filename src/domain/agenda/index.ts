@@ -55,7 +55,9 @@ export {
   maxRecurrenceEndDateInputValue,
   validateRecurrenceEndDate,
   validateRecurrenceRule,
+  ruleForRescheduledSeries,
 } from './recurrence-engine';
+export { sameScheduleInstant } from './date-utils';
 export {
   canWriteEvent,
   eventDisplayTitle,

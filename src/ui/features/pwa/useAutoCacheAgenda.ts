@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { offlineAgendaCacheMatchesCurrentRange } from '@/application/offline/agenda-cache-use-cases';
 import { useOffline } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -19,6 +20,27 @@ export function useAutoCacheAgenda(): void {
       return;
     }
 
-    void offline.cacheAgendaForOffline(organizationId, userId);
+    let cancelled = false;
+
+    async function ensureAgendaCache() {
+      const meta = await offline.getCachedAgendaMeta(organizationId!, userId!);
+      if (cancelled) {
+        return;
+      }
+      if (
+        meta &&
+        offlineAgendaCacheMatchesCurrentRange(meta.rangeFrom, meta.rangeTo)
+      ) {
+        return;
+      }
+
+      await offline.cacheAgendaForOffline(organizationId!, userId!);
+    }
+
+    void ensureAgendaCache();
+
+    return () => {
+      cancelled = true;
+    };
   }, [online, isOfflineSession, isOfflineData, isLoading, userId, organizationId, offline]);
 }

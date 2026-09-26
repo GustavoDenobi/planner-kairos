@@ -4,7 +4,10 @@ import type * as pdfjs from 'pdfjs-dist';
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet, CreatePieceFileTocEntryInput, PieceFileTocEntry, UpdatePieceFileTocEntryInput } from '@/domain/repertoire';
 import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
 import { useRepertoire, useOffline, useEnsemble, useAgenda } from '@/ui/app/AppServicesContext';
-import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
+import {
+  annotationViewerContextsEqual,
+  type AnnotationViewerContext,
+} from '@/application/ports/offline-annotation-store';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -55,6 +58,9 @@ export function PiecePdfViewerPage() {
   const [canManageToc, setCanManageToc] = useState(false);
   const [sectionLeadOptions, setSectionLeadOptions] = useState<SectionLeadOption[]>([]);
   const [annotationSets, setAnnotationSets] = useState<AnnotationSet[]>([]);
+  const [includeThirdPartyDirectedLayers, setIncludeThirdPartyDirectedLayers] = useState(false);
+  const [isLoadingThirdPartyDirectedLayers, setIsLoadingThirdPartyDirectedLayers] = useState(false);
+  const [authorNameByUserId, setAuthorNameByUserId] = useState<Record<string, string>>({});
   const [canEditDirectedLayer, setCanEditDirectedLayer] = useState(false);
   const [viewerContext, setViewerContext] = useState<AnnotationViewerContext | null>(null);
   const [associableGroups, setAssociableGroups] = useState<Array<{ id: string; name: string; kind: import('@/domain/ensemble').GroupKind }>>([]);
@@ -80,6 +86,47 @@ export function PiecePdfViewerPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+
+  const annotationReadingOptions = useMemo(
+    () =>
+      includeThirdPartyDirectedLayers
+        ? { includeThirdPartyDirectedLayers: true as const }
+        : undefined,
+    [includeThirdPartyDirectedLayers],
+  );
+
+  useEffect(() => {
+    setIncludeThirdPartyDirectedLayers(false);
+    setAuthorNameByUserId({});
+    annotationsViewerKeyRef.current = null;
+  }, [fileId]);
+
+  const handleIncludeThirdPartyDirectedLayers = useCallback(async () => {
+    if (!organizationId || !isAdmin) {
+      return;
+    }
+
+    setIsLoadingThirdPartyDirectedLayers(true);
+    try {
+      const musiciansResult = await ensemble.listMusicians(organizationId, {
+        limit: 5000,
+        offset: 0,
+      });
+      if (musiciansResult.ok) {
+        const names: Record<string, string> = {};
+        for (const musician of musiciansResult.value.items) {
+          if (musician.userId) {
+            names[musician.userId] = musician.fullName;
+          }
+        }
+        setAuthorNameByUserId(names);
+      }
+      setIncludeThirdPartyDirectedLayers(true);
+      annotationsViewerKeyRef.current = null;
+    } finally {
+      setIsLoadingThirdPartyDirectedLayers(false);
+    }
+  }, [organizationId, isAdmin, ensemble]);
 
   const detailPath =
     orgSlug && pieceId ? pieceDetailPath(orgSlug, pieceId) : `/${orgSlug ?? ''}/repertorio`;
@@ -366,7 +413,7 @@ export function PiecePdfViewerPage() {
     const resolvedFileId = fileId;
 
     const viewerKey = viewerContext
-      ? `${viewerContext.userId}:${viewerContext.myMusicianId ?? 'none'}:${[...viewerContext.memberGroupIds].sort().join(',')}`
+      ? `${viewerContext.userId}:${viewerContext.myMusicianId ?? 'none'}:${[...viewerContext.memberGroupIds].sort().join(',')}:${includeThirdPartyDirectedLayers ? 'third-party' : 'mine'}`
       : 'none';
     const loadKey = `${resolvedOrganizationId}:${resolvedFileId}:${viewerKey}`;
 
@@ -381,6 +428,7 @@ export function PiecePdfViewerPage() {
         resolvedOrganizationId,
         resolvedFileId,
         viewerContext ?? undefined,
+        annotationReadingOptions,
       );
 
       if (cancelled || !result.ok) {
@@ -396,7 +444,7 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, fileId, viewerContext, offline]);
+  }, [organizationId, fileId, viewerContext, offline, includeThirdPartyDirectedLayers, annotationReadingOptions]);
 
   useEffect(() => {
     if (!organizationId || !userId || !fileId) {
@@ -434,7 +482,9 @@ export function PiecePdfViewerPage() {
         myMusicianId: musicianResult.ok ? musicianResult.value.id : null,
         memberGroupIds,
       };
-      setViewerContext(viewer);
+      setViewerContext((current) =>
+        current && annotationViewerContextsEqual(current, viewer) ? current : viewer,
+      );
 
       const audienceResult = online
         ? await agenda.listAssociableAudience(resolvedOrganizationId, resolvedUserId)
@@ -471,6 +521,7 @@ export function PiecePdfViewerPage() {
         resolvedOrganizationId,
         resolvedFileId,
         viewer,
+        annotationReadingOptions,
       );
       if (!cancelled && setsResult.ok) {
         setAnnotationSets(setsResult.value);
@@ -482,7 +533,18 @@ export function PiecePdfViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, userId, fileId, online, ensemble, agenda, offline, isAdmin]);
+  }, [
+    organizationId,
+    userId,
+    fileId,
+    online,
+    ensemble,
+    agenda,
+    offline,
+    isAdmin,
+    includeThirdPartyDirectedLayers,
+    annotationReadingOptions,
+  ]);
 
   useEffect(() => {
     if (!organizationId || !userId || !online) {
@@ -598,26 +660,34 @@ export function PiecePdfViewerPage() {
     };
   }, [downloadUrl]);
 
-  const handleAnnotationCreate = useCallback(
-    async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
-      if (!org || !pieceId || !fileId || !userId || !file) {
+  const handleAnnotationCreateMany = useCallback(
+    async (inputs: Array<Omit<CreatePdfAnnotationInput, 'pieceFileId'>>) => {
+      if (!org || !pieceId || !fileId || !userId || !file || inputs.length === 0) {
         return null;
       }
 
-      if (!online && (input.layer === 'section' || input.layer === 'directed')) {
+      if (
+        !online
+        && inputs.some((input) => input.layer === 'section' || input.layer === 'directed')
+      ) {
         return null;
       }
 
-      const result = await offline.createPieceFileAnnotation(org.id, pieceId, userId, {
-        ...input,
-        pieceFileId: file.id,
-      });
+      const result = await offline.createPieceFileAnnotations(
+        org.id,
+        pieceId,
+        userId,
+        inputs.map((input) => ({
+          ...input,
+          pieceFileId: file.id,
+        })),
+      );
 
       if (!result.ok) {
         return null;
       }
 
-      setAnnotations((current) => [...current, result.value]);
+      setAnnotations((current) => [...current, ...result.value]);
       return result.value;
     },
     [org, pieceId, fileId, userId, file, offline, online],
@@ -677,12 +747,18 @@ export function PiecePdfViewerPage() {
   );
 
   const directedSetOptions = useMemo((): DirectedSetOption[] => {
-    return annotationSets.map((set) => ({
-      id: set.id,
-      label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
-      canEdit: Boolean(userId && set.authorUserId === userId),
-    }));
-  }, [annotationSets, userId, audienceLookup]);
+    return annotationSets.map((set) => {
+      const isThirdParty = Boolean(userId && set.authorUserId !== userId);
+      return {
+        id: set.id,
+        label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
+        authorLabel: isThirdParty
+          ? authorNameByUserId[set.authorUserId] ?? 'Autor desconhecido'
+          : undefined,
+        canEdit: Boolean(userId && set.authorUserId === userId),
+      };
+    });
+  }, [annotationSets, userId, audienceLookup, authorNameByUserId]);
 
   const editingSet = editingSetId
     ? annotationSets.find((set) => set.id === editingSetId) ?? null
@@ -989,6 +1065,12 @@ export function PiecePdfViewerPage() {
         sectionLeadOptions={sectionLeadOptions}
         directedSetOptions={directedSetOptions}
         canEditDirectedLayer={canEditDirectedLayer}
+        canLoadThirdPartyDirectedLayers={isAdmin}
+        includeThirdPartyDirectedLayers={includeThirdPartyDirectedLayers}
+        onIncludeThirdPartyDirectedLayers={
+          isAdmin ? () => void handleIncludeThirdPartyDirectedLayers() : undefined
+        }
+        isLoadingThirdPartyDirectedLayers={isLoadingThirdPartyDirectedLayers}
         directedSetSelectRequest={directedSetSelectRequest}
         onManageDirectedSet={(context) => {
           setManageHighlightedSetId(context?.activeDirectedSetId ?? null);
@@ -1034,7 +1116,7 @@ export function PiecePdfViewerPage() {
             />
           ) : null
         }
-        onAnnotationCreate={handleAnnotationCreate}
+        onAnnotationCreateMany={handleAnnotationCreateMany}
         onAnnotationUpdate={handleAnnotationUpdate}
         onAnnotationDelete={handleAnnotationDelete}
         navigationShortcuts={navigationShortcuts}

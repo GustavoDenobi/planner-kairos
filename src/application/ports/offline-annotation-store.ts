@@ -48,6 +48,25 @@ export type AnnotationViewerContext = {
   memberGroupIds: string[];
 };
 
+export function annotationViewerContextsEqual(
+  left: AnnotationViewerContext,
+  right: AnnotationViewerContext,
+): boolean {
+  if (left.userId !== right.userId || left.myMusicianId !== right.myMusicianId) {
+    return false;
+  }
+  if (left.memberGroupIds.length !== right.memberGroupIds.length) {
+    return false;
+  }
+  const leftIds = [...left.memberGroupIds].sort();
+  const rightIds = [...right.memberGroupIds].sort();
+  return leftIds.every((id, index) => id === rightIds[index]);
+}
+
+export type AnnotationReadingOptions = {
+  includeThirdPartyDirectedLayers?: boolean;
+};
+
 export type SyncOutboxCreatePayload = {
   clientId: string;
   organizationId: string;

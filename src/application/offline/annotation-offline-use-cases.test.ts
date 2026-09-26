@@ -109,6 +109,7 @@ describe('listAnnotationsForReading', () => {
     const annotationRepo: PieceFileAnnotationRepository = {
       listForFile: async () => [serverAnnotation],
       create: async () => serverAnnotation,
+      createMany: async () => [serverAnnotation],
       update: async () => serverAnnotation,
       remove: async () => true,
     };
@@ -213,6 +214,9 @@ describe('listAnnotationsForReading', () => {
       create: async () => {
         throw new Error('not used');
       },
+      createMany: async () => {
+        throw new Error('not used');
+      },
       update: async () => null,
       remove: async () => true,
     };
@@ -232,6 +236,102 @@ describe('listAnnotationsForReading', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.map((annotation) => annotation.id)).toEqual(['ann-visible']);
+    }
+  });
+
+  it('includes directed annotations from third-party sets when requested', async () => {
+    const annotationStore = createAnnotationStore();
+    await annotationStore.upsertSet({
+      id: 'set-visible',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      authorUserId: 'teacher-1',
+      title: 'João',
+      groups: [],
+      musicians: [{ id: 'musician-1', fullName: 'João' }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+    await annotationStore.upsertSet({
+      id: 'set-hidden',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      authorUserId: 'teacher-2',
+      title: 'Turma B',
+      groups: [],
+      musicians: [{ id: 'musician-2', fullName: 'Maria' }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+
+    await annotationStore.upsert({
+      clientId: 'ann-visible',
+      id: 'ann-visible',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      pageNumber: 1,
+      layer: 'directed',
+      type: 'stroke',
+      geometry: { points: [{ x: 0.1, y: 0.1 }], strokeWidth: 0.01 },
+      color: '#9333ea',
+      authorUserId: 'teacher-1',
+      sectionId: null,
+      annotationSetId: 'set-visible',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+    await annotationStore.upsert({
+      clientId: 'ann-hidden',
+      id: 'ann-hidden',
+      organizationId: 'org-1',
+      pieceFileId: 'file-1',
+      pageNumber: 1,
+      layer: 'directed',
+      type: 'stroke',
+      geometry: { points: [{ x: 0.2, y: 0.2 }], strokeWidth: 0.01 },
+      color: '#9333ea',
+      authorUserId: 'teacher-2',
+      sectionId: null,
+      annotationSetId: 'set-hidden',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      syncStatus: 'synced',
+    });
+
+    const annotationRepo: PieceFileAnnotationRepository = {
+      listForFile: async () => [],
+      create: async () => {
+        throw new Error('not used');
+      },
+      createMany: async () => {
+        throw new Error('not used');
+      },
+      update: async () => null,
+      remove: async () => true,
+    };
+
+    const result = await listAnnotationsForReading(
+      annotationRepo,
+      annotationStore,
+      'org-1',
+      'file-1',
+      {
+        userId: 'admin-1',
+        myMusicianId: null,
+        memberGroupIds: [],
+      },
+      { includeThirdPartyDirectedLayers: true },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.map((annotation) => annotation.id).sort()).toEqual([
+        'ann-hidden',
+        'ann-visible',
+      ]);
     }
   });
 });
@@ -261,6 +361,9 @@ describe('updateAnnotationWithOffline', () => {
     const annotationRepo: PieceFileAnnotationRepository = {
       listForFile: async () => [],
       create: async () => {
+        throw new Error('offline');
+      },
+      createMany: async () => {
         throw new Error('offline');
       },
       update: async () => null,

@@ -18,11 +18,16 @@ import {
   isEventCancelled,
   uniqueIds,
   validateEventInput,
+  ruleForRescheduledSeries,
   validateRecurrenceEndDate,
   validateRecurrenceInput,
   validateRecurrenceRule,
 } from '@/domain/agenda';
-import { durationMinutesBetween, parseDateInputEndOfDayUtc } from '@/domain/agenda/date-utils';
+import {
+  durationMinutesBetween,
+  parseDateInputEndOfDayUtc,
+  sameScheduleInstant,
+} from '@/domain/agenda/date-utils';
 import { Result } from '@/domain/shared';
 import type { EventWriterContext } from './event-use-cases';
 import { loadWriterContext, mergeAudienceIds, validateGroupWriterAudience } from './event-use-cases-helpers';
@@ -417,6 +422,13 @@ export async function updateRecurrenceOccurrence(
     }
 
     if (scope === 'all_future') {
+      if (
+        !sameScheduleInstant(existing.startsAt, input.startsAt) ||
+        !sameScheduleInstant(existing.endsAt, input.endsAt)
+      ) {
+        return Result.fail('recurrence_schedule_scope');
+      }
+
       if (options?.seriesEndsAt) {
         const endError = validateRecurrenceEndDate({
           seriesStartsAt: input.startsAt,
@@ -479,6 +491,27 @@ export async function updateRecurrenceOccurrence(
     }
 
     // following: split series
+    const seriesEndsAt = options?.seriesEndsAt ?? recurrence.seriesEndsAt.split('T')[0] ?? recurrence.seriesEndsAt;
+    const alignedRule = ruleForRescheduledSeries(options?.rule ?? recurrence.rule, input.startsAt);
+    if (!alignedRule.ok) {
+      return Result.fail(alignedRule.error);
+    }
+
+    const splitValidation = validateRecurrenceInput(
+      {
+        ...input,
+        rule: alignedRule.rule,
+        seriesEndsAt,
+        groupIds: mergedAudience.groupIds,
+        musicianIds: mergedAudience.musicianIds,
+        createdBy: userId,
+      },
+      recurrence.limitAnchorAt,
+    );
+    if (splitValidation) {
+      return Result.fail(splitValidation);
+    }
+
     const previousIndex = existing.occurrenceIndex - 1;
     if (previousIndex >= 0) {
       const summaries = await recurrenceRepo.listOccurrenceSummaries(organizationId, existing.recurrenceId);
@@ -498,25 +531,9 @@ export async function updateRecurrenceOccurrence(
       true,
     );
 
-    const seriesEndsAt = options?.seriesEndsAt ?? recurrence.seriesEndsAt.split('T')[0] ?? recurrence.seriesEndsAt;
-    const splitValidation = validateRecurrenceInput(
-      {
-        ...input,
-        rule: options?.rule ?? recurrence.rule,
-        seriesEndsAt,
-        groupIds: mergedAudience.groupIds,
-        musicianIds: mergedAudience.musicianIds,
-        createdBy: userId,
-      },
-      recurrence.limitAnchorAt,
-    );
-    if (splitValidation) {
-      return Result.fail(splitValidation);
-    }
-
     const durationMinutes = durationMinutesBetween(input.startsAt, input.endsAt);
     const occurrences = generateOccurrenceDates({
-      rule: options?.rule ?? recurrence.rule,
+      rule: alignedRule.rule,
       seriesStartsAt: input.startsAt,
       seriesEndsAt,
       durationMinutes,
@@ -525,7 +542,7 @@ export async function updateRecurrenceOccurrence(
     const { firstEventId } = await recurrenceRepo.createWithOccurrences(organizationId, {
       input: {
         ...input,
-        rule: options?.rule ?? recurrence.rule,
+        rule: alignedRule.rule,
         seriesEndsAt,
         createdBy: userId,
         groupIds: mergedAudience.groupIds,

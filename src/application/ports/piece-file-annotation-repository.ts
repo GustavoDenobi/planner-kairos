@@ -11,6 +11,11 @@ export type PieceFileAnnotationRepository = {
     authorUserId: string,
     input: CreatePdfAnnotationInput,
   ): Promise<PdfAnnotation>;
+  createMany(
+    organizationId: string,
+    authorUserId: string,
+    inputs: CreatePdfAnnotationInput[],
+  ): Promise<PdfAnnotation[]>;
   update(
     organizationId: string,
     pieceFileId: string,

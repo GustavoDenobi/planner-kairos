@@ -121,7 +121,58 @@ export function isRangeWithinCachedAgenda(
   return requestFromMs >= cacheFromMs && requestToMs <= cacheToMs;
 }
 
+export function offlineAgendaCacheMatchesCurrentRange(
+  rangeFrom: string,
+  rangeTo: string,
+  now = new Date(),
+): boolean {
+  const range = getOfflineAgendaCacheRange(now);
+  return rangeFrom === range.from.toISOString() && rangeTo === range.to.toISOString();
+}
+
+const inflightAgendaCaches = new Map<string, Promise<Result<void, string>>>();
+
 export async function cacheAgendaForOffline(
+  eventRepo: EventRepository,
+  eventTypeRepo: EventTypeRepository,
+  membershipRepo: MembershipRepository,
+  musicianRepo: MusicianRepository,
+  assignmentRepo: AssignmentRepository,
+  groupRepo: GroupRepository,
+  orgRepo: OrganizationRepository,
+  agendaCache: OfflineAgendaCache,
+  organizationId: string,
+  userId: string,
+): Promise<Result<void, string>> {
+  const cacheKey = `${organizationId}:${userId}`;
+  const inflight = inflightAgendaCaches.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const task = cacheAgendaForOfflineOnce(
+    eventRepo,
+    eventTypeRepo,
+    membershipRepo,
+    musicianRepo,
+    assignmentRepo,
+    groupRepo,
+    orgRepo,
+    agendaCache,
+    organizationId,
+    userId,
+  );
+  inflightAgendaCaches.set(cacheKey, task);
+  try {
+    return await task;
+  } finally {
+    if (inflightAgendaCaches.get(cacheKey) === task) {
+      inflightAgendaCaches.delete(cacheKey);
+    }
+  }
+}
+
+async function cacheAgendaForOfflineOnce(
   eventRepo: EventRepository,
   eventTypeRepo: EventTypeRepository,
   membershipRepo: MembershipRepository,

@@ -92,6 +92,34 @@ export function validateRecurrenceRule(rule: RecurrenceRule): string | null {
   return null;
 }
 
+export function ruleForRescheduledSeries(
+  rule: RecurrenceRule,
+  startsAt: string,
+): { ok: true; rule: RecurrenceRule } | { ok: false; error: 'recurrence_schedule_weekday' } {
+  if (!isWeeklyRule(rule)) {
+    return { ok: true, rule };
+  }
+
+  const starts = new Date(startsAt);
+  if (Number.isNaN(starts.getTime())) {
+    return { ok: false, error: 'recurrence_schedule_weekday' };
+  }
+
+  const weekday = getUtcWeekday(starts);
+  if (rule.byWeekday.length === 1) {
+    if (rule.byWeekday[0] === weekday) {
+      return { ok: true, rule };
+    }
+    return { ok: true, rule: { ...rule, byWeekday: [weekday] } };
+  }
+
+  if (rule.byWeekday.includes(weekday)) {
+    return { ok: true, rule };
+  }
+
+  return { ok: false, error: 'recurrence_schedule_weekday' };
+}
+
 function compareDates(a: Date, b: Date): number {
   return a.getTime() - b.getTime();
 }

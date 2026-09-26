@@ -8,7 +8,10 @@ import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
-import type { AnnotationViewerContext } from '@/application/ports/offline-annotation-store';
+import {
+  annotationViewerContextsEqual,
+  type AnnotationViewerContext,
+} from '@/application/ports/offline-annotation-store';
 
 import { useEnsemble, useOffline, useRepertoire, useAgenda } from '@/ui/app/AppServicesContext';
 
@@ -197,6 +200,10 @@ export function ReadingPlaylistReaderPage() {
 
   const [annotationSets, setAnnotationSets] = useState<AnnotationSet[]>([]);
 
+  const [includeThirdPartyDirectedLayers, setIncludeThirdPartyDirectedLayers] = useState(false);
+  const [isLoadingThirdPartyDirectedLayers, setIsLoadingThirdPartyDirectedLayers] = useState(false);
+  const [authorNameByUserId, setAuthorNameByUserId] = useState<Record<string, string>>({});
+
   const [canEditDirectedLayer, setCanEditDirectedLayer] = useState(false);
 
   const [viewerContext, setViewerContext] = useState<AnnotationViewerContext | null>(null);
@@ -249,6 +256,52 @@ export function ReadingPlaylistReaderPage() {
     const page = Number.parseInt(match[1], 10);
     return Number.isInteger(page) && page > 0 ? page : null;
   }, [currentItem?.notes]);
+
+  const annotationReadingOptions = useMemo(
+    () =>
+      includeThirdPartyDirectedLayers
+        ? { includeThirdPartyDirectedLayers: true as const }
+        : undefined,
+    [includeThirdPartyDirectedLayers],
+  );
+
+  useEffect(() => {
+    setIncludeThirdPartyDirectedLayers(false);
+    setAuthorNameByUserId({});
+  }, [currentItem?.pieceFileId]);
+
+  useEffect(() => {
+    if (!includeThirdPartyDirectedLayers) {
+      return;
+    }
+    itemCacheRef.current = new PlaylistItemCache();
+  }, [includeThirdPartyDirectedLayers]);
+
+  const handleIncludeThirdPartyDirectedLayers = useCallback(async () => {
+    if (!organizationId || !isAdmin) {
+      return;
+    }
+
+    setIsLoadingThirdPartyDirectedLayers(true);
+    try {
+      const musiciansResult = await ensemble.listMusicians(organizationId, {
+        limit: 5000,
+        offset: 0,
+      });
+      if (musiciansResult.ok) {
+        const names: Record<string, string> = {};
+        for (const musician of musiciansResult.value.items) {
+          if (musician.userId) {
+            names[musician.userId] = musician.fullName;
+          }
+        }
+        setAuthorNameByUserId(names);
+      }
+      setIncludeThirdPartyDirectedLayers(true);
+    } finally {
+      setIsLoadingThirdPartyDirectedLayers(false);
+    }
+  }, [organizationId, isAdmin, ensemble]);
 
   const cachedCurrentItem = itemCacheRef.current.get(itemIndex);
 
@@ -408,12 +461,22 @@ export function ReadingPlaylistReaderPage() {
       : null;
 
     if (!musicianResult.ok) {
-      setViewerContext({ userId, myMusicianId: null, memberGroupIds: [] });
+      const viewer = { userId, myMusicianId: null, memberGroupIds: [] };
+      setViewerContext((current) =>
+        current && annotationViewerContextsEqual(current, viewer) ? current : viewer,
+      );
       return;
     }
 
     if (!assignmentsResult?.ok) {
-      setViewerContext({ userId, myMusicianId: musicianResult.value.id, memberGroupIds: [] });
+      const viewer = {
+        userId,
+        myMusicianId: musicianResult.value.id,
+        memberGroupIds: [],
+      };
+      setViewerContext((current) =>
+        current && annotationViewerContextsEqual(current, viewer) ? current : viewer,
+      );
       return;
     }
 
@@ -455,11 +518,14 @@ export function ReadingPlaylistReaderPage() {
 
     setSectionLeadOptions(leads);
 
-    setViewerContext({
+    const viewer = {
       userId,
       myMusicianId: musicianResult.value.id,
       memberGroupIds: [...new Set(assignmentsResult.value.map((assignment) => assignment.groupId))],
-    });
+    };
+    setViewerContext((current) =>
+      current && annotationViewerContextsEqual(current, viewer) ? current : viewer,
+    );
 
     sectionLeadsLoadedRef.current = true;
 
@@ -561,7 +627,13 @@ export function ReadingPlaylistReaderPage() {
 
       const result = await itemCacheRef.current.load(index, () =>
 
-        loadPlaylistItemData(offline, organizationId, item, viewerContext ?? undefined),
+        loadPlaylistItemData(
+          offline,
+          organizationId,
+          item,
+          viewerContext ?? undefined,
+          annotationReadingOptions,
+        ),
 
       );
 
@@ -610,6 +682,7 @@ export function ReadingPlaylistReaderPage() {
           organizationId,
           item.pieceFileId,
           viewerContext,
+          annotationReadingOptions,
         );
         if (!isActive()) {
           return result;
@@ -633,7 +706,7 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [organizationId, playlist, offline, online, viewerContext],
+    [organizationId, playlist, offline, online, viewerContext, annotationReadingOptions],
 
   );
 
@@ -709,6 +782,8 @@ export function ReadingPlaylistReaderPage() {
 
     navState.direction,
 
+    includeThirdPartyDirectedLayers,
+
   ]);
 
 
@@ -742,12 +817,18 @@ export function ReadingPlaylistReaderPage() {
       }
 
       itemCacheRef.current.prefetch(index, () =>
-        loadPlaylistItemData(offline, organizationId, item, viewerContext ?? undefined),
+        loadPlaylistItemData(
+          offline,
+          organizationId,
+          item,
+          viewerContext ?? undefined,
+          annotationReadingOptions,
+        ),
       );
 
     }
 
-  }, [playlist, organizationId, itemIndex, offline, viewerContext]);
+  }, [playlist, organizationId, itemIndex, offline, viewerContext, annotationReadingOptions]);
 
 
 
@@ -1072,60 +1153,38 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  const handleAnnotationCreate = useCallback(
-
-    async (input: Omit<CreatePdfAnnotationInput, 'pieceFileId'>) => {
-
-      if (!organizationId || !userId || !currentItem?.pieceId) {
-
+  const handleAnnotationCreateMany = useCallback(
+    async (inputs: Array<Omit<CreatePdfAnnotationInput, 'pieceFileId'>>) => {
+      if (!organizationId || !userId || !currentItem?.pieceId || inputs.length === 0) {
         return null;
-
       }
 
-      if (!online && (input.layer === 'section' || input.layer === 'directed')) {
-
+      if (
+        !online
+        && inputs.some((input) => input.layer === 'section' || input.layer === 'directed')
+      ) {
         return null;
-
       }
 
-      const result = await offline.createPieceFileAnnotation(
-
+      const result = await offline.createPieceFileAnnotations(
         organizationId,
-
         currentItem.pieceId,
-
         userId,
-
-        {
-
+        inputs.map((input) => ({
           ...input,
-
           pieceFileId: currentItem.pieceFileId,
-
-        },
-
+        })),
       );
 
-
-
       if (!result.ok) {
-
         return null;
-
       }
 
-
-
-      setAnnotations((current) => [...current, result.value]);
-
-      syncCachedAnnotations((current) => [...current, result.value]);
-
+      setAnnotations((current) => [...current, ...result.value]);
+      syncCachedAnnotations((current) => [...current, ...result.value]);
       return result.value;
-
     },
-
     [organizationId, userId, currentItem, offline, online, syncCachedAnnotations],
-
   );
 
 
@@ -1333,18 +1392,18 @@ export function ReadingPlaylistReaderPage() {
   );
 
   const directedSetOptions = useMemo((): DirectedSetOption[] => {
-
-    return annotationSets.map((set) => ({
-
-      id: set.id,
-
-      label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
-
-      canEdit: Boolean(userId && set.authorUserId === userId),
-
-    }));
-
-  }, [annotationSets, userId, audienceLookup]);
+    return annotationSets.map((set) => {
+      const isThirdParty = Boolean(userId && set.authorUserId !== userId);
+      return {
+        id: set.id,
+        label: formatAnnotationSetLabel(resolveAnnotationSetAudience(set, audienceLookup)),
+        authorLabel: isThirdParty
+          ? authorNameByUserId[set.authorUserId] ?? 'Autor desconhecido'
+          : undefined,
+        canEdit: Boolean(userId && set.authorUserId === userId),
+      };
+    });
+  }, [annotationSets, userId, audienceLookup, authorNameByUserId]);
 
   const editingSet = editingSetId
     ? annotationSets.find((set) => set.id === editingSetId) ?? null
@@ -2066,6 +2125,16 @@ export function ReadingPlaylistReaderPage() {
 
         canEditDirectedLayer={canEditDirectedLayer}
 
+        canLoadThirdPartyDirectedLayers={isAdmin}
+
+        includeThirdPartyDirectedLayers={includeThirdPartyDirectedLayers}
+
+        onIncludeThirdPartyDirectedLayers={
+          isAdmin ? () => void handleIncludeThirdPartyDirectedLayers() : undefined
+        }
+
+        isLoadingThirdPartyDirectedLayers={isLoadingThirdPartyDirectedLayers}
+
         directedSetSelectRequest={directedSetSelectRequest}
 
         onManageDirectedSet={(context) => {
@@ -2138,7 +2207,7 @@ export function ReadingPlaylistReaderPage() {
 
         }
 
-        onAnnotationCreate={handleAnnotationCreate}
+        onAnnotationCreateMany={handleAnnotationCreateMany}
 
         onAnnotationUpdate={handleAnnotationUpdate}
 

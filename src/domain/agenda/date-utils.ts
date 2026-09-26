@@ -75,6 +75,24 @@ export function parseDateInputStartOfDayUtc(value: string): Date {
   return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 }
 
+export function sameScheduleInstant(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  if (!left && !right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  const leftMs = new Date(left).getTime();
+  const rightMs = new Date(right).getTime();
+  if (Number.isNaN(leftMs) || Number.isNaN(rightMs)) {
+    return false;
+  }
+  return Math.floor(leftMs / 60_000) === Math.floor(rightMs / 60_000);
+}
+
 export function durationMinutesBetween(startsAt: string, endsAt: string | null | undefined): number | null {
   if (!endsAt) {
     return null;

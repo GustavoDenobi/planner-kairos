@@ -5,6 +5,7 @@ import {
   RECURRENCE_SCOPE_CANCEL_LABELS,
   RECURRENCE_SCOPE_DELETE_LABELS,
   RECURRENCE_SCOPE_SAVE_LABELS,
+  RECURRENCE_SCOPE_SAVE_SCHEDULE_LABELS,
 } from '@/ui/features/agenda/agenda-labels';
 
 type RecurrenceScopeModalProps = {
@@ -13,6 +14,7 @@ type RecurrenceScopeModalProps = {
   onClose: () => void;
   onConfirm: (scope: RecurrenceEditScope) => void;
   isConfirming?: boolean;
+  scheduleChanged?: boolean;
 };
 
 export function RecurrenceScopeModal({
@@ -21,13 +23,25 @@ export function RecurrenceScopeModal({
   onClose,
   onConfirm,
   isConfirming = false,
+  scheduleChanged = false,
 }: RecurrenceScopeModalProps) {
-  const labels =
-    mode === 'save'
-      ? RECURRENCE_SCOPE_SAVE_LABELS
-      : mode === 'cancel'
-        ? RECURRENCE_SCOPE_CANCEL_LABELS
-        : RECURRENCE_SCOPE_DELETE_LABELS;
+  const saveScheduleChanged = mode === 'save' && scheduleChanged;
+  const scopes: RecurrenceEditScope[] = saveScheduleChanged
+    ? ['this', 'following']
+    : ['this', 'following', 'all_future'];
+
+  function labelFor(scope: RecurrenceEditScope): { title: string; description: string } {
+    if (saveScheduleChanged && scope !== 'all_future') {
+      return RECURRENCE_SCOPE_SAVE_SCHEDULE_LABELS[scope];
+    }
+    if (mode === 'save') {
+      return RECURRENCE_SCOPE_SAVE_LABELS[scope];
+    }
+    if (mode === 'cancel') {
+      return RECURRENCE_SCOPE_CANCEL_LABELS[scope];
+    }
+    return RECURRENCE_SCOPE_DELETE_LABELS[scope];
+  }
 
   const title =
     mode === 'save'
@@ -36,8 +50,9 @@ export function RecurrenceScopeModal({
         ? 'Cancelar evento recorrente'
         : 'Excluir evento recorrente';
 
-  const description =
-    mode === 'save'
+  const description = saveScheduleChanged
+    ? 'A data ou o horário mudou. Como deseja aplicar?'
+    : mode === 'save'
       ? 'Este evento faz parte de uma série. O que deseja alterar?'
       : mode === 'cancel'
         ? 'Este evento faz parte de uma série. O que deseja cancelar?'
@@ -48,18 +63,21 @@ export function RecurrenceScopeModal({
       <div className="space-y-3">
         <p className="text-sm text-muted">{description}</p>
         <div className="space-y-2">
-          {(['this', 'following', 'all_future'] as RecurrenceEditScope[]).map((scope) => (
-            <button
-              key={scope}
-              type="button"
-              disabled={isConfirming}
-              onClick={() => onConfirm(scope)}
-              className="block w-full rounded-lg border border-border bg-surface px-4 py-3 text-left text-sm text-text transition-colors hover:bg-bg disabled:opacity-60"
-            >
-              <span className="font-medium">{labels[scope].title}</span>
-              <span className="mt-1 block text-muted">{labels[scope].description}</span>
-            </button>
-          ))}
+          {scopes.map((scope) => {
+            const label = labelFor(scope);
+            return (
+              <button
+                key={scope}
+                type="button"
+                disabled={isConfirming}
+                onClick={() => onConfirm(scope)}
+                className="block w-full rounded-lg border border-border bg-surface px-4 py-3 text-left text-sm text-text transition-colors hover:bg-bg disabled:opacity-60"
+              >
+                <span className="font-medium">{label.title}</span>
+                <span className="mt-1 block text-muted">{label.description}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="flex justify-end">
           <button

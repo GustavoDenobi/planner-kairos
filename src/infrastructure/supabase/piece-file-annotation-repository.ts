@@ -82,6 +82,36 @@ export function createPieceFileAnnotationRepository(): PieceFileAnnotationReposi
       return mapAnnotation(data as Parameters<typeof mapAnnotation>[0]);
     },
 
+    async createMany(organizationId, authorUserId, inputs) {
+      if (inputs.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('piece_file_annotations')
+        .insert(
+          inputs.map((input) => ({
+            organization_id: organizationId,
+            piece_file_id: input.pieceFileId,
+            page_number: input.pageNumber,
+            layer: input.layer,
+            type: input.type,
+            geometry: input.geometry,
+            color: input.color,
+            author_user_id: authorUserId,
+            section_id: input.sectionId ?? null,
+            annotation_set_id: input.annotationSetId ?? null,
+          })),
+        )
+        .select(ANNOTATION_COLUMNS);
+
+      if (error || !data) {
+        throw new Error(error?.message ?? 'create_failed');
+      }
+
+      return data.map((row) => mapAnnotation(row as Parameters<typeof mapAnnotation>[0]));
+    },
+
     async update(organizationId, pieceFileId, annotationId, input: UpdatePdfAnnotationInput) {
       const patch: {
         geometry?: AnnotationGeometry;
