@@ -131,12 +131,20 @@ export type {
   ReadingPlaylistDetail,
   ReadingPlaylistItem,
   ReadingPlaylistItemDetail,
+  ReadingPlaylistItemReferenceKind,
   ReadingPlaylistPieceCategory,
   CreateReadingPlaylistInput,
   CreateReadingPlaylistItemInput,
   UpdateReadingPlaylistInput,
+  PlaylistItemOpenPageSource,
+  PlaylistItemPageLookup,
 } from './reading-playlist';
-export { splitPlaylistItemNotes } from './reading-playlist';
+export {
+  playlistItemObservation,
+  playlistReferenceFromProgramUnit,
+  resolvePlaylistItemOpenPage,
+  splitPlaylistItemNotes,
+} from './reading-playlist';
 export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,

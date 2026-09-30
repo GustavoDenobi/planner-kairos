@@ -7,6 +7,7 @@ import type {
   PieceFileWithLinks,
   PieceListItem,
   ReadingPlaylistItemDetail,
+  ReadingPlaylistItemReferenceKind,
   ReadingPlaylistPieceCategory,
 } from '@/domain/repertoire';
 import { filterScoreCandidatesForUser } from '@/domain/repertoire';
@@ -33,7 +34,23 @@ import {
 } from '@/ui/layouts/OrgListPageLayout';
 import { OfflinePlaylistDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 
-type EditableItem = {
+type PlaylistItemReference = {
+  referenceKind: ReadingPlaylistItemReferenceKind | null;
+  startPage: number | null;
+  endPage: number | null;
+  pieceFileTocEntryId: string | null;
+  navigationShortcutId: string | null;
+};
+
+const EMPTY_REFERENCE: PlaylistItemReference = {
+  referenceKind: null,
+  startPage: null,
+  endPage: null,
+  pieceFileTocEntryId: null,
+  navigationShortcutId: null,
+};
+
+type EditableItem = PlaylistItemReference & {
   id: string;
   pieceFileId: string;
   pieceId: string;
@@ -47,7 +64,13 @@ type EditableItem = {
 
 type PlaylistSnapshot = {
   name: string;
-  items: { pieceFileId: string; label: string; notes: string }[];
+  items: Array<
+    PlaylistItemReference & {
+      pieceFileId: string;
+      label: string;
+      notes: string;
+    }
+  >;
 };
 
 const EMPTY_SNAPSHOT: PlaylistSnapshot = { name: '', items: [] };
@@ -60,6 +83,11 @@ function toSnapshot(name: string, items: EditableItem[]): PlaylistSnapshot {
       pieceFileId: item.pieceFileId,
       label: item.label.trim(),
       notes: item.notes.trim(),
+      referenceKind: item.referenceKind,
+      startPage: item.startPage,
+      endPage: item.endPage,
+      pieceFileTocEntryId: item.pieceFileTocEntryId,
+      navigationShortcutId: item.navigationShortcutId,
     })),
   };
 }
@@ -72,7 +100,12 @@ function snapshotsEqual(left: PlaylistSnapshot, right: PlaylistSnapshot): boolea
     (item, index) =>
       item.pieceFileId === right.items[index]?.pieceFileId &&
       item.label === right.items[index]?.label &&
-      item.notes === right.items[index]?.notes,
+      item.notes === right.items[index]?.notes &&
+      item.referenceKind === right.items[index]?.referenceKind &&
+      item.startPage === right.items[index]?.startPage &&
+      item.endPage === right.items[index]?.endPage &&
+      item.pieceFileTocEntryId === right.items[index]?.pieceFileTocEntryId &&
+      item.navigationShortcutId === right.items[index]?.navigationShortcutId,
   );
 }
 
@@ -141,6 +174,11 @@ export function ReadingPlaylistNewPage() {
         pieceFileId: item.pieceFileId,
         label: item.label.trim() || null,
         notes: item.notes.trim() || null,
+        referenceKind: item.referenceKind,
+        startPage: item.startPage,
+        endPage: item.endPage,
+        pieceFileTocEntryId: item.pieceFileTocEntryId,
+        navigationShortcutId: item.navigationShortcutId,
       })),
     });
 
@@ -170,6 +208,7 @@ export function ReadingPlaylistNewPage() {
         fileTitle: file.title,
         label: '',
         notes: '',
+        ...EMPTY_REFERENCE,
         pieceCategory,
         partLinks: file.partLinks,
       },
@@ -273,6 +312,11 @@ export function ReadingPlaylistEditPage() {
       fileTitle: item.fileTitle,
       label: item.label ?? '',
       notes: item.notes ?? '',
+      referenceKind: item.referenceKind,
+      startPage: item.startPage,
+      endPage: item.endPage,
+      pieceFileTocEntryId: item.pieceFileTocEntryId,
+      navigationShortcutId: item.navigationShortcutId,
       pieceCategory: item.pieceCategory,
       partLinks: item.partLinks,
     }));
@@ -379,6 +423,11 @@ export function ReadingPlaylistEditPage() {
             pieceFileId: item.pieceFileId,
             label: item.label.trim() || null,
             notes: item.notes.trim() || null,
+            referenceKind: item.referenceKind,
+            startPage: item.startPage,
+            endPage: item.endPage,
+            pieceFileTocEntryId: item.pieceFileTocEntryId,
+            navigationShortcutId: item.navigationShortcutId,
           })),
         );
 
@@ -466,6 +515,7 @@ export function ReadingPlaylistEditPage() {
         fileTitle: file.title,
         label: '',
         notes: '',
+        ...EMPTY_REFERENCE,
         pieceCategory,
         partLinks: file.partLinks,
       },

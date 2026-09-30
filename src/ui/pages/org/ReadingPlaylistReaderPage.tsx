@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceDetail, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
-import { formatAnnotationSetLabel, resolveAnnotationSetAudience, splitPlaylistItemNotes } from '@/domain/repertoire';
+import { formatAnnotationSetLabel, playlistItemObservation, resolveAnnotationSetAudience, resolvePlaylistItemOpenPage } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -252,11 +252,7 @@ export function ReadingPlaylistReaderPage() {
 
 
   const currentItem = playlist?.items[itemIndex] ?? null;
-  const itemNotes = useMemo(
-    () => splitPlaylistItemNotes(currentItem?.notes),
-    [currentItem?.notes],
-  );
-  const startPageFromNotes = itemNotes.startPage;
+  const observation = playlistItemObservation(currentItem);
 
   useEffect(() => {
     if (!organizationId) {
@@ -322,6 +318,35 @@ export function ReadingPlaylistReaderPage() {
   }, [organizationId, isAdmin, ensemble]);
 
   const cachedCurrentItem = itemCacheRef.current.get(itemIndex);
+  const openPageLookup = useMemo(() => {
+    if (!currentItem || online || !currentItem.referenceKind || !cachedCurrentItem) {
+      return undefined;
+    }
+    if (currentItem.referenceKind === 'toc' && currentItem.pieceFileTocEntryId) {
+      const entry = cachedCurrentItem.tocEntries.find(
+        (item) => item.id === currentItem.pieceFileTocEntryId,
+      );
+      if (entry) {
+        return { tocTargetPage: entry.targetPageNumber };
+      }
+    }
+    if (currentItem.referenceKind === 'shortcut' && currentItem.navigationShortcutId) {
+      const shortcut = cachedCurrentItem.navigationShortcuts.find(
+        (item) => item.id === currentItem.navigationShortcutId,
+      );
+      if (shortcut) {
+        return { shortcutTargetPage: shortcut.targetPageNumber };
+      }
+    }
+    return undefined;
+  }, [currentItem, online, cachedCurrentItem]);
+  const startPage = currentItem
+    ? resolvePlaylistItemOpenPage(currentItem, openPageLookup)
+    : null;
+  const waitingForLocalReference =
+    !online &&
+    (currentItem?.referenceKind === 'toc' || currentItem?.referenceKind === 'shortcut') &&
+    !cachedCurrentItem;
 
   useEffect(() => {
     if (!organizationId || !currentItem?.pieceId || !online) {
@@ -1894,7 +1919,8 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  const showBlockingLoading = (isLoadingPlaylist || isLoadingItem) && !cachedCurrentItem;
+  const showBlockingLoading =
+    waitingForLocalReference || ((isLoadingPlaylist || isLoadingItem) && !cachedCurrentItem);
 
 
 
@@ -2061,7 +2087,7 @@ export function ReadingPlaylistReaderPage() {
 
     segment: currentItem.label,
 
-    observation: itemNotes.observation,
+    observation,
 
     currentIndex: itemIndex,
 
@@ -2164,7 +2190,7 @@ export function ReadingPlaylistReaderPage() {
 
       <PdfViewer
 
-        key={currentItem.pieceFileId}
+        key={currentItem.id}
 
         url={downloadUrl ?? ''}
 
@@ -2197,7 +2223,7 @@ export function ReadingPlaylistReaderPage() {
 
         playlist={playlistContext}
 
-        initialPage={navState.initialPage ?? startPageFromNotes ?? 1}
+        initialPage={navState.initialPage ?? startPage ?? 1}
 
         entryDirection={navState.direction}
 

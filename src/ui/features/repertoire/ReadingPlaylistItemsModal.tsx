@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
-import { splitPlaylistItemNotes, type ReadingPlaylistItemDetail } from '@/domain/repertoire';
+import { playlistItemObservation, type ReadingPlaylistItemDetail } from '@/domain/repertoire';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
@@ -46,7 +46,7 @@ export function ReadingPlaylistItemsModal({
               parts.length > 0 ? formatPartLinks(item.partLinks, parts) : null;
             const selectionDetail = [
               item.label?.trim(),
-              splitPlaylistItemNotes(item.notes).observation,
+              playlistItemObservation(item),
             ]
               .filter((value): value is string => Boolean(value))
               .join(' · ');

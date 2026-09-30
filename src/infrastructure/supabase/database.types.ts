@@ -2070,35 +2070,57 @@ export type Database = {
       reading_playlist_items: {
         Row: {
           created_at: string
+          end_page: number | null
           id: string
           label: string | null
+          navigation_shortcut_id: string | null
           notes: string | null
           organization_id: string
           piece_file_id: string
+          piece_file_toc_entry_id: string | null
           playlist_id: string
+          reference_kind: Database["public"]["Enums"]["reading_playlist_item_reference_kind"] | null
           sort_order: number
+          start_page: number | null
         }
         Insert: {
           created_at?: string
+          end_page?: number | null
           id?: string
           label?: string | null
+          navigation_shortcut_id?: string | null
           notes?: string | null
           organization_id: string
           piece_file_id: string
+          piece_file_toc_entry_id?: string | null
           playlist_id: string
+          reference_kind?: Database["public"]["Enums"]["reading_playlist_item_reference_kind"] | null
           sort_order?: number
+          start_page?: number | null
         }
         Update: {
           created_at?: string
+          end_page?: number | null
           id?: string
           label?: string | null
+          navigation_shortcut_id?: string | null
           notes?: string | null
           organization_id?: string
           piece_file_id?: string
+          piece_file_toc_entry_id?: string | null
           playlist_id?: string
+          reference_kind?: Database["public"]["Enums"]["reading_playlist_item_reference_kind"] | null
           sort_order?: number
+          start_page?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reading_playlist_items_navigation_shortcut_id_fkey"
+            columns: ["navigation_shortcut_id"]
+            isOneToOne: false
+            referencedRelation: "piece_file_navigation_shortcuts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reading_playlist_items_organization_id_fkey"
             columns: ["organization_id"]
@@ -2111,6 +2133,13 @@ export type Database = {
             columns: ["piece_file_id"]
             isOneToOne: false
             referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_playlist_items_piece_file_toc_entry_id_fkey"
+            columns: ["piece_file_toc_entry_id"]
+            isOneToOne: false
+            referencedRelation: "piece_file_toc_entries"
             referencedColumns: ["id"]
           },
           {
@@ -2650,6 +2679,7 @@ export type Database = {
       piece_file_kind: "score" | "audio"
       piece_file_organization: "distributed" | "sequential" | "single"
       program_item_status: "planned" | "performed" | "skipped"
+      reading_playlist_item_reference_kind: "page" | "toc" | "shortcut"
       theme_preference: "light" | "dark"
     }
     CompositeTypes: {
@@ -2792,6 +2822,7 @@ export const Constants = {
       piece_file_kind: ["score", "audio"],
       piece_file_organization: ["distributed", "sequential", "single"],
       program_item_status: ["planned", "performed", "skipped"],
+      reading_playlist_item_reference_kind: ["page", "toc", "shortcut"],
       theme_preference: ["light", "dark"],
     },
   },

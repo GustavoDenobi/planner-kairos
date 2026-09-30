@@ -3,16 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { EventDetail } from '@/domain/agenda';
 import { eventDisplayTitle } from '@/domain/agenda';
-import type { PieceFileWithLinks } from '@/domain/repertoire';
+import type { PieceFileWithLinks, ReadingPlaylistItemReferenceKind } from '@/domain/repertoire';
 import {
   filterScoreCandidatesForUser,
+  playlistReferenceFromProgramUnit,
   resolveDefaultScoreFile,
 } from '@/domain/repertoire';
-import {
-  formatProgramUnitDetail,
-  formatProgramUnitSegment,
-  resolveProgramUnitStartPage,
-} from '@/domain/agenda';
+import { formatProgramUnitDetail } from '@/domain/agenda';
 import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -45,8 +42,12 @@ type ProgramRowState = {
     color: string | null;
   } | null;
   programNotes: string;
-  segment: string | null;
+  label: string | null;
+  referenceKind: ReadingPlaylistItemReferenceKind | null;
   startPage: number | null;
+  endPage: number | null;
+  pieceFileTocEntryId: string | null;
+  navigationShortcutId: string | null;
   candidates: PieceFileWithLinks[];
   selectedFileId: string | null;
   skipped: boolean;
@@ -131,8 +132,12 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: true,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
-            segment: null,
+            label: null,
+            referenceKind: null,
             startPage: null,
+            endPage: null,
+            pieceFileTocEntryId: null,
+            navigationShortcutId: null,
             candidates: [],
             selectedFileId: null,
             skipped: true,
@@ -142,6 +147,7 @@ export function PrepareReadingPlaylistPage() {
 
         if (item.units.length > 0) {
           for (const unit of item.units) {
+            const reference = playlistReferenceFromProgramUnit(unit);
             nextRows.push({
               programItemId: `${item.id}:${unit.id}`,
               pieceId: item.pieceId,
@@ -149,8 +155,12 @@ export function PrepareReadingPlaylistPage() {
               pieceDeleted: false,
               pieceCategory: item.pieceCategory,
               programNotes: item.notes ?? '',
-              segment: formatProgramUnitSegment(unit),
-              startPage: resolveProgramUnitStartPage(unit),
+              label: reference.label,
+              referenceKind: reference.referenceKind,
+              startPage: reference.startPage,
+              endPage: reference.endPage,
+              pieceFileTocEntryId: reference.pieceFileTocEntryId,
+              navigationShortcutId: reference.navigationShortcutId,
               candidates: [],
               selectedFileId: unit.pieceFileId,
               skipped: false,
@@ -168,8 +178,12 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: false,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
-            segment: null,
+            label: null,
+            referenceKind: null,
             startPage: null,
+            endPage: null,
+            pieceFileTocEntryId: null,
+            navigationShortcutId: null,
             candidates: [],
             selectedFileId: null,
             skipped: true,
@@ -187,8 +201,12 @@ export function PrepareReadingPlaylistPage() {
           pieceDeleted: false,
           pieceCategory: item.pieceCategory,
           programNotes: item.notes ?? '',
-          segment: null,
+          label: null,
+          referenceKind: null,
           startPage: null,
+          endPage: null,
+          pieceFileTocEntryId: null,
+          navigationShortcutId: null,
           candidates,
           selectedFileId: defaultFile?.id ?? null,
           skipped: candidates.length === 0,
@@ -245,14 +263,13 @@ export function PrepareReadingPlaylistPage() {
       .filter((row) => !row.skipped && row.selectedFileId)
       .map((row) => ({
         pieceFileId: row.selectedFileId!,
-        label: row.segment,
-        notes:
-          [
-            row.programNotes.trim() || null,
-            row.startPage != null ? `Abrir na p. ${row.startPage}` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ') || null,
+        label: row.label,
+        notes: row.programNotes.trim() || null,
+        referenceKind: row.referenceKind,
+        startPage: row.startPage,
+        endPage: row.endPage,
+        pieceFileTocEntryId: row.pieceFileTocEntryId,
+        navigationShortcutId: row.navigationShortcutId,
       }));
 
     const result = await repertoire.createReadingPlaylist(org.id, userId, {

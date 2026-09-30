@@ -15,7 +15,16 @@ const PLAYLIST_COLUMNS =
   'id, organization_id, owner_user_id, name, source_event_id, archived_at, created_at, updated_at';
 
 const ITEM_COLUMNS =
-  'id, organization_id, playlist_id, piece_file_id, sort_order, label, notes, created_at';
+  'id, organization_id, playlist_id, piece_file_id, sort_order, label, notes, reference_kind, start_page, end_page, piece_file_toc_entry_id, navigation_shortcut_id, created_at';
+
+type TocRelation = {
+  target_page_number: number;
+  end_page_number: number | null;
+};
+
+type ShortcutRelation = {
+  target_page_number: number;
+};
 
 type ItemRow = {
   id: string;
@@ -25,7 +34,14 @@ type ItemRow = {
   sort_order: number;
   label: string | null;
   notes: string | null;
+  reference_kind: 'page' | 'toc' | 'shortcut' | null;
+  start_page: number | null;
+  end_page: number | null;
+  piece_file_toc_entry_id: string | null;
+  navigation_shortcut_id: string | null;
   created_at: string;
+  piece_file_toc_entries: TocRelation | TocRelation[] | null;
+  piece_file_navigation_shortcuts: ShortcutRelation | ShortcutRelation[] | null;
   piece_files: {
     title: string;
     piece_id: string;
@@ -108,10 +124,41 @@ async function activePlaylistOrArchive(playlist: ReadingPlaylist): Promise<Readi
   return playlist;
 }
 
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) {
+    return null;
+  }
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function itemInsertRow(
+  organizationId: string,
+  playlistId: string,
+  item: CreateReadingPlaylistItemInput,
+  index: number,
+) {
+  const kind = item.referenceKind ?? null;
+  return {
+    organization_id: organizationId,
+    playlist_id: playlistId,
+    piece_file_id: item.pieceFileId,
+    sort_order: index,
+    label: item.label?.trim() || null,
+    notes: item.notes?.trim() || null,
+    reference_kind: kind,
+    start_page: kind === 'page' ? item.startPage ?? null : null,
+    end_page: kind === 'page' ? item.endPage ?? null : null,
+    piece_file_toc_entry_id: kind === 'toc' ? item.pieceFileTocEntryId ?? null : null,
+    navigation_shortcut_id: kind === 'shortcut' ? item.navigationShortcutId ?? null : null,
+  };
+}
+
 function mapItemDetail(row: ItemRow, partLinks: PieceFilePartLink[]): ReadingPlaylistItemDetail {
   const file = row.piece_files;
   const piece = file?.pieces;
   const category = piece?.piece_categories;
+  const tocEntry = firstRelation(row.piece_file_toc_entries);
+  const shortcut = firstRelation(row.piece_file_navigation_shortcuts);
 
   return {
     id: row.id,
@@ -121,6 +168,11 @@ function mapItemDetail(row: ItemRow, partLinks: PieceFilePartLink[]): ReadingPla
     sortOrder: row.sort_order,
     label: row.label,
     notes: row.notes,
+    referenceKind: row.reference_kind,
+    startPage: row.start_page,
+    endPage: row.end_page,
+    pieceFileTocEntryId: row.piece_file_toc_entry_id,
+    navigationShortcutId: row.navigation_shortcut_id,
     createdAt: row.created_at,
     pieceId: file?.piece_id ?? '',
     pieceTitle: piece?.title ?? 'Obra desconhecida',
@@ -130,6 +182,9 @@ function mapItemDetail(row: ItemRow, partLinks: PieceFilePartLink[]): ReadingPla
       : null,
     fileTitle: file?.title ?? 'Arquivo indisponível',
     partLinks,
+    pieceFileTocEntryTargetPage: tocEntry?.target_page_number ?? null,
+    pieceFileTocEntryEndPage: tocEntry?.end_page_number ?? null,
+    navigationShortcutTargetPage: shortcut?.target_page_number ?? null,
   };
 }
 
@@ -169,7 +224,7 @@ async function loadItemsForPlaylist(
   const { data, error } = await supabase
     .from('reading_playlist_items')
     .select(
-      `${ITEM_COLUMNS}, piece_files (title, piece_id, pieces (title, deleted_at, piece_categories (name, slug, color)))`,
+      `${ITEM_COLUMNS}, piece_file_toc_entries (target_page_number, end_page_number), piece_file_navigation_shortcuts (target_page_number), piece_files (title, piece_id, pieces (title, deleted_at, piece_categories (name, slug, color)))`,
     )
     .eq('playlist_id', playlistId)
     .order('sort_order');
@@ -309,14 +364,7 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
 
       if (input.items.length > 0) {
         const { error: itemsError } = await supabase.from('reading_playlist_items').insert(
-          input.items.map((item, index) => ({
-            organization_id: organizationId,
-            playlist_id: playlist.id,
-            piece_file_id: item.pieceFileId,
-            sort_order: index,
-            label: item.label?.trim() || null,
-            notes: item.notes?.trim() || null,
-          })),
+          input.items.map((item, index) => itemInsertRow(organizationId, playlist.id, item, index)),
         );
 
         if (itemsError) {
@@ -401,14 +449,7 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
 
       if (items.length > 0) {
         const { error: insertError } = await supabase.from('reading_playlist_items').insert(
-          items.map((item, index) => ({
-            organization_id: organizationId,
-            playlist_id: playlistId,
-            piece_file_id: item.pieceFileId,
-            sort_order: index,
-            label: item.label?.trim() || null,
-            notes: item.notes?.trim() || null,
-          })),
+          items.map((item, index) => itemInsertRow(organizationId, playlistId, item, index)),
         );
 
         if (insertError) {
