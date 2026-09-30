@@ -39,6 +39,7 @@ type EditableItem = {
   pieceId: string;
   pieceTitle: string;
   fileTitle: string;
+  label: string;
   notes: string;
   pieceCategory: ReadingPlaylistPieceCategory | null;
   partLinks: PieceFilePartLink[];
@@ -46,7 +47,7 @@ type EditableItem = {
 
 type PlaylistSnapshot = {
   name: string;
-  items: { pieceFileId: string; notes: string }[];
+  items: { pieceFileId: string; label: string; notes: string }[];
 };
 
 const EMPTY_SNAPSHOT: PlaylistSnapshot = { name: '', items: [] };
@@ -57,6 +58,7 @@ function toSnapshot(name: string, items: EditableItem[]): PlaylistSnapshot {
     name: name.trim(),
     items: items.map((item) => ({
       pieceFileId: item.pieceFileId,
+      label: item.label.trim(),
       notes: item.notes.trim(),
     })),
   };
@@ -69,6 +71,7 @@ function snapshotsEqual(left: PlaylistSnapshot, right: PlaylistSnapshot): boolea
   return left.items.every(
     (item, index) =>
       item.pieceFileId === right.items[index]?.pieceFileId &&
+      item.label === right.items[index]?.label &&
       item.notes === right.items[index]?.notes,
   );
 }
@@ -136,6 +139,7 @@ export function ReadingPlaylistNewPage() {
       name: name.trim(),
       items: items.map((item) => ({
         pieceFileId: item.pieceFileId,
+        label: item.label.trim() || null,
         notes: item.notes.trim() || null,
       })),
     });
@@ -164,6 +168,7 @@ export function ReadingPlaylistNewPage() {
         pieceId: file.pieceId,
         pieceTitle,
         fileTitle: file.title,
+        label: '',
         notes: '',
         pieceCategory,
         partLinks: file.partLinks,
@@ -266,6 +271,7 @@ export function ReadingPlaylistEditPage() {
       pieceId: item.pieceId,
       pieceTitle: item.pieceTitle,
       fileTitle: item.fileTitle,
+      label: item.label ?? '',
       notes: item.notes ?? '',
       pieceCategory: item.pieceCategory,
       partLinks: item.partLinks,
@@ -371,6 +377,7 @@ export function ReadingPlaylistEditPage() {
           userId,
           nextItems.map((item) => ({
             pieceFileId: item.pieceFileId,
+            label: item.label.trim() || null,
             notes: item.notes.trim() || null,
           })),
         );
@@ -457,6 +464,7 @@ export function ReadingPlaylistEditPage() {
         pieceId: file.pieceId,
         pieceTitle,
         fileTitle: file.title,
+        label: '',
         notes: '',
         pieceCategory,
         partLinks: file.partLinks,

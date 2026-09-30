@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { IconCheck, IconPencil, IconPlus } from '@/ui/components/icons';
+import { IconCheck, IconLaser, IconPencil } from '@/ui/components/icons';
 
 const VIEWPORT_MARGIN_PX = 8;
 
@@ -49,6 +49,8 @@ type AnnotationLayerVisibilityDropdownProps = {
   isLoadingThirdPartyLayers?: boolean;
   activeEditValue?: string | null;
   isAnnotating?: boolean;
+  pointerActive?: boolean;
+  onTogglePointer?: () => void;
   buttonClassName?: string;
 };
 
@@ -62,6 +64,8 @@ export function AnnotationLayerVisibilityDropdown({
   isLoadingThirdPartyLayers = false,
   activeEditValue = null,
   isAnnotating = false,
+  pointerActive = false,
+  onTogglePointer,
   buttonClassName,
 }: AnnotationLayerVisibilityDropdownProps) {
   const [open, setOpen] = useState(false);
@@ -112,23 +116,32 @@ export function AnnotationLayerVisibilityDropdown({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  if (options.length === 0 && !showThirdPartyLayersButton && !onCreateLayer) {
+  if (options.length === 0 && !showThirdPartyLayersButton && !onCreateLayer && !onTogglePointer) {
     return null;
   }
 
   const visibleCount = options.filter((option) => option.visible).length;
-  const allVisible = visibleCount === options.length;
+  const allVisible = options.length > 0 && visibleCount === options.length;
+  const pointerOnTrigger = pointerActive && !isAnnotating;
+  const triggerHighlighted = isAnnotating || pointerOnTrigger;
   const activeEditLabel =
     isAnnotating && activeEditValue
       ? options.find((option) => option.editValue === activeEditValue)?.label
       : null;
-  const accessibilityLabel = isAnnotating
-    ? activeEditLabel
-      ? `Editando camada ${activeEditLabel}`
-      : 'Camadas de anotação'
-    : allVisible
-      ? 'Camadas visíveis'
-      : `Camadas visíveis (${visibleCount}/${options.length})`;
+  const accessibilityLabel = pointerOnTrigger
+    ? 'Pointer'
+    : isAnnotating
+      ? activeEditLabel
+        ? `Editando camada ${activeEditLabel}`
+        : 'Camadas de anotação'
+      : allVisible
+        ? 'Camadas visíveis'
+        : `Camadas visíveis (${visibleCount}/${options.length})`;
+  const hasMenuBelowPointer =
+    options.length > 0 || showThirdPartyLayersButton || Boolean(onCreateLayer);
+  const sortedOptions = [...options].sort((left, right) =>
+    left.label.localeCompare(right.label, 'pt-BR', { sensitivity: 'base' }),
+  );
 
   function handleEditLayer(editValue: string) {
     onEditLayer?.(editValue);
@@ -137,6 +150,11 @@ export function AnnotationLayerVisibilityDropdown({
 
   function handleCreateLayer() {
     onCreateLayer?.();
+    setOpen(false);
+  }
+
+  function handleTogglePointer() {
+    onTogglePointer?.();
     setOpen(false);
   }
 
@@ -150,13 +168,19 @@ export function AnnotationLayerVisibilityDropdown({
         aria-label={accessibilityLabel}
         title={accessibilityLabel}
         className={
-          isAnnotating
-            ? 'inline-flex h-9 max-w-[min(12rem,40vw)] shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary/10 px-2.5 text-sm text-primary'
+          triggerHighlighted
+            ? pointerOnTrigger
+              ? 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary bg-primary/10 text-primary'
+              : 'inline-flex h-9 max-w-[min(12rem,40vw)] shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary/10 px-2.5 text-sm text-primary'
             : buttonClassName ??
               'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text'
         }
       >
-        <IconPencil className="h-4 w-4 shrink-0" />
+        {pointerOnTrigger ? (
+          <IconLaser className="h-4 w-4 shrink-0" />
+        ) : (
+          <IconPencil className="h-4 w-4 shrink-0" />
+        )}
         {activeEditLabel ? <span className="truncate">{activeEditLabel}</span> : null}
       </button>
 
@@ -175,7 +199,27 @@ export function AnnotationLayerVisibilityDropdown({
           }
           className="z-30 max-h-80 min-w-[14rem] max-w-[min(20rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-border bg-surface py-1 shadow-lg"
         >
-          {options.map((option, index) => {
+          {onTogglePointer ? (
+            <div className={hasMenuBelowPointer ? 'border-b border-border px-2 py-1.5' : 'px-2 py-1.5'}>
+              <button
+                type="button"
+                onClick={handleTogglePointer}
+                aria-pressed={pointerActive}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg ${
+                  pointerActive ? 'bg-primary/10 font-medium text-primary' : 'text-text'
+                }`}
+              >
+                <IconLaser className="h-4 w-4 shrink-0" />
+                Pointer
+              </button>
+            </div>
+          ) : null}
+
+          {hasMenuBelowPointer ? (
+            <p className="px-3 py-2 text-center text-xs font-bold text-text text-muted">Camadas de anotação</p>
+          ) : null}
+
+          {sortedOptions.map((option, index) => {
             const isActive = Boolean(
               option.editValue && activeEditValue && option.editValue === activeEditValue,
             );
@@ -231,7 +275,7 @@ export function AnnotationLayerVisibilityDropdown({
           })}
 
           {showThirdPartyLayersButton && onShowThirdPartyLayers ? (
-            <div className="border-t border-border px-2 py-1.5">
+            <div className="px-2">
               <button
                 type="button"
                 onClick={() => {
@@ -239,7 +283,7 @@ export function AnnotationLayerVisibilityDropdown({
                   setOpen(false);
                 }}
                 disabled={isLoadingThirdPartyLayers}
-                className="flex w-full items-center rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-bg disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-primary hover:bg-bg disabled:opacity-60"
               >
                 {isLoadingThirdPartyLayers ? 'Carregando…' : 'Ver de terceiros'}
               </button>
@@ -247,14 +291,14 @@ export function AnnotationLayerVisibilityDropdown({
           ) : null}
 
           {onCreateLayer ? (
-            <div className="border-t border-border px-2 py-1.5">
+            <div className="px-2 pb-2 pt-1">
               <button
                 type="button"
                 onClick={handleCreateLayer}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary hover:bg-bg"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
               >
-                <IconPlus className="h-4 w-4 shrink-0" />
-                Criar camada
+                <IconPencil className="h-4 w-4 shrink-0" />
+                Editar camadas
               </button>
             </div>
           ) : null}

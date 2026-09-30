@@ -59,3 +59,27 @@ export type UpdateReadingPlaylistInput = {
   name?: string;
   sourceEventId?: string | null;
 };
+
+const OPEN_AT_PAGE_NOTE = /^(.*?)(?:\s*·\s*)?Abrir na p\.\s*(\d+)\s*$/i;
+
+export function splitPlaylistItemNotes(notes: string | null | undefined): {
+  observation: string | null;
+  startPage: number | null;
+} {
+  const trimmed = notes?.trim() ?? '';
+  if (!trimmed) {
+    return { observation: null, startPage: null };
+  }
+
+  const match = trimmed.match(OPEN_AT_PAGE_NOTE);
+  if (!match) {
+    return { observation: trimmed, startPage: null };
+  }
+
+  const observation = match[1]?.trim() || null;
+  const page = Number.parseInt(match[2] ?? '', 10);
+  return {
+    observation,
+    startPage: Number.isInteger(page) && page > 0 ? page : null,
+  };
+}

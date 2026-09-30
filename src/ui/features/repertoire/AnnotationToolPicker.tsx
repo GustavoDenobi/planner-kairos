@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import type { AnnotationInteractionMode } from '@/ui/features/repertoire/AnnotationOverlay';
+import type { AnnotationEditTool } from '@/ui/features/repertoire/AnnotationOverlay';
 import {
   IconCover,
   IconEraser,
   IconHighlighter,
-  IconLaser,
   IconNote,
   IconPen,
   IconTextSize,
 } from '@/ui/components/icons';
 
-type AnnotationDrawMode = Exclude<AnnotationInteractionMode, 'read'>;
+type AnnotationDrawMode = AnnotationEditTool;
 
 type AnnotationToolPickerProps = {
   interactionMode: AnnotationDrawMode;
@@ -28,7 +27,6 @@ const ANNOTATION_TOOLS: Array<{
   { mode: 'cover', label: 'Correção', Icon: IconCover },
   { mode: 'text', label: 'Texto', Icon: IconTextSize },
   { mode: 'note', label: 'Nota', Icon: IconNote },
-  { mode: 'laser', label: 'Laser', Icon: IconLaser },
   { mode: 'eraser', label: 'Borracha', Icon: IconEraser },
 ];
 

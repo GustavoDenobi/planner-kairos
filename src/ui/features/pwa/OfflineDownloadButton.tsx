@@ -212,7 +212,7 @@ export function OfflineDownloadButton({
         className={downloadButtonClassName(state)}
       >
         <DownloadButtonIcon state={state} />
-        {!compact && <span className="hidden sm:inline">{label}</span>}
+        {!compact && <span className="hidden md:inline">{label}</span>}
       </button>
       {pendingSync > 0 && (
         <span

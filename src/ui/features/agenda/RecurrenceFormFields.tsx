@@ -1,5 +1,6 @@
 import type { RecurrenceRule } from '@/domain/agenda';
 import { formatRecurrencePreview, maxRecurrenceEndDateInputValue } from '@/domain/agenda';
+import { IntegerInput } from '@/ui/components/IntegerInput';
 import { toDateInputValue } from '@/ui/features/agenda/agenda-date';
 
 const WEEKDAY_LABELS = [
@@ -86,14 +87,10 @@ export function RecurrenceFormFields({
 
       <label className="block">
         <span className="mb-1 block text-sm text-muted">Intervalo</span>
-        <input
-          type="number"
+        <IntegerInput
           min={1}
           value={rule.interval}
-          onChange={(event) => {
-            const interval = Math.max(1, Number(event.target.value) || 1);
-            onRuleChange({ ...rule, interval });
-          }}
+          onChange={(interval) => onRuleChange({ ...rule, interval })}
           disabled={disabled}
           className={fieldClass}
         />
@@ -171,17 +168,11 @@ export function RecurrenceFormFields({
           {rule.mode === 'dayOfMonth' ? (
             <label className="block">
               <span className="mb-1 block text-sm text-muted">Dia do mês</span>
-              <input
-                type="number"
+              <IntegerInput
                 min={1}
                 max={31}
                 value={rule.day}
-                onChange={(event) =>
-                  onRuleChange({
-                    ...rule,
-                    day: Math.min(31, Math.max(1, Number(event.target.value) || 1)),
-                  })
-                }
+                onChange={(day) => onRuleChange({ ...rule, day })}
                 disabled={disabled}
                 className={fieldClass}
               />

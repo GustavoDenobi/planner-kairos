@@ -20,7 +20,11 @@ export type {
   ProgramItemValidationPiece,
 } from './program-item';
 export { buildProgramItemValidationContext } from './program-validation';
-export { formatProgramUnitDetail, formatProgramUnitsSummary } from './program-units-format';
+export {
+  formatProgramUnitDetail,
+  formatProgramUnitSegment,
+  formatProgramUnitsSummary,
+} from './program-units-format';
 export { resolveProgramUnitStartPage, resolveProgramUnitEndPage } from './program-item';
 export type { EventDetail } from './event-detail';
 export type {

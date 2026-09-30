@@ -35,3 +35,28 @@ export function formatProgramUnitsSummary(units: ProgramItemUnitDetail[]): strin
   }
   return units.map(formatProgramUnitDetail).join(', ');
 }
+
+export function formatProgramUnitSegment(unit: ProgramItemUnitDetail): string | null {
+  if (unit.pieceFileTocEntryId) {
+    const name = unit.pieceFileTocEntryLabel?.trim() || unit.label?.trim() || null;
+    if (!name) {
+      return null;
+    }
+    const pages = formatPageRange(
+      unit.pieceFileTocEntryTargetPage,
+      unit.pieceFileTocEntryEndPage,
+    );
+    return pages ? `${name} (${pages})` : name;
+  }
+
+  if (unit.navigationShortcutId && unit.navigationShortcutLabel?.trim()) {
+    return unit.navigationShortcutLabel.trim();
+  }
+
+  const pages = formatPageRange(unit.startPage, unit.endPage);
+  const custom = unit.label?.trim() || null;
+  if (custom && pages) {
+    return `${custom} (${pages})`;
+  }
+  return pages ?? custom;
+}

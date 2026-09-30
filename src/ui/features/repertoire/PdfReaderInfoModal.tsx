@@ -1,7 +1,6 @@
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { IconArrowDown, IconPrint, IconShare } from '@/ui/components/icons';
-import { shouldSharePdfInsteadOfPrint } from '@/ui/features/repertoire/pdf-delivery';
 import { downloadFromUrl } from '@/ui/utils/download-url';
 
 export type PdfReaderPieceInfo = {
@@ -28,6 +27,7 @@ type PdfReaderInfoModalProps = {
   allowDownload?: boolean;
   downloadUrl?: string | null;
   downloadName?: string;
+  onShare?: () => void;
   onPrint?: () => void;
 };
 
@@ -39,12 +39,13 @@ export function PdfReaderInfoModal({
   allowDownload = true,
   downloadUrl,
   downloadName,
+  onShare,
   onPrint,
 }: PdfReaderInfoModalProps) {
   const showDownload = allowDownload && Boolean(downloadUrl);
+  const showShare = allowDownload && Boolean(onShare);
   const showPrint = allowDownload && Boolean(onPrint);
-  const shareInsteadOfPrint = showPrint && shouldSharePdfInsteadOfPrint();
-  const showActions = showDownload || showPrint;
+  const showActions = showDownload || showShare || showPrint;
 
   async function handleDownload() {
     if (!downloadUrl) {
@@ -152,18 +153,24 @@ export function PdfReaderInfoModal({
                 Baixar
               </button>
             ) : null}
+            {showShare ? (
+              <button
+                type="button"
+                onClick={onShare}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-bg"
+              >
+                <IconShare className="h-4 w-4 shrink-0" aria-hidden />
+                Compartilhar
+              </button>
+            ) : null}
             {showPrint ? (
               <button
                 type="button"
                 onClick={onPrint}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-bg"
+                className="hidden items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-bg md:inline-flex"
               >
-                {shareInsteadOfPrint ? (
-                  <IconShare className="h-4 w-4 shrink-0" aria-hidden />
-                ) : (
-                  <IconPrint className="h-4 w-4 shrink-0" aria-hidden />
-                )}
-                {shareInsteadOfPrint ? 'Compartilhar' : 'Imprimir'}
+                <IconPrint className="h-4 w-4 shrink-0" aria-hidden />
+                Imprimir
               </button>
             ) : null}
           </div>

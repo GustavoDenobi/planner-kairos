@@ -5,7 +5,6 @@ import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconPrint, IconScoreSheet, IconPlay, IconShare } from '@/ui/components/icons';
 import { SortableList } from '@/ui/components/SortableList';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
-import { shouldSharePdfInsteadOfPrint } from '@/ui/features/repertoire/pdf-delivery';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
 
 type PartFilterOption = {
@@ -28,6 +27,7 @@ type PieceFilesSectionProps = {
   isConductor?: boolean;
   allowDownload?: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
+  onShare?: (file: PieceFileWithLinks) => void;
   onPrint?: (file: PieceFileWithLinks) => void;
   printingFileId?: string | null;
   onEdit: (file: PieceFileWithLinks) => void;
@@ -83,34 +83,49 @@ function fileMatchesTitleFilter(file: PieceFileWithLinks, query: string): boolea
   return file.title.toLowerCase().includes(normalizedQuery);
 }
 
-function ScoreFileOutputButton({
+const scoreOutputButtonClass =
+  'inline-flex items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50';
+
+function ScoreFileOutputButtons({
   file,
+  onShare,
   onPrint,
   printingFileId,
 }: {
   file: PieceFileWithLinks;
-  onPrint: (file: PieceFileWithLinks) => void;
+  onShare?: (file: PieceFileWithLinks) => void;
+  onPrint?: (file: PieceFileWithLinks) => void;
   printingFileId?: string | null;
 }) {
-  const shareInsteadOfPrint = shouldSharePdfInsteadOfPrint();
-  const label = shareInsteadOfPrint ? 'Compartilhar' : 'Imprimir';
-  const Icon = shareInsteadOfPrint ? IconShare : IconPrint;
+  const busy = printingFileId === file.id;
 
   return (
-    <button
-      type="button"
-      onClick={() => onPrint(file)}
-      disabled={printingFileId === file.id}
-      aria-label={`${label} ${file.title}`}
-      title={label}
-      className={
-        shareInsteadOfPrint
-          ? 'inline-flex items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50'
-          : 'hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex'
-      }
-    >
-      <Icon className="h-4 w-4" />
-    </button>
+    <>
+      {onShare ? (
+        <button
+          type="button"
+          onClick={() => onShare(file)}
+          disabled={busy}
+          aria-label={`Compartilhar ${file.title}`}
+          title="Compartilhar"
+          className={scoreOutputButtonClass}
+        >
+          <IconShare className="h-4 w-4" />
+        </button>
+      ) : null}
+      {onPrint ? (
+        <button
+          type="button"
+          onClick={() => onPrint(file)}
+          disabled={busy}
+          aria-label={`Imprimir ${file.title}`}
+          title="Imprimir"
+          className="hidden items-center justify-center rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text disabled:opacity-50 md:inline-flex"
+        >
+          <IconPrint className="h-4 w-4" />
+        </button>
+      ) : null}
+    </>
   );
 }
 
@@ -120,6 +135,7 @@ function FileList({
   isAdmin,
   allowDownload,
   onOpen,
+  onShare,
   onPrint,
   printingFileId,
   onEdit,
@@ -129,6 +145,7 @@ function FileList({
   isAdmin: boolean;
   allowDownload: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
+  onShare?: (file: PieceFileWithLinks) => void;
   onPrint?: (file: PieceFileWithLinks) => void;
   printingFileId?: string | null;
   onEdit: (file: PieceFileWithLinks) => void;
@@ -165,9 +182,10 @@ function FileList({
                   >
                     <IconScoreSheet className="h-4 w-4" />
                   </button>
-                  {allowDownload && onPrint && (
-                    <ScoreFileOutputButton
+                  {allowDownload && (onShare || onPrint) && (
+                    <ScoreFileOutputButtons
                       file={file}
+                      onShare={onShare}
                       onPrint={onPrint}
                       printingFileId={printingFileId}
                     />
@@ -220,6 +238,7 @@ export function PieceFilesSection({
   isConductor = false,
   allowDownload = true,
   onOpen,
+  onShare,
   onPrint,
   printingFileId = null,
   onEdit,
@@ -509,9 +528,10 @@ export function PieceFilesSection({
                           <p className="mt-0.5 text-sm text-muted">Lição {file.sortOrder + 1}</p>
                         </button>
                         <div className="flex shrink-0 items-center gap-1">
-                          {allowDownload && onPrint && (
-                            <ScoreFileOutputButton
+                          {allowDownload && (onShare || onPrint) && (
+                            <ScoreFileOutputButtons
                               file={file}
+                              onShare={onShare}
                               onPrint={onPrint}
                               printingFileId={printingFileId}
                             />
@@ -537,6 +557,7 @@ export function PieceFilesSection({
                     isAdmin={isAdmin}
                     allowDownload={allowDownload}
                     onOpen={onOpen}
+                    onShare={onShare}
                     onPrint={onPrint}
                     printingFileId={printingFileId}
                     onEdit={onEdit}
@@ -553,6 +574,7 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onShare={onShare}
                   onPrint={onPrint}
                   printingFileId={printingFileId}
                   onEdit={onEdit}
@@ -571,6 +593,7 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onShare={onShare}
                   onPrint={onPrint}
                   printingFileId={printingFileId}
                   onEdit={onEdit}
@@ -587,6 +610,7 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onShare={onShare}
                   onPrint={onPrint}
                   printingFileId={printingFileId}
                   onEdit={onEdit}
@@ -603,6 +627,7 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onShare={onShare}
                   onPrint={onPrint}
                   printingFileId={printingFileId}
                   onEdit={onEdit}
@@ -621,6 +646,7 @@ export function PieceFilesSection({
                   isAdmin={isAdmin}
                   allowDownload={allowDownload}
                   onOpen={onOpen}
+                  onShare={onShare}
                   onPrint={onPrint}
                   printingFileId={printingFileId}
                   onEdit={onEdit}

@@ -52,7 +52,7 @@ export function DirectedAnnotationSetManageModal({
         <div className="space-y-4">
           {resolvedSets.length === 0 ? (
             <p className="text-sm text-muted">
-              Nenhuma camada criada personalizada ainda. Crie uma camada para criar anotações para turmas, alunos ou outros
+              Crie camadas personalizadas para fazer anotações direcionadas para turmas, alunos ou outros
               grupos específicos.
             </p>
           ) : (
@@ -107,7 +107,7 @@ export function DirectedAnnotationSetManageModal({
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-white"
             >
               <IconPlus className="h-4 w-4" />
-              Camada
+              Criar camada
             </button>
           </div>
         </div>

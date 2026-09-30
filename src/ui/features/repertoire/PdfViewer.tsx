@@ -9,8 +9,8 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import * as pdfjs from 'pdfjs-dist';
-import { deliverPdfDocument, isShareCancellation } from '@/ui/features/repertoire/pdf-delivery';
-import { openPdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/pdf-delivery';
+import { openPdfDocument, printPdfDocument } from '@/ui/features/repertoire/pdf-load';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -47,6 +47,7 @@ import {
   resolvePresetStroke,
 } from '@/domain/repertoire';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
+import { ReaderScoreHeading } from '@/ui/features/repertoire/ReaderScoreHeading';
 import { Modal } from '@/ui/components/Modal';
 import {
   IconArrowUpDown,
@@ -56,6 +57,7 @@ import {
   IconMetronome,
   IconMinimize,
   IconMoon,
+  IconPlaylist,
   IconMusic,
   IconReturn,
   IconAlertTriangle,
@@ -74,6 +76,7 @@ import {
   AnnotationPenLayer,
   AnnotationTextLayer,
   type AnnotationEditingFocus,
+  type AnnotationEditTool,
   type AnnotationInteractionMode,
   type LaserStroke,
   type VisibleLayers,
@@ -244,16 +247,22 @@ export type DirectedSetOption = {
 };
 
 export type PdfViewerPlaylistContext = {
-  title: string;
+  name: string;
+  onOpenItems?: () => void;
+  pieceTitle: string;
+  partLabel: string | null;
+  fileTitle: string;
+  segment: string | null;
+  observation: string | null;
   currentIndex: number;
   totalItems: number;
-  currentItemLabel: string;
   canGoPrevious: boolean;
   canGoNext: boolean;
   onPreviousItem: () => void;
   onGoNextItem: () => void;
   onContinueToPreviousItem: () => void;
   onContinueToNextItem: () => void;
+  onTitleClick?: () => void;
 };
 
 type PdfViewerPlaylistNavProps = {
@@ -270,42 +279,20 @@ export function PdfViewerPlaylistNav({
   onTitleClick,
 }: PdfViewerPlaylistNavProps) {
   return (
-    <div className="flex min-w-0 w-full items-center justify-center gap-x-3">
-      <button
-        type="button"
-        onClick={onPrevious}
-        disabled={!playlist.canGoPrevious}
-        aria-label="Obra anterior"
-        className="rounded-lg border border-border p-2 text-text disabled:opacity-40"
-      >
-        <IconChevronLeft className="h-5 w-5" />
-      </button>
-      <div className="min-w-0 text-center">
-        {onTitleClick ? (
-          <button
-            type="button"
-            onClick={onTitleClick}
-            className="max-w-full truncate text-sm font-medium text-text underline-offset-2 hover:underline"
-          >
-            {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
-          </button>
-        ) : (
-          <p className="truncate text-sm font-medium text-text">
-            {playlist.currentIndex + 1} / {playlist.totalItems} — {playlist.currentItemLabel}
-          </p>
-        )}
-        <p className="truncate text-xs text-muted">{playlist.title}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={!playlist.canGoNext}
-        aria-label="Próxima obra"
-        className="rounded-lg border border-border p-2 text-text disabled:opacity-40"
-      >
-        <IconChevronRight className="h-5 w-5" />
-      </button>
-    </div>
+    <ReaderScoreHeading
+      pieceTitle={playlist.pieceTitle}
+      partLabel={playlist.partLabel}
+      fileTitle={playlist.fileTitle}
+      segment={playlist.segment}
+      observation={playlist.observation}
+      onTitleClick={onTitleClick ?? playlist.onTitleClick}
+      playlistNav={{
+        canGoPrevious: playlist.canGoPrevious,
+        canGoNext: playlist.canGoNext,
+        onPrevious,
+        onNext,
+      }}
+    />
   );
 }
 
@@ -771,7 +758,7 @@ function PdfPageFrameComponent({
         editingNoteId={
           noteEditSession?.pageNumber === pageNumber ? noteEditSession.editingId ?? null : null
         }
-        interactionBlocksNotes={interactionMode === 'eraser'}
+        interactionBlocksNotes={interactionMode === 'eraser' || interactionMode === 'laser'}
         canEditNote={canEraseAnnotation}
         onToggleExpanded={onToggleNoteExpanded}
         onFocus={onFocusNote}
@@ -1080,6 +1067,7 @@ export function PdfViewer({
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
   const [horizontalSlideKey, setHorizontalSlideKey] = useState(0);
   const [isAnnotating, setIsAnnotating] = useState(false);
+  const [pointerActive, setPointerActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<AnnotationSaveStatus>('idle');
   const [draftAnnotations, setDraftAnnotations] = useState<PdfAnnotation[]>([]);
   const [pendingDeletionIds, setPendingDeletionIds] = useState<string[]>([]);
@@ -1102,6 +1090,9 @@ export function PdfViewer({
   const hasAnnotatedRef = useRef(false);
   const isAnnotatingRef = useRef(isAnnotating);
   isAnnotatingRef.current = isAnnotating;
+  const pointerActiveRef = useRef(pointerActive);
+  pointerActiveRef.current = pointerActive;
+  const pageGestureLock = isAnnotating || pointerActive;
   const draftAnnotationsRef = useRef(draftAnnotations);
   draftAnnotationsRef.current = draftAnnotations;
   const pendingDeletionIdsRef = useRef(pendingDeletionIds);
@@ -1125,7 +1116,7 @@ export function PdfViewer({
   }, []);
   const [laserStrokes, setLaserStrokes] = useState<LaserStroke[]>([]);
   const laserTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [interactionMode, setInteractionMode] = useState<AnnotationInteractionMode>('read');
+  const [interactionMode, setInteractionMode] = useState<AnnotationEditTool>('pen');
   const [annotationToolPrefs, setAnnotationToolPrefs] = useState<AnnotationToolPreferences>(
     () =>
       userId
@@ -1469,16 +1460,23 @@ export function PdfViewer({
     setMetronomeOpen(false);
   }, []);
 
-  const handlePrint = useCallback(() => {
+  const handleShare = useCallback(() => {
     if (!pdf || !allowDownload) {
       return;
     }
-    void deliverPdfDocument(pdf, readerInfo?.downloadName).catch((error) => {
+    void sharePdfDocument(pdf, readerInfo?.downloadName).catch((error) => {
       if (isShareCancellation(error)) {
         return;
       }
     });
   }, [pdf, allowDownload, readerInfo?.downloadName]);
+
+  const handlePrint = useCallback(() => {
+    if (!pdf || !allowDownload) {
+      return;
+    }
+    void printPdfDocument(pdf).catch(() => {});
+  }, [pdf, allowDownload]);
 
   const clearLaserStrokes = useCallback(() => {
     laserTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
@@ -1505,6 +1503,8 @@ export function PdfViewer({
     setMetronomeOpen(false);
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
+    pointerActiveRef.current = false;
+    setPointerActive(false);
     clearLaserStrokes();
     setInteractionMode('pen');
     if (userId) {
@@ -1539,9 +1539,9 @@ export function PdfViewer({
     });
   }, [onManageDirectedSet, activeEditLayerValue]);
 
-  const exitAnnotationMode = useCallback(async () => {
+  const exitAnnotationMode = useCallback(async (): Promise<boolean> => {
     if (exitingAnnotationRef.current) {
-      return;
+      return false;
     }
     exitingAnnotationRef.current = true;
 
@@ -1606,7 +1606,7 @@ export function PdfViewer({
 
         if (!saved) {
           setAnnotationExitProgress(null);
-          return;
+          return false;
         }
       }
 
@@ -1619,18 +1619,38 @@ export function PdfViewer({
       hasAnnotatedRef.current = false;
       setSaveStatus('idle');
       setSessionUndoStack([]);
+      isAnnotatingRef.current = false;
       setIsAnnotating(false);
-      setInteractionMode('read');
       setDraftAnnotations([]);
       setPendingDeletionIds([]);
       setPendingUpdates({});
       clearLaserStrokes();
       setMobileToolbarPanel(null);
       setAnnotationExitProgress(null);
+      return true;
     } finally {
       exitingAnnotationRef.current = false;
     }
   }, [clearLaserStrokes]);
+
+  const handleTogglePointer = useCallback(async () => {
+    if (pointerActiveRef.current) {
+      pointerActiveRef.current = false;
+      setPointerActive(false);
+      clearLaserStrokes();
+      return;
+    }
+
+    if (isAnnotatingRef.current) {
+      const exited = await exitAnnotationMode();
+      if (!exited) {
+        return;
+      }
+    }
+
+    pointerActiveRef.current = true;
+    setPointerActive(true);
+  }, [clearLaserStrokes, exitAnnotationMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1710,7 +1730,7 @@ export function PdfViewer({
       setRenderScale: setScale,
       fitScale,
       navigation,
-      isAnnotating,
+      lockPageGestures: pageGestureLock,
       enabled: Boolean(pdf) && numPages > 0,
       onDoubleTap: () => doubleTapFitRef.current(),
       onSingleTap: (point) => viewportSingleTapRef.current(point),
@@ -2321,7 +2341,7 @@ export function PdfViewer({
 
   const handleViewportSingleTap = useCallback(
     (point: { x: number; y: number }) => {
-      if (isAnnotating || shortcutPickRequest != null || tocPickActive) {
+      if (pageGestureLock || shortcutPickRequest != null || tocPickActive) {
         return;
       }
 
@@ -2351,7 +2371,7 @@ export function PdfViewer({
     },
     [
       getViewportElement,
-      isAnnotating,
+      pageGestureLock,
       isFullscreen,
       isZoomed,
       navigation,
@@ -2479,7 +2499,7 @@ export function PdfViewer({
 
   const handleFullscreenPointerDown = useCallback(
     (event: React.PointerEvent) => {
-      if (!isFullscreen || isAnnotating || isGesturing) {
+      if (!isFullscreen || pageGestureLock || isGesturing) {
         return;
       }
       if (isInteractivePointerTarget(event.target)) {
@@ -2488,12 +2508,12 @@ export function PdfViewer({
 
       tapStartRef.current = { x: event.clientX, y: event.clientY };
     },
-    [isFullscreen, isAnnotating, isGesturing],
+    [isFullscreen, pageGestureLock, isGesturing],
   );
 
   const handleFullscreenPointerUp = useCallback(
     (event: React.PointerEvent) => {
-      if (!isFullscreen || isAnnotating || isGesturing || !tapStartRef.current) {
+      if (!isFullscreen || pageGestureLock || isGesturing || !tapStartRef.current) {
         return;
       }
 
@@ -2514,7 +2534,7 @@ export function PdfViewer({
         }
       }
     },
-    [isFullscreen, isAnnotating, isGesturing, isZoomed, navigation, goToNextPage, goToPreviousPage],
+    [isFullscreen, pageGestureLock, isGesturing, isZoomed, navigation, goToNextPage, goToPreviousPage],
   );
 
   const handleTouchEnd = useCallback(
@@ -2523,7 +2543,7 @@ export function PdfViewer({
         isFullscreen ||
         navigation !== 'horizontal' ||
         !touchStartRef.current ||
-        isAnnotating ||
+        pageGestureLock ||
         isZoomed ||
         isGesturing
       ) {
@@ -2550,7 +2570,7 @@ export function PdfViewer({
         goToPreviousPage();
       }
     },
-    [isFullscreen, navigation, isAnnotating, isGesturing, isZoomed, goToNextPage, goToPreviousPage],
+    [isFullscreen, navigation, pageGestureLock, isGesturing, isZoomed, goToNextPage, goToPreviousPage],
   );
 
   const persistAnnotationToolPrefs = useCallback(
@@ -3706,7 +3726,11 @@ export function PdfViewer({
       ? 'upload-entry-slide-in-next'
       : 'upload-entry-slide-in-prev'
     : '';
-  const effectiveInteractionMode: AnnotationInteractionMode = isAnnotating ? interactionMode : 'read';
+  const effectiveInteractionMode: AnnotationInteractionMode = isAnnotating
+    ? interactionMode
+    : pointerActive
+      ? 'laser'
+      : 'read';
 
   const pageFrameProps = {
     pdf,
@@ -3727,8 +3751,8 @@ export function PdfViewer({
     laserStrokeWidth,
     readOnly:
       !userId ||
-      (interactionMode !== 'eraser' &&
-        interactionMode !== 'laser' &&
+      (effectiveInteractionMode !== 'eraser' &&
+        effectiveInteractionMode !== 'laser' &&
         annotationReadOnly),
     canEraseAnnotation,
     onStrokeComplete: handleStrokeComplete,
@@ -3776,7 +3800,7 @@ export function PdfViewer({
     registerEditorFlush,
   };
 
-  const showFullscreenControls = !isFullscreen || isAnnotating || fullscreenControlsVisible;
+  const showFullscreenControls = !isFullscreen || pageGestureLock || fullscreenControlsVisible;
   const controlsBarClass = isFullscreen
     ? `pdf-fullscreen-controls absolute inset-x-0 top-0 z-20 flex flex-col border-b border-border bg-surface/95 pt-[var(--safe-area-top)] shadow-md backdrop-blur-sm ${
         showFullscreenControls ? '' : 'pdf-fullscreen-controls-hidden'
@@ -3786,7 +3810,7 @@ export function PdfViewer({
     ? `fixed inset-x-0 z-50 flex flex-col ${surfaceClass}`
     : 'relative flex min-h-0 flex-1 flex-col';
   const viewportPadding = isFullscreen ? 'p-0' : 'p-2';
-  const viewportInteractionProps = isFullscreen && !isAnnotating
+  const viewportInteractionProps = isFullscreen && !pageGestureLock
     ? {
         onPointerDown: handleFullscreenPointerDown,
         onPointerUp: handleFullscreenPointerUp,
@@ -3820,6 +3844,8 @@ export function PdfViewer({
       isLoadingThirdPartyLayers={isLoadingThirdPartyDirectedLayers}
       activeEditValue={isAnnotating ? activeEditLayerValue : null}
       isAnnotating={isAnnotating}
+      pointerActive={pointerActive}
+      onTogglePointer={userId ? () => void handleTogglePointer() : undefined}
       buttonClassName={toolbarIconButtonClass(false)}
     />
   );
@@ -3920,12 +3946,31 @@ export function PdfViewer({
 
   const playlistBar = playlist && isFullscreen
     ? (
-        <div className={`${controlsRowClass} border-b border-border bg-surface/95`}>
-          <PdfViewerPlaylistNav
-            playlist={playlist}
-            onPrevious={goToPreviousItem}
-            onNext={goToNextItem}
-          />
+        <div className="flex w-full items-center gap-2 border-b border-border bg-surface/95 px-3 py-2">
+          {playlist.onOpenItems ? (
+            <button
+              type="button"
+              onClick={playlist.onOpenItems}
+              aria-label="Itens da playlist"
+              className="inline-flex max-w-[12rem] shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-sm font-medium text-text hover:bg-bg"
+            >
+              <IconPlaylist className="h-6 w-6 shrink-0" />
+              <span className="hidden max-w-[8rem] truncate sm:inline-block">{playlist.name}</span>
+            </button>
+          ) : null}
+          <span
+            className="hidden shrink-0 text-xs font-medium tabular-nums text-muted md:inline"
+            aria-label={`Item ${playlist.currentIndex + 1} de ${playlist.totalItems}`}
+          >
+            {playlist.currentIndex + 1} / {playlist.totalItems}
+          </span>
+          <div className="min-w-0 flex-1">
+            <PdfViewerPlaylistNav
+              playlist={playlist}
+              onPrevious={goToPreviousItem}
+              onNext={goToNextItem}
+            />
+          </div>
         </div>
       )
     : null;
@@ -3997,7 +4042,7 @@ export function PdfViewer({
             </div>
             <div className="flex flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-2">
               <AnnotationToolPicker
-                interactionMode={interactionMode === 'read' ? 'pen' : interactionMode}
+                interactionMode={interactionMode}
                 onSelect={setInteractionMode}
                 buttonClassName={toolbarIconButtonClass}
               />
@@ -4333,6 +4378,7 @@ export function PdfViewer({
           allowDownload={allowDownload}
           downloadUrl={readerInfo.downloadUrl}
           downloadName={readerInfo.downloadName}
+          onShare={pdf && allowDownload ? handleShare : undefined}
           onPrint={pdf && allowDownload ? handlePrint : undefined}
         />
       ) : null}

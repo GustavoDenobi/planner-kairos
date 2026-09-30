@@ -149,6 +149,19 @@ export function IconFilter(props: IconProps) {
   );
 }
 
+export function IconPlaylist(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <line x1="10" x2="21" y1="6" y2="6" />
+      <line x1="10" x2="21" y1="12" y2="12" />
+      <line x1="10" x2="21" y1="18" y2="18" />
+      <line x1="3" x2="3.01" y1="6" y2="6" />
+      <line x1="3" x2="3.01" y1="12" y2="12" />
+      <line x1="3" x2="3.01" y1="18" y2="18" />
+    </svg>
+  );
+}
+
 export function IconList(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -557,6 +570,15 @@ export function IconOffline(props: IconProps) {
     <svg {...defaults} {...props}>
       <rect x="5" y="2" width="14" height="20" rx="2" />
       <path d="M12 18h.01" />
+    </svg>
+  );
+}
+
+export function IconEye(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

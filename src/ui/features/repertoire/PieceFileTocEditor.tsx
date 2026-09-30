@@ -6,6 +6,7 @@ import type {
   UpdatePieceFileTocEntryInput,
 } from '@/domain/repertoire';
 
+import { IntegerInput } from '@/ui/components/IntegerInput';
 import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 
@@ -202,16 +203,15 @@ export function PieceFileTocEditor({
           Página inicial
         </label>
         <div className="flex flex-wrap items-center gap-2">
-          <input
+          <IntegerInput
             id="toc-target-page"
-            type="number"
             min={1}
             max={numPages}
             value={draft.targetPageNumber}
-            onChange={(event) =>
+            onChange={(targetPageNumber) =>
               setDraft((current) => ({
                 ...current,
-                targetPageNumber: Number.parseInt(event.target.value, 10) || 1,
+                targetPageNumber,
                 targetX: null,
                 targetY: null,
               }))

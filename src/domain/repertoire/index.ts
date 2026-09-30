@@ -136,6 +136,7 @@ export type {
   CreateReadingPlaylistItemInput,
   UpdateReadingPlaylistInput,
 } from './reading-playlist';
+export { splitPlaylistItemNotes } from './reading-playlist';
 export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,

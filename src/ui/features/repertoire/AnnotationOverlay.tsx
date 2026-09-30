@@ -35,6 +35,9 @@ export type AnnotationInteractionMode =
   | 'eraser'
   | 'laser';
 
+/** Ferramentas persistentes do modo de edição. O pointer não entra aqui. */
+export type AnnotationEditTool = Exclude<AnnotationInteractionMode, 'read' | 'laser'>;
+
 export type LaserStroke = {
   id: string;
   pageNumber: number;

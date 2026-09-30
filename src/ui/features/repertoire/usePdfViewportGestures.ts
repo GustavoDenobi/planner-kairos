@@ -61,7 +61,7 @@ type UsePdfViewportGesturesOptions = {
   setRenderScale: Dispatch<SetStateAction<number>>;
   fitScale: number;
   navigation: PdfNavigationMode;
-  isAnnotating: boolean;
+  lockPageGestures: boolean;
   enabled: boolean;
   onDoubleTap?: () => void;
   onSingleTap?: (point: Point) => void;
@@ -96,7 +96,7 @@ export function usePdfViewportGestures({
   setRenderScale,
   fitScale,
   navigation,
-  isAnnotating,
+  lockPageGestures,
   enabled,
   onDoubleTap,
   onSingleTap,
@@ -114,8 +114,8 @@ export function usePdfViewportGestures({
   const liveScaleRef = useRef(renderScale);
   const fitScaleRef = useRef(fitScale);
   fitScaleRef.current = fitScale;
-  const isAnnotatingRef = useRef(isAnnotating);
-  isAnnotatingRef.current = isAnnotating;
+  const lockPageGesturesRef = useRef(lockPageGestures);
+  lockPageGesturesRef.current = lockPageGestures;
   const navigationRef = useRef(navigation);
   navigationRef.current = navigation;
   const onDoubleTapRef = useRef(onDoubleTap);
@@ -362,7 +362,7 @@ export function usePdfViewportGestures({
     const finishTap = (point: Point) => {
       if (
         !tapStartRef.current
-        || isAnnotatingRef.current
+        || lockPageGesturesRef.current
         || pinchOccurredRef.current
         || tapMovedRef.current
       ) {
@@ -510,7 +510,7 @@ export function usePdfViewportGestures({
       if (
         event.touches.length === 1 &&
         zoomed &&
-        !isAnnotatingRef.current &&
+        !lockPageGesturesRef.current &&
         navigationRef.current === 'horizontal' &&
         event.touches[0]
       ) {
@@ -568,7 +568,7 @@ export function usePdfViewportGestures({
         event.touches.length === 1 &&
         event.touches[0] &&
         isScaleZoomed(liveScaleRef.current, fitScaleRef.current) &&
-        !isAnnotatingRef.current &&
+        !lockPageGesturesRef.current &&
         navigationRef.current === 'horizontal'
       ) {
         beginTouchPan(event.touches[0]);
@@ -603,7 +603,7 @@ export function usePdfViewportGestures({
 
       rememberTapStart({ x: event.clientX, y: event.clientY });
 
-      if (isAnnotatingRef.current) {
+      if (lockPageGesturesRef.current) {
         return;
       }
       if (!isScaleZoomed(liveScaleRef.current, fitScaleRef.current)) {

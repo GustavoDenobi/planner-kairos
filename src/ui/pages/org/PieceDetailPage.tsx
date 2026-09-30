@@ -30,12 +30,12 @@ import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
+import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/pdf-delivery';
 import {
-  deliverPdfDocument,
-  isShareCancellation,
-  shouldSharePdfInsteadOfPrint,
-} from '@/ui/features/repertoire/pdf-delivery';
-import { resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
+  printPdfDocument,
+  resolvePdfDocument,
+  revokePdfObjectUrl,
+} from '@/ui/features/repertoire/pdf-load';
 import {
   PieceFileUploadEntries,
   type PartLinkSelection,
@@ -645,7 +645,7 @@ export function PieceDetailPage() {
     setAudioLoading(false);
   }
 
-  async function handlePrint(file: PieceFileWithLinks) {
+  async function handlePdfOutput(file: PieceFileWithLinks, action: 'share' | 'print') {
     if (!org || !piece || file.kind !== 'score' || printingFileId || !allowFileDownload) {
       return;
     }
@@ -672,11 +672,15 @@ export function PieceDetailPage() {
     }
 
     try {
-      await deliverPdfDocument(pdfLoad.pdfDocument, file.originalName ?? file.title);
+      if (action === 'share') {
+        await sharePdfDocument(pdfLoad.pdfDocument, file.originalName ?? file.title);
+      } else {
+        await printPdfDocument(pdfLoad.pdfDocument);
+      }
     } catch (error) {
       if (!isShareCancellation(error)) {
         setError(
-          shouldSharePdfInsteadOfPrint()
+          action === 'share'
             ? 'Não foi possível compartilhar a partitura.'
             : 'Não foi possível imprimir a partitura.',
         );
@@ -884,7 +888,8 @@ export function PieceDetailPage() {
         isConductor={isConductor}
         allowDownload={allowFileDownload}
         onOpen={handleOpen}
-        onPrint={handlePrint}
+        onShare={(file) => void handlePdfOutput(file, 'share')}
+        onPrint={(file) => void handlePdfOutput(file, 'print')}
         printingFileId={printingFileId}
         onEdit={setEditingFile}
         onAddFiles={handleAddFiles}

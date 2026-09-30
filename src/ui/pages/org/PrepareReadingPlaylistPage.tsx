@@ -8,7 +8,11 @@ import {
   filterScoreCandidatesForUser,
   resolveDefaultScoreFile,
 } from '@/domain/repertoire';
-import { formatProgramUnitDetail, resolveProgramUnitStartPage } from '@/domain/agenda';
+import {
+  formatProgramUnitDetail,
+  formatProgramUnitSegment,
+  resolveProgramUnitStartPage,
+} from '@/domain/agenda';
 import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -41,6 +45,7 @@ type ProgramRowState = {
     color: string | null;
   } | null;
   programNotes: string;
+  segment: string | null;
   startPage: number | null;
   candidates: PieceFileWithLinks[];
   selectedFileId: string | null;
@@ -126,6 +131,7 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: true,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
+            segment: null,
             startPage: null,
             candidates: [],
             selectedFileId: null,
@@ -143,6 +149,7 @@ export function PrepareReadingPlaylistPage() {
               pieceDeleted: false,
               pieceCategory: item.pieceCategory,
               programNotes: item.notes ?? '',
+              segment: formatProgramUnitSegment(unit),
               startPage: resolveProgramUnitStartPage(unit),
               candidates: [],
               selectedFileId: unit.pieceFileId,
@@ -161,6 +168,7 @@ export function PrepareReadingPlaylistPage() {
             pieceDeleted: false,
             pieceCategory: item.pieceCategory,
             programNotes: item.notes ?? '',
+            segment: null,
             startPage: null,
             candidates: [],
             selectedFileId: null,
@@ -179,6 +187,7 @@ export function PrepareReadingPlaylistPage() {
           pieceDeleted: false,
           pieceCategory: item.pieceCategory,
           programNotes: item.notes ?? '',
+          segment: null,
           startPage: null,
           candidates,
           selectedFileId: defaultFile?.id ?? null,
@@ -236,6 +245,7 @@ export function PrepareReadingPlaylistPage() {
       .filter((row) => !row.skipped && row.selectedFileId)
       .map((row) => ({
         pieceFileId: row.selectedFileId!,
+        label: row.segment,
         notes:
           [
             row.programNotes.trim() || null,

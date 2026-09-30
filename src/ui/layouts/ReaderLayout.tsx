@@ -7,6 +7,7 @@ type ReaderLayoutProps = {
   subtitle?: string;
   backTo: string;
   onTitleClick?: () => void;
+  leadingActions?: ReactNode;
   centerContent?: ReactNode;
   headerActions?: ReactNode;
   offlineBanner?: ReactNode;
@@ -18,6 +19,7 @@ export function ReaderLayout({
   subtitle,
   backTo,
   onTitleClick,
+  leadingActions,
   centerContent,
   headerActions,
   offlineBanner,
@@ -36,8 +38,9 @@ export function ReaderLayout({
           paddingRight: 'max(1rem, var(--safe-area-right))',
         }}
       >
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <BackButton fallbackTo={backTo} variant="close" />
+          {leadingActions}
         </div>
         <div className="min-w-0 flex-1 text-center">
           {centerContent ?? (

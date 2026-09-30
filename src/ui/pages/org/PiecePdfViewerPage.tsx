@@ -31,6 +31,7 @@ import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-view
 import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
 import type { PieceDetail } from '@/domain/repertoire';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
+import { ReaderScoreHeading } from '@/ui/features/repertoire/ReaderScoreHeading';
 import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
 import type { AssignmentWithDetails, GroupFileAccessSettings } from '@/domain/ensemble';
 
@@ -1043,9 +1044,19 @@ export function PiecePdfViewerPage() {
 
   return (
     <ReaderLayout
-      title={file.title}
       backTo={detailPath}
-      onTitleClick={() => setInfoModalOpen(true)}
+      centerContent={
+        <ReaderScoreHeading
+          pieceTitle={pieceDetail?.title ?? file.title}
+          partLabel={
+            file.partLinks.length > 0 && parts.length > 0
+              ? formatPartLinks(file.partLinks, parts)
+              : null
+          }
+          fileTitle={file.title}
+          onTitleClick={() => setInfoModalOpen(true)}
+        />
+      }
       offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
       headerActions={
         org && allowFileDownload ? (

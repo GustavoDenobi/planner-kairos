@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceDetail, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
-import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
+import { formatAnnotationSetLabel, resolveAnnotationSetAudience, splitPlaylistItemNotes } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -67,6 +67,8 @@ import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 import { resolveCanManageNavigationShortcuts } from '@/ui/features/repertoire/resolve-can-manage-navigation-shortcuts';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
+import { ReadingPlaylistItemsModal } from '@/ui/features/repertoire/ReadingPlaylistItemsModal';
+import { IconPlaylist } from '@/ui/components/icons';
 
 import type { AssignmentWithDetails } from '@/domain/ensemble';
 
@@ -238,6 +240,8 @@ export function ReadingPlaylistReaderPage() {
   const [accessibleAudios, setAccessibleAudios] = useState<PieceFileWithLinks[]>([]);
 
   const [audioParts, setAudioParts] = useState<PartWithDivisions[]>([]);
+  const [catalogParts, setCatalogParts] = useState<PartWithDivisions[]>([]);
+  const [playlistItemsOpen, setPlaylistItemsOpen] = useState(false);
 
   const [audioPickerOpen, setAudioPickerOpen] = useState(false);
 
@@ -248,14 +252,28 @@ export function ReadingPlaylistReaderPage() {
 
 
   const currentItem = playlist?.items[itemIndex] ?? null;
-  const startPageFromNotes = useMemo(() => {
-    const match = currentItem?.notes?.match(/Abrir na p\.\s*(\d+)/i);
-    if (!match?.[1]) {
-      return null;
+  const itemNotes = useMemo(
+    () => splitPlaylistItemNotes(currentItem?.notes),
+    [currentItem?.notes],
+  );
+  const startPageFromNotes = itemNotes.startPage;
+
+  useEffect(() => {
+    if (!organizationId) {
+      return;
     }
-    const page = Number.parseInt(match[1], 10);
-    return Number.isInteger(page) && page > 0 ? page : null;
-  }, [currentItem?.notes]);
+
+    let cancelled = false;
+    void ensemble.listParts(organizationId).then((result) => {
+      if (!cancelled && result.ok) {
+        setCatalogParts(result.value);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, ensemble]);
 
   const annotationReadingOptions = useMemo(
     () =>
@@ -2018,7 +2036,10 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  const displayTitle = currentItem.label ?? currentItem.fileTitle;
+  const partLabel =
+    currentItem.partLinks.length > 0 && catalogParts.length > 0
+      ? formatPartLinks(currentItem.partLinks, catalogParts)
+      : null;
 
   const previousAvailableIndex = findPreviousAvailableIndex(playlist, itemIndex);
 
@@ -2028,13 +2049,25 @@ export function ReadingPlaylistReaderPage() {
 
   const playlistContext = {
 
-    title: playlist.name,
+    name: playlist.name,
+
+    onOpenItems: () => setPlaylistItemsOpen(true),
+
+    pieceTitle: currentItem.pieceTitle,
+
+    partLabel,
+
+    fileTitle: currentItem.fileTitle,
+
+    segment: currentItem.label,
+
+    observation: itemNotes.observation,
 
     currentIndex: itemIndex,
 
     totalItems: playlist.items.length,
 
-    currentItemLabel: displayTitle,
+    onTitleClick: () => setInfoModalOpen(true),
 
     canGoPrevious: previousAvailableIndex !== null,
 
@@ -2077,6 +2110,26 @@ export function ReadingPlaylistReaderPage() {
     <ReaderLayout
 
       backTo={backTo}
+
+      leadingActions={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPlaylistItemsOpen(true)}
+            aria-label="Itens da playlist"
+            className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-sm font-medium text-text hover:bg-bg"
+          >
+            <IconPlaylist className="h-6 w-6 shrink-0" />
+            <span className="hidden max-w-[8rem] truncate sm:inline-block">{playlist.name}</span>
+          </button>
+          <span
+            className="hidden shrink-0 text-xs font-medium tabular-nums text-muted md:inline"
+            aria-label={`Item ${itemIndex + 1} de ${playlist.items.length}`}
+          >
+            {itemIndex + 1} / {playlist.items.length}
+          </span>
+        </div>
+      }
 
       offlineBanner={<OfflineBanner isCached={isCachedLocally} />}
 
@@ -2175,7 +2228,7 @@ export function ReadingPlaylistReaderPage() {
             notes: pieceDetailForInfo?.notes,
           },
           part: {
-            title: displayTitle,
+            title: currentItem.fileTitle,
             partLabel: formatPartLinks(currentItem.partLinks, audioParts),
             originalName: currentItem.fileTitle,
           },
@@ -2263,6 +2316,21 @@ export function ReadingPlaylistReaderPage() {
       )}
 
 
+
+      <ReadingPlaylistItemsModal
+        open={playlistItemsOpen}
+        onClose={() => setPlaylistItemsOpen(false)}
+        playlistName={playlist.name}
+        items={playlist.items}
+        currentIndex={itemIndex}
+        parts={catalogParts}
+        onSelect={(index) => {
+          setPlaylistItemsOpen(false);
+          if (index !== itemIndex) {
+            goToItem(index);
+          }
+        }}
+      />
 
       <PieceAudioPickerModal
 
