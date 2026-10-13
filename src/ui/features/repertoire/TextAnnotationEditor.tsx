@@ -187,12 +187,22 @@ export function TextAnnotationEditor({
     });
   }, [colorPresetId, content, geometry, onCancel, onCommit, session]);
 
+  const handleCommitRef = useRef(handleCommit);
+  handleCommitRef.current = handleCommit;
+
   useEffect(() => {
     if (!registerFlush) {
       return;
     }
-    return registerFlush(handleCommit);
-  }, [handleCommit, registerFlush]);
+    const flush = () => {
+      handleCommitRef.current();
+    };
+    const unregister = registerFlush(flush);
+    return () => {
+      flush();
+      unregister();
+    };
+  }, [registerFlush]);
 
   const insertSymbol = useCallback((char: string) => {
     const textarea = textareaRef.current;

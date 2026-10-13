@@ -9,7 +9,7 @@ import type {
   ProgramItemInput,
 } from '@/domain/agenda';
 import type { GroupKind } from '@/domain/ensemble';
-import { normalizeOptionalText, uniqueIds } from '@/domain/agenda';
+import { eventAllParticipantsAbsent, normalizeOptionalText, uniqueIds } from '@/domain/agenda';
 import { supabase } from './client';
 
 const EVENT_TYPE_COLUMNS = 'id, organization_id, name, kind, sort_order, color';
@@ -145,6 +145,121 @@ async function loadAudience(
   }
 
   return byEvent;
+}
+
+async function loadMusicianIdsByGroupId(
+  organizationId: string,
+  groupIds: string[],
+): Promise<Map<string, string[]>> {
+  const byGroup = new Map<string, string[]>();
+  if (groupIds.length === 0) {
+    return byGroup;
+  }
+
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('musician_id, group_id')
+    .eq('organization_id', organizationId)
+    .in('group_id', groupIds);
+
+  if (error || !data) {
+    return byGroup;
+  }
+
+  const setsByGroup = new Map<string, Set<string>>();
+  for (const row of data) {
+    const ids = setsByGroup.get(row.group_id) ?? new Set<string>();
+    ids.add(row.musician_id);
+    setsByGroup.set(row.group_id, ids);
+  }
+
+  for (const [groupId, musicianIds] of setsByGroup) {
+    byGroup.set(groupId, [...musicianIds]);
+  }
+
+  return byGroup;
+}
+
+async function loadAbsentMusicianIdsByEvent(
+  organizationId: string,
+  eventIds: string[],
+): Promise<Map<string, string[]>> {
+  const byEvent = new Map<string, string[]>();
+  for (const eventId of eventIds) {
+    byEvent.set(eventId, []);
+  }
+
+  if (eventIds.length === 0) {
+    return byEvent;
+  }
+
+  const { data, error } = await supabase
+    .from('event_absences')
+    .select('event_id, musician_id')
+    .eq('organization_id', organizationId)
+    .in('event_id', eventIds);
+
+  if (error || !data) {
+    return byEvent;
+  }
+
+  const setsByEvent = new Map<string, Set<string>>();
+  for (const row of data) {
+    const ids = setsByEvent.get(row.event_id) ?? new Set<string>();
+    ids.add(row.musician_id);
+    setsByEvent.set(row.event_id, ids);
+  }
+
+  for (const [eventId, musicianIds] of setsByEvent) {
+    byEvent.set(eventId, [...musicianIds]);
+  }
+
+  return byEvent;
+}
+
+function participantMusicianIdsForEvent(
+  audience: AudienceByEvent,
+  musicianIdsByGroupId: Map<string, string[]>,
+): string[] {
+  const ids = new Set<string>();
+  for (const musician of audience.musicians) {
+    ids.add(musician.id);
+  }
+  for (const group of audience.groups) {
+    for (const musicianId of musicianIdsByGroupId.get(group.id) ?? []) {
+      ids.add(musicianId);
+    }
+  }
+  return [...ids];
+}
+
+async function loadMusicianIdByUserId(
+  organizationId: string,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const byUserId = new Map<string, string>();
+  const uniqueUserIds = uniqueIds(userIds);
+  if (uniqueUserIds.length === 0) {
+    return byUserId;
+  }
+
+  const { data, error } = await supabase
+    .from('musicians')
+    .select('id, user_id')
+    .eq('organization_id', organizationId)
+    .in('user_id', uniqueUserIds);
+
+  if (error || !data) {
+    return byUserId;
+  }
+
+  for (const row of data) {
+    if (row.user_id) {
+      byUserId.set(row.user_id, row.id);
+    }
+  }
+
+  return byUserId;
 }
 
 async function loadProgramForEvent(organizationId: string, eventId: string) {
@@ -434,6 +549,19 @@ export function createEventRepository(): EventRepository {
         loadAudience(organizationId, eventIds),
       ]);
 
+      const groupIds = uniqueIds(
+        [...audience.values()].flatMap((entry) => entry.groups.map((group) => group.id)),
+      );
+      const creatorUserIds = rows
+        .map((row) => row.created_by)
+        .filter((userId): userId is string => userId != null);
+      const [musicianIdsByGroupId, absentMusicianIdsByEvent, musicianIdByCreatorUserId] =
+        await Promise.all([
+          loadMusicianIdsByGroupId(organizationId, groupIds),
+          loadAbsentMusicianIdsByEvent(organizationId, eventIds),
+          loadMusicianIdByUserId(organizationId, creatorUserIds),
+        ]);
+
       const items: EventListItem[] = [];
       for (const row of rows) {
         const typeRow = unwrapEventType(row);
@@ -447,6 +575,14 @@ export function createEventRepository(): EventRepository {
         if (options.groupId && !eventAudience.groups.some((group) => group.id === options.groupId)) {
           continue;
         }
+        const participantMusicianIds = participantMusicianIdsForEvent(
+          eventAudience,
+          musicianIdsByGroupId,
+        );
+        const absentMusicianIds = absentMusicianIdsByEvent.get(row.id) ?? [];
+        const creatorMusicianId = row.created_by
+          ? musicianIdByCreatorUserId.get(row.created_by)
+          : undefined;
         const item: EventListItem = {
           id: row.id,
           typeId: row.type_id,
@@ -464,6 +600,11 @@ export function createEventRepository(): EventRepository {
           recurrenceId: row.recurrence_id,
           isException: row.is_exception,
           cancelledAt: row.cancelled_at,
+          allParticipantsAbsent: eventAllParticipantsAbsent(
+            participantMusicianIds,
+            absentMusicianIds,
+            creatorMusicianId ? [creatorMusicianId] : [],
+          ),
         };
         if (!matchesMineFilter(item, options)) {
           continue;

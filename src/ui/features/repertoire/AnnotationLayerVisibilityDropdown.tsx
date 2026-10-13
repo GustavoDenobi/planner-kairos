@@ -42,6 +42,8 @@ export type LayerVisibilityOption = {
 type AnnotationLayerVisibilityDropdownProps = {
   options: LayerVisibilityOption[];
   onToggle: (id: string) => void;
+  showHideAllLayers?: boolean;
+  onHideAllLayers?: () => void;
   onEditLayer?: (editValue: string) => void;
   onCreateLayer?: () => void;
   onShowThirdPartyLayers?: () => void;
@@ -57,6 +59,8 @@ type AnnotationLayerVisibilityDropdownProps = {
 export function AnnotationLayerVisibilityDropdown({
   options,
   onToggle,
+  showHideAllLayers = false,
+  onHideAllLayers,
   onEditLayer,
   onCreateLayer,
   onShowThirdPartyLayers,
@@ -116,7 +120,15 @@ export function AnnotationLayerVisibilityDropdown({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  if (options.length === 0 && !showThirdPartyLayersButton && !onCreateLayer && !onTogglePointer) {
+  const canHideAllLayers = showHideAllLayers && Boolean(onHideAllLayers);
+
+  if (
+    options.length === 0 &&
+    !showThirdPartyLayersButton &&
+    !onCreateLayer &&
+    !onTogglePointer &&
+    !canHideAllLayers
+  ) {
     return null;
   }
 
@@ -138,7 +150,7 @@ export function AnnotationLayerVisibilityDropdown({
         ? 'Camadas visíveis'
         : `Camadas visíveis (${visibleCount}/${options.length})`;
   const hasMenuBelowPointer =
-    options.length > 0 || showThirdPartyLayersButton || Boolean(onCreateLayer);
+    options.length > 0 || showThirdPartyLayersButton || Boolean(onCreateLayer) || canHideAllLayers;
   const sortedOptions = [...options].sort((left, right) =>
     left.label.localeCompare(right.label, 'pt-BR', { sensitivity: 'base' }),
   );
@@ -217,6 +229,19 @@ export function AnnotationLayerVisibilityDropdown({
 
           {hasMenuBelowPointer ? (
             <p className="px-3 py-2 text-center text-xs font-bold text-text text-muted">Camadas de anotação</p>
+          ) : null}
+
+          {canHideAllLayers ? (
+            <div className="px-2 pb-1">
+              <button
+                type="button"
+                onClick={() => onHideAllLayers?.()}
+                disabled={visibleCount === 0}
+                className="flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm font-medium text-text hover:bg-bg disabled:cursor-default disabled:text-muted disabled:hover:bg-transparent"
+              >
+                Esconder todas
+              </button>
+            </div>
           ) : null}
 
           {sortedOptions.map((option, index) => {

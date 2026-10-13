@@ -3,6 +3,10 @@ import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoi
 import { isRepertoireUnlinkedFilter } from '@/domain/repertoire/repertoire-filters';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import {
+  RepertoireCategoryPickerSkeleton,
+  RepertoirePieceRowsSkeleton,
+} from '@/ui/components/skeletons/page-list-skeletons';
+import {
   RepertoireCategoryPicker,
   type RepertoireGroupPickerOption,
 } from '@/ui/features/repertoire/RepertoireCategoryPicker';
@@ -74,7 +78,7 @@ export function RepertoirePiecesSection({
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {isCategoriesLoading ? (
-          <p className="text-sm text-muted">Carregando…</p>
+          <RepertoireCategoryPickerSkeleton />
         ) : (
           <RepertoireCategoryPicker
             groups={pickerGroups}
@@ -156,7 +160,7 @@ export function RepertoirePiecesSection({
 
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3 overscroll-contain">
         {isLoading ? (
-          <p className="text-sm text-muted">Carregando…</p>
+          <RepertoirePieceRowsSkeleton />
         ) : pieces.length === 0 ? (
           <p className="text-sm text-muted">Nenhuma obra encontrada.</p>
         ) : (

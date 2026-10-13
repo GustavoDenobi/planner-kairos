@@ -87,6 +87,7 @@ function sampleEvent(overrides: Partial<EventListItem> = {}): EventListItem {
     cancelledAt: null,
     groups: [{ id: 'group-1', name: 'Cordas', kind: 'ensemble' }],
     musicians: [{ id: 'musician-1', fullName: 'João', userId: 'user-1' }],
+    allParticipantsAbsent: false,
     ...overrides,
   };
 }

@@ -5,6 +5,7 @@ import {
 } from '@/ui/features/agenda/agenda-date';
 import { AgendaBirthdayCard } from '@/ui/features/agenda/AgendaBirthdayCard';
 import { AgendaEventCard } from '@/ui/features/agenda/AgendaEventCard';
+import { AgendaEventsListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 
 type AgendaEventsSectionProps = {
   orgSlug: string;
@@ -22,7 +23,7 @@ export function AgendaEventsSection({
   const grouped = groupAgendaItemsByDay(events, birthdays);
 
   if (isLoading) {
-    return <p className="text-sm text-muted">Carregando…</p>;
+    return <AgendaEventsListSkeleton />;
   }
 
   if (grouped.length === 0) {

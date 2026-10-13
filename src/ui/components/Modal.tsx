@@ -9,6 +9,8 @@ type ModalProps = {
   size?: 'md' | 'lg';
   allowBackdropInteraction?: boolean;
   closable?: boolean;
+  /** Ações fixas no cabeçalho, à esquerda do botão Fechar (não rolam com o conteúdo). */
+  headerActions?: ReactNode;
 };
 
 const modalPanelMaxHeightStyle = {
@@ -24,6 +26,7 @@ export function Modal({
   size = 'md',
   allowBackdropInteraction = false,
   closable = true,
+  headerActions,
 }: ModalProps) {
   useBodyScrollLock(open);
 
@@ -65,14 +68,19 @@ export function Modal({
       >
         <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <h2 id="modal-title" className="text-lg font-semibold text-text">{title}</h2>
-          {closable ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-bg hover:text-text"
-            >
-              Fechar
-            </button>
+          {(headerActions != null || closable) ? (
+            <div className="flex shrink-0 items-center gap-2">
+              {headerActions}
+              {closable ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-bg hover:text-text"
+                >
+                  Fechar
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div className="min-h-0 overflow-y-auto overscroll-y-contain">{children}</div>

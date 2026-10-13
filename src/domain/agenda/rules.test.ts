@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { groupEventParticipants } from './absence-grouping';
-import type { EventParticipant, EventParticipantAssignment } from './event-absence';
+import {
+  eventAllParticipantsAbsent,
+  type EventParticipant,
+  type EventParticipantAssignment,
+} from './event-absence';
 import {
   eventDisplayTitle,
   resolveEventColor,
@@ -386,6 +390,30 @@ describe('canWriteEvent', () => {
         writableGroupIds: ['class-1'],
       }),
     ).toBe(false);
+  });
+});
+
+describe('eventAllParticipantsAbsent', () => {
+  it('returns false when there are no participants', () => {
+    expect(eventAllParticipantsAbsent([], ['m1'])).toBe(false);
+  });
+
+  it('returns false when only some participants are absent', () => {
+    expect(eventAllParticipantsAbsent(['m1', 'm2'], ['m1'])).toBe(false);
+  });
+
+  it('returns true when every participant is absent', () => {
+    expect(eventAllParticipantsAbsent(['m1', 'm2'], ['m1', 'm2'])).toBe(true);
+  });
+
+  it('ignores absences for musicians who are not participants', () => {
+    expect(eventAllParticipantsAbsent(['m1'], ['m1', 'm2'])).toBe(true);
+  });
+
+  it('ignores the organizer when checking full absence', () => {
+    expect(eventAllParticipantsAbsent(['org', 'm1'], ['m1'], ['org'])).toBe(true);
+    expect(eventAllParticipantsAbsent(['org', 'm1'], ['org'], ['org'])).toBe(false);
+    expect(eventAllParticipantsAbsent(['org'], ['org'], ['org'])).toBe(false);
   });
 });
 

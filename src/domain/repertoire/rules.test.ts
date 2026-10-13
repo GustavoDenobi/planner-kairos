@@ -597,6 +597,25 @@ describe('validateCreateReadingPlaylistInput', () => {
       }),
     ).toBeNull();
   });
+
+  it('exige snapshot de audiência quando a playlist vem de um evento', () => {
+    expect(
+      validateCreateReadingPlaylistInput({
+        name: 'Aula',
+        sourceEventId: 'event-1',
+        items: [{ pieceFileId: 'file-1' }],
+      }),
+    ).toBe('source_event_audience_required');
+
+    expect(
+      validateCreateReadingPlaylistInput({
+        name: 'Aula',
+        sourceEventId: 'event-1',
+        sourceEventAudience: { musicianIds: ['musician-1'], groupIds: [] },
+        items: [{ pieceFileId: 'file-1' }],
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('isEventSourcedPlaylistExpired', () => {

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { eventDisplayTitle } from '@/domain/agenda';
+import type { EventDetail } from '@/domain/agenda';
+import {
+  appendScoreFileToEventProgram,
+  canWriteEvent,
+  eventDisplayTitle,
+  programUnitIdentityKey,
+} from '@/domain/agenda';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type {
   PieceFilePartLink,
@@ -10,7 +16,7 @@ import type {
   ReadingPlaylistItemReferenceKind,
   ReadingPlaylistPieceCategory,
 } from '@/domain/repertoire';
-import { filterScoreCandidatesForUser } from '@/domain/repertoire';
+import { filterScoreCandidatesForUser, programUnitFromPlaylistItem } from '@/domain/repertoire';
 import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -20,6 +26,7 @@ import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { SortableDragHandle, SortableList } from '@/ui/components/SortableList';
 import { IconPlus, IconScoreSheet, IconTrash } from '@/ui/components/icons';
+import { agendaErrorMessage } from '@/ui/features/agenda/agenda-labels';
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatPartLinks } from '@/ui/features/repertoire/repertoire-labels';
 import { readingPlaylistErrorMessage } from '@/ui/features/repertoire/reading-playlist-labels';
@@ -33,6 +40,11 @@ import {
   orgPageContentClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import { OfflinePlaylistDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+import {
+  readPlaylistEventProgramSyncPref,
+  writePlaylistEventProgramSyncPref,
+} from '@/ui/features/repertoire/playlist-event-program-sync-pref';
 
 type PlaylistItemReference = {
   referenceKind: ReadingPlaylistItemReferenceKind | null;
@@ -90,6 +102,16 @@ function toSnapshot(name: string, items: EditableItem[]): PlaylistSnapshot {
       navigationShortcutId: item.navigationShortcutId,
     })),
   };
+}
+
+function itemSelectionKey(item: PlaylistItemReference & { pieceFileId: string }): string {
+  return programUnitIdentityKey({
+    pieceFileId: item.pieceFileId,
+    startPage: item.startPage,
+    endPage: item.endPage,
+    pieceFileTocEntryId: item.pieceFileTocEntryId,
+    navigationShortcutId: item.navigationShortcutId,
+  });
 }
 
 function snapshotsEqual(left: PlaylistSnapshot, right: PlaylistSnapshot): boolean {
@@ -256,10 +278,17 @@ export function ReadingPlaylistEditPage() {
   const { userId } = useAuth();
   const { organizations } = useOrg();
   const org = organizations.find((item) => item.slug === orgSlug);
+  const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const online = useOnlineStatus();
 
   const [name, setName] = useState('');
   const [sourceEventId, setSourceEventId] = useState<string | null>(null);
   const [sourceEventTitle, setSourceEventTitle] = useState<string | null>(null);
+  const [sourceEventDetail, setSourceEventDetail] = useState<EventDetail | null>(null);
+  const [sourceEventCanWrite, setSourceEventCanWrite] = useState(false);
+  const [syncAddToEventProgram, setSyncAddToEventProgram] = useState(() =>
+    readPlaylistEventProgramSyncPref(),
+  );
   const [items, setItems] = useState<EditableItem[]>([]);
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
@@ -289,19 +318,45 @@ export function ReadingPlaylistEditPage() {
 
     const playlist = result.value;
     setName(playlist.name);
+    // O snapshot de audiência fica gravado na criação a partir do evento.
+    // Trocar sourceEventId aqui exigiria recarregar o evento e enviar um snapshot novo.
     setSourceEventId(playlist.sourceEventId);
 
     if (playlist.sourceEventId) {
-      const eventResult = await agenda.getEvent(org.id, playlist.sourceEventId);
+      const [eventResult, audienceResult] = await Promise.all([
+        agenda.getEvent(org.id, playlist.sourceEventId),
+        userId ? agenda.listAssociableAudience(org.id, userId) : Promise.resolve(null),
+      ]);
+
       if (eventResult.ok) {
-        setSourceEventTitle(
-          eventDisplayTitle(eventResult.value, { name: eventResult.value.type.name }),
+        const detail = eventResult.value;
+        setSourceEventDetail(detail);
+        setSourceEventTitle(eventDisplayTitle(detail, { name: detail.type.name }));
+
+        const audience = audienceResult && audienceResult.ok ? audienceResult.value : null;
+        setSourceEventCanWrite(
+          Boolean(
+            online &&
+              userId &&
+              canWriteEvent({
+                isPrivileged: isAdmin,
+                isGroupWriter: Boolean(audience?.isGroupWriter),
+                userId,
+                createdBy: detail.createdBy,
+                eventGroupIds: detail.groups.map((group) => group.id),
+                writableGroupIds: audience?.writableGroupIds ?? [],
+              }),
+          ),
         );
       } else {
+        setSourceEventDetail(null);
         setSourceEventTitle(null);
+        setSourceEventCanWrite(false);
       }
     } else {
+      setSourceEventDetail(null);
       setSourceEventTitle(null);
+      setSourceEventCanWrite(false);
     }
 
     const nextItems = playlist.items.map((item: ReadingPlaylistItemDetail) => ({
@@ -323,7 +378,7 @@ export function ReadingPlaylistEditPage() {
     setItems(nextItems);
     setBaseline(toSnapshot(playlist.name, nextItems));
     setIsLoading(false);
-  }, [org, userId, playlistId, repertoire, agenda]);
+  }, [org, userId, playlistId, repertoire, agenda, online, isAdmin]);
 
   useEffect(() => {
     void loadPlaylist();
@@ -500,29 +555,80 @@ export function ReadingPlaylistEditPage() {
     void persistChanges({ items: nextItems });
   }
 
-  function handleAddFile(
+  async function handleAddFile(
     file: PieceFileWithLinks,
     pieceTitle: string,
     pieceCategory: ReadingPlaylistPieceCategory | null,
+    options?: {
+      syncToEventProgram?: boolean;
+      reference?: Partial<PlaylistItemReference & { label?: string }>;
+    },
   ) {
-    const nextItems = [
-      ...items,
-      {
-        id: `draft-${file.id}-${Date.now()}`,
-        pieceFileId: file.id,
-        pieceId: file.pieceId,
-        pieceTitle,
-        fileTitle: file.title,
-        label: '',
-        notes: '',
-        ...EMPTY_REFERENCE,
-        pieceCategory,
-        partLinks: file.partLinks,
-      },
-    ];
+    const reference = options?.reference ?? EMPTY_REFERENCE;
+    const startPage = reference.startPage ?? null;
+    const endPage = reference.endPage ?? null;
+    const newItem: EditableItem = {
+      id: `draft-${file.id}-${Date.now()}`,
+      pieceFileId: file.id,
+      pieceId: file.pieceId,
+      pieceTitle,
+      fileTitle: file.title,
+      label:
+        ('label' in reference ? reference.label?.trim() : undefined) ?? '',
+      notes: '',
+      referenceKind:
+        reference.referenceKind
+        ?? (startPage != null || endPage != null ? 'page' : null),
+      startPage,
+      endPage,
+      pieceFileTocEntryId: reference.pieceFileTocEntryId ?? null,
+      navigationShortcutId: reference.navigationShortcutId ?? null,
+      pieceCategory,
+      partLinks: file.partLinks,
+    };
+    const nextItems = [...items, newItem];
     setItems(nextItems);
     setPickerOpen(false);
-    void persistChanges({ items: nextItems });
+
+    const saved = await persistChanges({ items: nextItems });
+    if (!saved) {
+      return;
+    }
+
+    const shouldSync =
+      options?.syncToEventProgram &&
+      sourceEventId &&
+      sourceEventCanWrite &&
+      sourceEventDetail &&
+      org;
+
+    if (!shouldSync) {
+      return;
+    }
+
+    const unit = programUnitFromPlaylistItem(file.id, {
+      label: newItem.label,
+      startPage: newItem.startPage,
+      endPage: newItem.endPage,
+      pieceFileTocEntryId: newItem.pieceFileTocEntryId,
+      navigationShortcutId: newItem.navigationShortcutId,
+    });
+
+    const programItems = appendScoreFileToEventProgram(
+      sourceEventDetail.program,
+      file.pieceId,
+      unit,
+    );
+
+    const programResult = await agenda.setEventProgram(org.id, sourceEventId, programItems);
+    if (!programResult.ok) {
+      setError(
+        `Partitura adicionada à playlist, mas não foi possível atualizar a programação do evento: ${agendaErrorMessage(programResult.error)}`,
+      );
+      return;
+    }
+
+    setSourceEventDetail(programResult.value);
   }
 
   if (!orgSlug || !playlistId) {
@@ -567,6 +673,18 @@ export function ReadingPlaylistEditPage() {
       canSave={isDirty && name.trim().length > 0 && items.length > 0}
       sourceEventId={sourceEventId}
       sourceEventTitle={sourceEventTitle}
+      eventProgramSync={
+        sourceEventId && sourceEventTitle && sourceEventCanWrite
+          ? {
+              eventTitle: sourceEventTitle,
+              checked: syncAddToEventProgram,
+              onCheckedChange: (checked) => {
+                setSyncAddToEventProgram(checked);
+                writePlaylistEventProgramSyncPref(checked);
+              },
+            }
+          : undefined
+      }
       pickerOpen={pickerOpen}
       onPickerClose={() => setPickerOpen(false)}
       onAddFile={handleAddFile}
@@ -599,13 +717,22 @@ type PlaylistEditorShellProps = {
   canSave: boolean;
   sourceEventId?: string | null;
   sourceEventTitle?: string | null;
+  eventProgramSync?: {
+    eventTitle: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  };
   pickerOpen: boolean;
   onPickerClose: () => void;
   onAddFile: (
     file: PieceFileWithLinks,
     pieceTitle: string,
     pieceCategory: ReadingPlaylistPieceCategory | null,
-  ) => void;
+    options?: {
+      syncToEventProgram?: boolean;
+      reference?: Partial<PlaylistItemReference & { label?: string }>;
+    },
+  ) => void | Promise<void>;
   orgId: string;
   userPartIds: string[];
   repertoire: ReturnType<typeof useRepertoire>;
@@ -633,6 +760,7 @@ function PlaylistEditorShell({
   canSave,
   sourceEventId,
   sourceEventTitle,
+  eventProgramSync,
   pickerOpen,
   onPickerClose,
   onAddFile,
@@ -985,7 +1113,8 @@ function PlaylistEditorShell({
         userPartIds={userPartIds}
         parts={parts}
         repertoire={repertoire}
-        excludedFileIds={items.map((item) => item.pieceFileId)}
+        excludedSelectionKeys={items.map((item) => itemSelectionKey(item))}
+        eventProgramSync={eventProgramSync}
         onSelect={onAddFile}
       />
     </div>
@@ -999,12 +1128,21 @@ type AddScoreFileModalProps = {
   userPartIds: string[];
   parts: PartWithDivisions[];
   repertoire: ReturnType<typeof useRepertoire>;
-  excludedFileIds: string[];
+  excludedSelectionKeys: string[];
+  eventProgramSync?: {
+    eventTitle: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  };
   onSelect: (
     file: PieceFileWithLinks,
     pieceTitle: string,
     pieceCategory: ReadingPlaylistPieceCategory | null,
-  ) => void;
+    options?: {
+      syncToEventProgram?: boolean;
+      reference?: Partial<PlaylistItemReference & { label?: string }>;
+    },
+  ) => void | Promise<void>;
 };
 
 function AddScoreFileModal({
@@ -1014,7 +1152,8 @@ function AddScoreFileModal({
   userPartIds,
   parts,
   repertoire,
-  excludedFileIds,
+  excludedSelectionKeys,
+  eventProgramSync,
   onSelect,
 }: AddScoreFileModalProps) {
   const [query, setQuery] = useState('');
@@ -1027,7 +1166,7 @@ function AddScoreFileModal({
   const [scoreFiles, setScoreFiles] = useState<PieceFileWithLinks[]>([]);
   const [searchResults, setSearchResults] = useState<PieceListItem[]>([]);
 
-  const excluded = useMemo(() => new Set(excludedFileIds), [excludedFileIds]);
+  const excluded = useMemo(() => new Set(excludedSelectionKeys), [excludedSelectionKeys]);
 
   useEffect(() => {
     if (!open) {
@@ -1060,7 +1199,20 @@ function AddScoreFileModal({
     const result = await repertoire.getPiece(orgId, pieceId);
     if (result.ok) {
       const candidates = filterScoreCandidatesForUser(result.value.files, userPartIds);
-      setScoreFiles(candidates.filter((file) => !excluded.has(file.id)));
+      setScoreFiles(
+        candidates.filter(
+          (file) =>
+            !excluded.has(
+              programUnitIdentityKey({
+                pieceFileId: file.id,
+                startPage: null,
+                endPage: null,
+                pieceFileTocEntryId: null,
+                navigationShortcutId: null,
+              }),
+            ),
+        ),
+      );
       setPieceCategory({
         name: result.value.category.name,
         slug: result.value.category.slug,
@@ -1124,22 +1276,44 @@ function AddScoreFileModal({
             {scoreFiles.length === 0 ? (
               <p className="text-sm text-muted">Sem partituras disponíveis para adicionar.</p>
             ) : (
-              <ul className="max-h-64 space-y-1 overflow-y-auto">
-                {scoreFiles.map((file) => (
-                  <li key={file.id}>
-                    <button
-                      type="button"
-                      onClick={() => onSelect(file, pieceTitle, pieceCategory)}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg"
-                    >
-                      <span className="font-medium text-text">{file.title}</span>
-                      <span className="ml-2 text-muted">
-                        {formatPartLinks(file.partLinks, parts)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {eventProgramSync ? (
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={eventProgramSync.checked}
+                      onChange={(event) =>
+                        eventProgramSync.onCheckedChange(event.target.checked)
+                      }
+                    />
+                    <span>
+                      Também adicionar à programação de{' '}
+                      <span className="font-medium">{eventProgramSync.eventTitle}</span>
+                    </span>
+                  </label>
+                ) : null}
+                <ul className="max-h-64 space-y-1 overflow-y-auto">
+                  {scoreFiles.map((file) => (
+                    <li key={file.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void onSelect(file, pieceTitle, pieceCategory, {
+                            syncToEventProgram: eventProgramSync?.checked ?? false,
+                          })
+                        }
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg"
+                      >
+                        <span className="font-medium text-text">{file.title}</span>
+                        <span className="ml-2 text-muted">
+                          {formatPartLinks(file.partLinks, parts)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </>
         )}

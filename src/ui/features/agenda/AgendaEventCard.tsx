@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import type { EventListItem } from '@/domain/agenda';
 import { eventDisplayTitle, isEventCancelled } from '@/domain/agenda';
-import { EVENT_CANCELLED_LABEL } from '@/ui/features/agenda/agenda-labels';
+import {
+  EVENT_ALL_ABSENT_BADGE_LABEL,
+  EVENT_CANCELLED_LABEL,
+} from '@/ui/features/agenda/agenda-labels';
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatEventTime } from '@/ui/features/agenda/agenda-date';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
@@ -15,6 +18,7 @@ type AgendaEventCardProps = {
 
 export function AgendaEventCard({ orgSlug, event, variant = 'list' }: AgendaEventCardProps) {
   const cancelled = isEventCancelled(event);
+  const allAbsent = event.allParticipantsAbsent ?? false;
   const title = eventDisplayTitle(event, { name: event.typeName });
   const badgeStyle = eventTypeBadgeStyle({
     kind: event.typeKind,
@@ -25,6 +29,7 @@ export function AgendaEventCard({ orgSlug, event, variant = 'list' }: AgendaEven
   return (
     <Link
       to={eventPath(orgSlug, event.id)}
+      title={allAbsent ? 'Todos os participantes ausentes' : undefined}
       className={`block max-w-full overflow-hidden rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-bg ${cancelled ? 'opacity-60' : ''}`}
     >
       <div className="min-w-0 max-w-full">
@@ -33,6 +38,14 @@ export function AgendaEventCard({ orgSlug, event, variant = 'list' }: AgendaEven
             {title}
           </p>
           <div className="flex shrink-0 items-center gap-2">
+            {allAbsent && (
+              <span
+                className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                title="Todos os participantes ausentes"
+              >
+                {EVENT_ALL_ABSENT_BADGE_LABEL}
+              </span>
+            )}
             {cancelled && (
               <span className="rounded-full bg-bg px-2 py-0.5 text-[10px] font-medium text-muted">
                 {EVENT_CANCELLED_LABEL}

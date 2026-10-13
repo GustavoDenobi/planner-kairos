@@ -54,12 +54,22 @@ export function NoteAnnotationEditor({
     });
   }, [body, onCancel, onCommit, session, title]);
 
+  const handleCommitRef = useRef(handleCommit);
+  handleCommitRef.current = handleCommit;
+
   useEffect(() => {
     if (!registerFlush) {
       return;
     }
-    return registerFlush(handleCommit);
-  }, [handleCommit, registerFlush]);
+    const flush = () => {
+      handleCommitRef.current();
+    };
+    const unregister = registerFlush(flush);
+    return () => {
+      flush();
+      unregister();
+    };
+  }, [registerFlush]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;

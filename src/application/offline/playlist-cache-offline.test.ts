@@ -73,6 +73,7 @@ function makePlaylist(id: string, fileId: string): ReadingPlaylistDetail {
     name: id,
     sourceEventId: null,
     sourceEventKind: null,
+    sourceEventAudience: null,
     archivedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

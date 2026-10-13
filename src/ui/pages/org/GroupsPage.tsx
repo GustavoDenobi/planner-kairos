@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import { OrgListRowsSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { IconUsers } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
@@ -240,7 +241,7 @@ export function GroupsPage() {
         }
       >
         {isLoading ? (
-          <p className="text-sm text-muted">Carregando…</p>
+          <OrgListRowsSkeleton />
         ) : isEmpty ? (
           <p className="text-sm text-muted">Nenhum grupo cadastrado.</p>
         ) : !hasSearchResults ? (

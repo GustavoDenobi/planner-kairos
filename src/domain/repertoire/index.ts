@@ -133,6 +133,7 @@ export type {
   ReadingPlaylistItemDetail,
   ReadingPlaylistItemReferenceKind,
   ReadingPlaylistPieceCategory,
+  ReadingPlaylistSourceEventAudience,
   CreateReadingPlaylistInput,
   CreateReadingPlaylistItemInput,
   UpdateReadingPlaylistInput,
@@ -140,11 +141,20 @@ export type {
   PlaylistItemPageLookup,
 } from './reading-playlist';
 export {
+  normalizeSourceEventAudience,
   playlistItemObservation,
   playlistReferenceFromProgramUnit,
+  programUnitFromPlaylistItem,
   resolvePlaylistItemOpenPage,
+  snapshotSourceEventAudienceFromEvent,
   splitPlaylistItemNotes,
 } from './reading-playlist';
+export type { DefaultVisibleLayers } from './directed-layer-visibility';
+export {
+  annotationSetMatchesSourceEventAudience,
+  buildDefaultVisibleLayers,
+  matchDirectedAnnotationSetIds,
+} from './directed-layer-visibility';
 export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,

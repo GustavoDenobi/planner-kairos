@@ -793,6 +793,9 @@ export function validateCreateReadingPlaylistInput(
       return 'invalid_file';
     }
   }
+  if (input.sourceEventId && !input.sourceEventAudience) {
+    return 'source_event_audience_required';
+  }
   return null;
 }
 

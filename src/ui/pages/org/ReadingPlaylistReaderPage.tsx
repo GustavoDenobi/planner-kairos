@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceDetail, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
-import { formatAnnotationSetLabel, playlistItemObservation, resolveAnnotationSetAudience, resolvePlaylistItemOpenPage } from '@/domain/repertoire';
+import { formatAnnotationSetLabel, matchDirectedAnnotationSetIds, playlistItemObservation, resolveAnnotationSetAudience, resolvePlaylistItemOpenPage } from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -42,6 +42,12 @@ import {
   PlaylistItemCache,
 
 } from '@/ui/features/repertoire/playlist-reader-item-cache';
+
+import { ReaderLoadProgress } from '@/ui/features/repertoire/ReaderLoadProgress';
+
+import { useHybridLoadProgress } from '@/ui/features/repertoire/useHybridLoadProgress';
+
+import { useGoBack } from '@/ui/hooks/useGoBack';
 
 import {
 
@@ -178,6 +184,13 @@ export function ReadingPlaylistReaderPage() {
 
   const activeItemLoadRef = useRef(0);
 
+  const itemLoadAbortRef = useRef<AbortController | null>(null);
+
+  const activeReaderItemRef = useRef<{ index: number; pieceFileId: string | null }>({
+    index: itemIndex,
+    pieceFileId: null,
+  });
+
   const sequentialSkipRef = useRef<{ direction: 'next' | 'prev' } | null>(null);
 
   const sectionLeadsLoadedRef = useRef(false);
@@ -218,6 +231,7 @@ export function ReadingPlaylistReaderPage() {
   const [directedSetManageModalOpen, setDirectedSetManageModalOpen] = useState(false);
   const [directedSetModalMode, setDirectedSetModalMode] = useState<'create' | 'edit'>('create');
   const [directedSetSelectRequest, setDirectedSetSelectRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const lessonLayerRequestKeyRef = useRef<string | null>(null);
   const [manageHighlightedSetId, setManageHighlightedSetId] = useState<string | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
@@ -278,6 +292,13 @@ export function ReadingPlaylistReaderPage() {
         : undefined,
     [includeThirdPartyDirectedLayers],
   );
+
+  useEffect(() => {
+    activeReaderItemRef.current = {
+      index: itemIndex,
+      pieceFileId: currentItem?.pieceFileId ?? null,
+    };
+  }, [itemIndex, currentItem?.pieceFileId]);
 
   useEffect(() => {
     setIncludeThirdPartyDirectedLayers(false);
@@ -348,6 +369,20 @@ export function ReadingPlaylistReaderPage() {
     (currentItem?.referenceKind === 'toc' || currentItem?.referenceKind === 'shortcut') &&
     !cachedCurrentItem;
 
+  const showBlockingLoading =
+    waitingForLocalReference || ((isLoadingPlaylist || isLoadingItem) && !cachedCurrentItem);
+
+  const downloadProgressRef = useRef<(loaded: number, total: number) => void>(() => {});
+
+  const { progress: readerLoadProgress, reportDownloadProgress } =
+    useHybridLoadProgress(showBlockingLoading);
+
+  downloadProgressRef.current = reportDownloadProgress;
+
+  const reportItemDownloadProgress = useCallback((loaded: number, total: number) => {
+    downloadProgressRef.current(loaded, total);
+  }, []);
+
   useEffect(() => {
     if (!organizationId || !currentItem?.pieceId || !online) {
       setPieceDetailForInfo(null);
@@ -390,6 +425,15 @@ export function ReadingPlaylistReaderPage() {
     return readingPlaylistEditPath(orgSlug, playlistId);
 
   }, [orgSlug, playlistId, playlist?.sourceEventId, online]);
+
+  const closeReader = useGoBack(backTo);
+
+  useEffect(() => {
+    return () => {
+      activeItemLoadRef.current += 1;
+      itemLoadAbortRef.current?.abort();
+    };
+  }, []);
 
 
 
@@ -588,6 +632,12 @@ export function ReadingPlaylistReaderPage() {
 
       const loadId = ++activeItemLoadRef.current;
 
+      itemLoadAbortRef.current?.abort();
+
+      const abortController = new AbortController();
+
+      itemLoadAbortRef.current = abortController;
+
       const isActive = () => loadId === activeItemLoadRef.current;
 
 
@@ -676,13 +726,15 @@ export function ReadingPlaylistReaderPage() {
           item,
           viewerContext ?? undefined,
           annotationReadingOptions,
+          reportItemDownloadProgress,
+          abortController.signal,
         ),
 
       );
 
 
 
-      if (!isActive()) {
+      if (!isActive() || abortController.signal.aborted) {
 
         return result;
 
@@ -691,6 +743,12 @@ export function ReadingPlaylistReaderPage() {
 
 
       if (!result) {
+
+        if (abortController.signal.aborted) {
+
+          return null;
+
+        }
 
         setDownloadUrl(null);
 
@@ -749,7 +807,15 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [organizationId, playlist, offline, online, viewerContext, annotationReadingOptions],
+    [
+      organizationId,
+      playlist,
+      offline,
+      online,
+      viewerContext,
+      annotationReadingOptions,
+      reportItemDownloadProgress,
+    ],
 
   );
 
@@ -875,16 +941,21 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  const syncCachedAnnotations = useCallback(
-
-    (updater: (current: PdfAnnotation[]) => PdfAnnotation[]) => {
-
-      itemCacheRef.current.updateAnnotations(itemIndex, updater);
-
+  const applyAnnotationChangeForItem = useCallback(
+    (
+      target: { index: number; pieceFileId: string },
+      updater: (current: PdfAnnotation[]) => PdfAnnotation[],
+    ) => {
+      itemCacheRef.current.updateAnnotations(target.index, updater);
+      setAnnotations((current) => {
+        const active = activeReaderItemRef.current;
+        if (active.index !== target.index || active.pieceFileId !== target.pieceFileId) {
+          return current;
+        }
+        return updater(current);
+      });
     },
-
-    [itemIndex],
-
+    [],
   );
 
 
@@ -1209,13 +1280,19 @@ export function ReadingPlaylistReaderPage() {
         return null;
       }
 
+      const target = {
+        index: itemIndex,
+        pieceId: currentItem.pieceId,
+        pieceFileId: currentItem.pieceFileId,
+      };
+
       const result = await offline.createPieceFileAnnotations(
         organizationId,
-        currentItem.pieceId,
+        target.pieceId,
         userId,
         inputs.map((input) => ({
           ...input,
-          pieceFileId: currentItem.pieceFileId,
+          pieceFileId: target.pieceFileId,
         })),
       );
 
@@ -1223,11 +1300,13 @@ export function ReadingPlaylistReaderPage() {
         return null;
       }
 
-      setAnnotations((current) => [...current, ...result.value]);
-      syncCachedAnnotations((current) => [...current, ...result.value]);
+      applyAnnotationChangeForItem(
+        { index: target.index, pieceFileId: target.pieceFileId },
+        (current) => [...current, ...result.value],
+      );
       return result.value;
     },
-    [organizationId, userId, currentItem, offline, online, syncCachedAnnotations],
+    [organizationId, userId, currentItem, itemIndex, offline, online, applyAnnotationChangeForItem],
   );
 
 
@@ -1242,13 +1321,13 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-
+      const target = { index: itemIndex, pieceFileId: currentItem.pieceFileId };
 
       const result = await offline.deletePieceFileAnnotation(
 
         organizationId,
 
-        currentItem.pieceFileId,
+        target.pieceFileId,
 
         annotationId,
 
@@ -1260,17 +1339,13 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-
-
-      setAnnotations((current) => current.filter((annotation) => annotation.id !== annotationId));
-
-      syncCachedAnnotations((current) =>
+      applyAnnotationChangeForItem(target, (current) =>
         current.filter((annotation) => annotation.id !== annotationId),
       );
 
     },
 
-    [organizationId, currentItem, offline, syncCachedAnnotations],
+    [organizationId, currentItem, itemIndex, offline, applyAnnotationChangeForItem],
 
   );
 
@@ -1286,13 +1361,13 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-
+      const target = { index: itemIndex, pieceFileId: currentItem.pieceFileId };
 
       const result = await offline.updatePieceFileAnnotation(
 
         organizationId,
 
-        currentItem.pieceFileId,
+        target.pieceFileId,
 
         annotationId,
 
@@ -1306,33 +1381,17 @@ export function ReadingPlaylistReaderPage() {
 
       }
 
-
-
-      setAnnotations((current) =>
-
+      applyAnnotationChangeForItem(target, (current) =>
         current.map((annotation) =>
-
           annotation.id === annotationId ? result.value : annotation,
-
         ),
-
-      );
-
-      syncCachedAnnotations((current) =>
-
-        current.map((annotation) =>
-
-          annotation.id === annotationId ? result.value : annotation,
-
-        ),
-
       );
 
       return result.value;
 
     },
 
-    [organizationId, currentItem, offline, syncCachedAnnotations],
+    [organizationId, currentItem, itemIndex, offline, applyAnnotationChangeForItem],
 
   );
 
@@ -1448,6 +1507,30 @@ export function ReadingPlaylistReaderPage() {
     });
   }, [annotationSets, userId, audienceLookup, authorNameByUserId]);
 
+  const directedLayerAutoVisibleSetIds = useMemo(() => {
+    const audience = playlist?.sourceEventAudience ?? null;
+    if (!audience) {
+      return [];
+    }
+    return matchDirectedAnnotationSetIds(annotationSets, audience);
+  }, [annotationSets, playlist?.sourceEventAudience]);
+
+  const lessonDirectedSetId =
+    directedLayerAutoVisibleSetIds.length === 1 ? directedLayerAutoVisibleSetIds[0] : null;
+
+  useEffect(() => {
+    const pieceFileId = currentItem?.pieceFileId;
+    if (!lessonDirectedSetId || !pieceFileId) {
+      return;
+    }
+    const key = `${pieceFileId}:${lessonDirectedSetId}`;
+    if (lessonLayerRequestKeyRef.current === key) {
+      return;
+    }
+    lessonLayerRequestKeyRef.current = key;
+    setDirectedSetSelectRequest({ id: lessonDirectedSetId, nonce: Date.now() });
+  }, [currentItem?.pieceFileId, lessonDirectedSetId]);
+
   const editingSet = editingSetId
     ? annotationSets.find((set) => set.id === editingSetId) ?? null
     : null;
@@ -1477,9 +1560,11 @@ export function ReadingPlaylistReaderPage() {
         return false;
       }
 
+      const target = { index: itemIndex, pieceFileId: currentItem.pieceFileId };
+
       const result = await offline.deleteAnnotationSet(
         organizationId,
-        currentItem.pieceFileId,
+        target.pieceFileId,
         setId,
       );
       if (!result.ok) {
@@ -1487,10 +1572,7 @@ export function ReadingPlaylistReaderPage() {
       }
 
       setAnnotationSets((current) => current.filter((set) => set.id !== setId));
-      setAnnotations((current) =>
-        current.filter((annotation) => annotation.annotationSetId !== setId),
-      );
-      syncCachedAnnotations((current) =>
+      applyAnnotationChangeForItem(target, (current) =>
         current.filter((annotation) => annotation.annotationSetId !== setId),
       );
       if (editingSetId === setId) {
@@ -1499,7 +1581,7 @@ export function ReadingPlaylistReaderPage() {
       }
       return true;
     },
-    [organizationId, currentItem, offline, editingSetId, syncCachedAnnotations],
+    [organizationId, currentItem, itemIndex, offline, editingSetId, applyAnnotationChangeForItem],
   );
 
   const handleDirectedSetSubmit = useCallback(
@@ -1919,18 +2001,13 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-  const showBlockingLoading =
-    waitingForLocalReference || ((isLoadingPlaylist || isLoadingItem) && !cachedCurrentItem);
-
-
-
   if (showBlockingLoading) {
 
     return (
 
       <ReaderLayout title="Carregando…" backTo={backTo} subtitle={playlist?.name}>
 
-        <p className="p-4 text-sm text-muted">Carregando partitura…</p>
+        <ReaderLoadProgress progress={readerLoadProgress} onCancel={closeReader} />
 
       </ReaderLayout>
 
@@ -2202,6 +2279,8 @@ export function ReadingPlaylistReaderPage() {
 
         directedSetOptions={directedSetOptions}
 
+        directedLayerAutoVisibleSetIds={directedLayerAutoVisibleSetIds}
+
         canEditDirectedLayer={canEditDirectedLayer}
 
         canLoadThirdPartyDirectedLayers={isAdmin}
@@ -2228,6 +2307,8 @@ export function ReadingPlaylistReaderPage() {
         entryDirection={navState.direction}
 
         preloadedPdf={cachedCurrentItem?.pdfDocument ?? null}
+
+        onLoadCancel={closeReader}
 
         readerInfo={{
           open: infoModalOpen,

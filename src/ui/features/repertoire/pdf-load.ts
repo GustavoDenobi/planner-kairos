@@ -1,6 +1,7 @@
 import type { OfflineUseCases } from '@/application/offline';
 import { OFFLINE_SIZE_WARNING_BYTES } from '@/application/offline/types';
 import type { ResolvedPieceFile } from '@/application/offline';
+import type { PdfDownloadProgressHandler } from '@/ui/features/repertoire/hybrid-load-progress';
 import * as pdfjs from 'pdfjs-dist';
 
 const pdfjsAssetBase = `${import.meta.env.BASE_URL}pdfjs/`;
@@ -21,6 +22,57 @@ export function revokePdfObjectUrl(url: string | null | undefined): void {
 
 function createPdfObjectUrl(data: ArrayBuffer): string {
   return URL.createObjectURL(new Blob([data.slice(0)], { type: 'application/pdf' }));
+}
+
+export function wirePdfDownloadProgress(
+  task: pdfjs.PDFDocumentLoadingTask,
+  onDownloadProgress?: PdfDownloadProgressHandler,
+): void {
+  if (!onDownloadProgress) {
+    return;
+  }
+
+  task.onProgress = ({ loaded, total }: { loaded: number; total: number }) => {
+    onDownloadProgress(loaded, total);
+  };
+}
+
+async function awaitPdfLoadingTask(
+  loadingTask: pdfjs.PDFDocumentLoadingTask,
+  abortSignal?: AbortSignal,
+): Promise<pdfjs.PDFDocumentProxy> {
+  if (!abortSignal) {
+    return loadingTask.promise;
+  }
+
+  if (abortSignal.aborted) {
+    void loadingTask.destroy();
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      void loadingTask.destroy();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+
+    abortSignal.addEventListener('abort', onAbort, { once: true });
+
+    loadingTask.promise
+      .then((document) => {
+        abortSignal.removeEventListener('abort', onAbort);
+        if (abortSignal.aborted) {
+          void loadingTask.destroy();
+          reject(new DOMException('Aborted', 'AbortError'));
+          return;
+        }
+        resolve(document);
+      })
+      .catch((error: unknown) => {
+        abortSignal.removeEventListener('abort', onAbort);
+        reject(error);
+      });
+  });
 }
 
 export function openPdfDocument(
@@ -44,6 +96,8 @@ export async function resolvePdfDocument(
   organizationId: string,
   pieceId: string,
   fileId: string,
+  onDownloadProgress?: PdfDownloadProgressHandler,
+  abortSignal?: AbortSignal,
 ): Promise<{
   resolved: ResolvedPieceFile | null;
   pdfDocument: pdfjs.PDFDocumentProxy | null;
@@ -51,6 +105,14 @@ export async function resolvePdfDocument(
   error: string | null;
 }> {
   const result = await offline.resolvePieceFileForReading(organizationId, pieceId, fileId);
+  if (abortSignal?.aborted) {
+    return {
+      resolved: null,
+      pdfDocument: null,
+      downloadUrl: null,
+      error: 'aborted',
+    };
+  }
   if (!result.ok) {
     return {
       resolved: null,
@@ -65,7 +127,10 @@ export async function resolvePdfDocument(
   try {
     if (resolved.source === 'local') {
       localDownloadUrl = createPdfObjectUrl(resolved.data);
-      const pdfDocument = await openPdfDocument({ data: resolved.data }).promise;
+      onDownloadProgress?.(resolved.data.byteLength, resolved.data.byteLength);
+      const loadingTask = openPdfDocument({ data: resolved.data });
+      wirePdfDownloadProgress(loadingTask, onDownloadProgress);
+      const pdfDocument = await awaitPdfLoadingTask(loadingTask, abortSignal);
       return {
         resolved,
         pdfDocument,
@@ -74,7 +139,9 @@ export async function resolvePdfDocument(
       };
     }
 
-    const pdfDocument = await openPdfDocument({ url: resolved.url }).promise;
+    const loadingTask = openPdfDocument({ url: resolved.url });
+    wirePdfDownloadProgress(loadingTask, onDownloadProgress);
+    const pdfDocument = await awaitPdfLoadingTask(loadingTask, abortSignal);
     return {
       resolved,
       pdfDocument,
@@ -83,6 +150,14 @@ export async function resolvePdfDocument(
     };
   } catch {
     revokePdfObjectUrl(localDownloadUrl);
+    if (abortSignal?.aborted) {
+      return {
+        resolved,
+        pdfDocument: null,
+        downloadUrl: null,
+        error: 'aborted',
+      };
+    }
     return {
       resolved,
       pdfDocument: null,

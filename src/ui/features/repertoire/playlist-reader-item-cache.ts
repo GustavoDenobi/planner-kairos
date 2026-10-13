@@ -5,6 +5,7 @@ import type {
   AnnotationViewerContext,
 } from '@/application/ports/offline-annotation-store';
 import type { OfflineUseCases } from '@/application/offline';
+import type { PdfDownloadProgressHandler } from '@/ui/features/repertoire/hybrid-load-progress';
 import { resolvePdfDocument } from '@/ui/features/repertoire/pdf-load';
 
 export type CachedPlaylistItem = {
@@ -27,6 +28,8 @@ export async function loadPlaylistItemData(
   item: ReadingPlaylistItemDetail,
   viewer?: AnnotationViewerContext,
   readingOptions?: AnnotationReadingOptions,
+  onDownloadProgress?: PdfDownloadProgressHandler,
+  abortSignal?: AbortSignal,
 ): Promise<CachedPlaylistItem | null> {
   if (!isPlaylistItemAvailable(item) || !item.pieceId) {
     return null;
@@ -37,7 +40,13 @@ export async function loadPlaylistItemData(
     organizationId,
     item.pieceId,
     item.pieceFileId,
+    onDownloadProgress,
+    abortSignal,
   );
+
+  if (pdfLoad.error === 'aborted') {
+    return null;
+  }
 
   if (!pdfLoad.pdfDocument) {
     return null;

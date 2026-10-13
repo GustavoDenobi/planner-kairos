@@ -89,7 +89,7 @@ function isDirectedLayerVisible(
   if (!annotation.annotationSetId) {
     return false;
   }
-  return visibleLayers.directed[annotation.annotationSetId] ?? true;
+  return visibleLayers.directed[annotation.annotationSetId] ?? false;
 }
 
 export function filterPageAnnotations(

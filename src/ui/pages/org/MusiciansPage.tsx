@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 import type {
@@ -18,6 +18,10 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import {
+  MusicianListLoadMoreSkeleton,
+  MusicianListRowsSkeleton,
+} from '@/ui/components/skeletons/page-list-skeletons';
 import { MusicianClaimLinkCopyButton } from '@/ui/components/MusicianClaimLinkCopyButton';
 import { IconArrowUpDown, IconFilter, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, formatAssignmentSummaryLabel } from '@/ui/features/ensemble/ensemble-labels';
@@ -107,6 +111,8 @@ export function MusiciansPage() {
   const requestIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const keepSearchFocusRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -268,6 +274,14 @@ export function MusiciansPage() {
     void loadPage(0, true);
   }, [loadPage, org]);
 
+  useLayoutEffect(() => {
+    if (isLoading || !keepSearchFocusRef.current) {
+      return;
+    }
+
+    searchInputRef.current?.focus({ preventScroll: true });
+  }, [isLoading, musicians]);
+
   const loadMore = useCallback(() => {
     if (isLoading || isLoadingMore || !hasMore) {
       return;
@@ -363,10 +377,13 @@ export function MusiciansPage() {
   }
 
   const isSearching = normalizeSearchText(debouncedQuery).length > 0;
+  const hasSearchInput = normalizeSearchText(searchQuery).length > 0;
   const extraFiltersActive = Boolean(
     filterGroupId || filterSectionId || filterPartId || filterRole,
   );
   const isFiltering = isSearching || extraFiltersActive;
+  const showSearchToolbar = totalCount > 0 || isFiltering || hasSearchInput;
+  const isInitialListLoad = isLoading && musicians.length === 0;
   const groupNameById = new Map(groups.map((group) => [group.id, group.name]));
   const visibleSections = filterGroupId
     ? sections.filter((section) => section.groupId === filterGroupId)
@@ -410,15 +427,22 @@ export function MusiciansPage() {
         </div>
       }
       toolbar={
-        !isLoading && (totalCount > 0 || isFiltering) ? (
+        showSearchToolbar ? (
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">
               <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                 <span className="sr-only">Buscar músicos</span>
                 <input
+                  ref={searchInputRef}
                   type="search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
+                  onFocus={() => {
+                    keepSearchFocusRef.current = true;
+                  }}
+                  onBlur={() => {
+                    keepSearchFocusRef.current = false;
+                  }}
                   placeholder="Buscar por nome ou telefone…"
                   className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
                 />
@@ -536,13 +560,18 @@ export function MusiciansPage() {
         ) : undefined
       }
     >
-      {isLoading ? (
-        <p className="text-sm text-muted">Carregando…</p>
+      {isInitialListLoad ? (
+        <MusicianListRowsSkeleton />
       ) : showEmptyState ? (
         <p className="text-sm text-muted">{emptyMessage}</p>
+      ) : isLoading && musicians.length === 0 ? (
+        <p className="text-sm text-muted">Buscando…</p>
       ) : (
         <>
-          <ul className="flex flex-col gap-2">
+          <ul
+            className={`flex flex-col gap-2 ${isLoading ? 'pointer-events-none opacity-60' : ''}`}
+            aria-busy={isLoading}
+          >
             {musicians.map((musician) => {
               const whatsappUrl = musicianWhatsAppUrl(musician.phone);
 
@@ -594,9 +623,7 @@ export function MusiciansPage() {
 
           <div ref={sentinelRef} className="h-1" aria-hidden />
 
-          {isLoadingMore && (
-            <p className="mt-4 text-center text-sm text-muted">Carregando mais…</p>
-          )}
+          {isLoadingMore && <MusicianListLoadMoreSkeleton />}
         </>
       )}
     </OrgListPageLayout>

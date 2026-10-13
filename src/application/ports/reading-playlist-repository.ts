@@ -8,6 +8,7 @@ import type {
 
 export type ReadingPlaylistRepository = {
   listForUser(organizationId: string, ownerUserId: string): Promise<ReadingPlaylist[]>;
+  listArchivedForUser(organizationId: string, ownerUserId: string): Promise<ReadingPlaylist[]>;
   getDetail(
     organizationId: string,
     playlistId: string,

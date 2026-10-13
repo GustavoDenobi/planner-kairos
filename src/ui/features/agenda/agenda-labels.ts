@@ -129,6 +129,9 @@ export const RECURRENCE_SCOPE_CANCEL_LABELS: Record<
 
 export const EVENT_CANCELLED_LABEL = 'Cancelado';
 
+/** Badge na agenda quando todos os participantes (exceto o organizador) estão ausentes. */
+export const EVENT_ALL_ABSENT_BADGE_LABEL = 'Ausente';
+
 export function agendaErrorMessage(code: string): string {
   return AGENDA_ERROR_MESSAGES[code] ?? 'Algo deu errado. Verifique sua conexão e tente novamente.';
 }

@@ -12,6 +12,7 @@ import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
 import { ConfirmModal } from '@/ui/components/ConfirmModal';
 import { Modal } from '@/ui/components/Modal';
 import { Toast } from '@/ui/components/Toast';
+import { AgendaEventTypesListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { IconChevronLeft, IconPlus, IconSettings } from '@/ui/components/icons';
 import { AgendaEventTypesSection } from '@/ui/features/agenda/AgendaEventTypesSection';
 import { AgendaEventsSection } from '@/ui/features/agenda/AgendaEventsSection';
@@ -674,7 +675,7 @@ export function AgendaPage() {
             </p>
           ) : showEventTypesView ? (
             isLoading ? (
-              <p className="text-sm text-muted">Carregando…</p>
+              <AgendaEventTypesListSkeleton />
             ) : (
               <AgendaEventTypesSection
                 types={eventTypes}

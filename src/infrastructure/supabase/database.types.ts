@@ -2159,7 +2159,9 @@ export type Database = {
           name: string
           organization_id: string
           owner_user_id: string
+          source_event_group_ids: string[]
           source_event_id: string | null
+          source_event_musician_ids: string[]
           updated_at: string
         }
         Insert: {
@@ -2169,7 +2171,9 @@ export type Database = {
           name: string
           organization_id: string
           owner_user_id: string
+          source_event_group_ids?: string[]
           source_event_id?: string | null
+          source_event_musician_ids?: string[]
           updated_at?: string
         }
         Update: {
@@ -2179,7 +2183,9 @@ export type Database = {
           name?: string
           organization_id?: string
           owner_user_id?: string
+          source_event_group_ids?: string[]
           source_event_id?: string | null
+          source_event_musician_ids?: string[]
           updated_at?: string
         }
         Relationships: [

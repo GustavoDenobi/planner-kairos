@@ -6,6 +6,7 @@ import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import { PartsListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { IconPencil } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
 import { PART_KIND_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
@@ -320,7 +321,7 @@ export function PartsPage() {
       }
     >
       {isLoading ? (
-        <p className="text-sm text-muted">Carregando…</p>
+        <PartsListSkeleton />
       ) : parts.length === 0 ? (
         <p className="text-sm text-muted">Nenhuma parte cadastrada.</p>
       ) : filteredParts.length === 0 ? (

@@ -37,6 +37,15 @@ export async function listReadingPlaylists(
   return Result.ok(playlists);
 }
 
+export async function listArchivedReadingPlaylists(
+  playlistRepo: ReadingPlaylistRepository,
+  organizationId: string,
+  ownerUserId: string,
+) {
+  const playlists = await playlistRepo.listArchivedForUser(organizationId, ownerUserId);
+  return Result.ok(playlists);
+}
+
 export async function getReadingPlaylist(
   playlistRepo: ReadingPlaylistRepository,
   organizationId: string,

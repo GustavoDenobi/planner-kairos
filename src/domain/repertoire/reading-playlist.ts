@@ -1,10 +1,16 @@
 import type { PieceFilePartLink } from './piece-file';
-import type { EventKind, ProgramItemUnitDetail } from '@/domain/agenda';
+import type { EventKind, ProgramItemUnitDetail, ProgramItemUnitInput } from '@/domain/agenda';
 
 export type ReadingPlaylistPieceCategory = {
   name: string;
   slug: string;
   color: string | null;
+};
+
+/** Audiência do evento no momento em que a playlist foi criada a partir dele. */
+export type ReadingPlaylistSourceEventAudience = {
+  musicianIds: string[];
+  groupIds: string[];
 };
 
 export type ReadingPlaylist = {
@@ -14,6 +20,8 @@ export type ReadingPlaylist = {
   name: string;
   sourceEventId: string | null;
   sourceEventKind: EventKind | null;
+  /** Null quando não há músicos nem grupos no snapshot. */
+  sourceEventAudience: ReadingPlaylistSourceEventAudience | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -67,13 +75,53 @@ export type CreateReadingPlaylistItemInput = {
 export type CreateReadingPlaylistInput = {
   name: string;
   sourceEventId?: string | null;
+  /**
+   * Obrigatório quando `sourceEventId` está preenchido.
+   * Arrays vazios são válidos (evento sem audiência).
+   */
+  sourceEventAudience?: ReadingPlaylistSourceEventAudience | null;
   items: CreateReadingPlaylistItemInput[];
 };
 
 export type UpdateReadingPlaylistInput = {
   name?: string;
   sourceEventId?: string | null;
+  /**
+   * Ao limpar `sourceEventId`, o repositório zera o snapshot.
+   * Trocar o evento exige um snapshot novo (carregado do evento).
+   */
+  sourceEventAudience?: ReadingPlaylistSourceEventAudience | null;
 };
+
+export function snapshotSourceEventAudienceFromEvent(
+  musicians: ReadonlyArray<{ id: string }>,
+  groups: ReadonlyArray<{ id: string }>,
+): ReadingPlaylistSourceEventAudience {
+  return {
+    musicianIds: uniqueTrimmedIds(musicians.map((musician) => musician.id)),
+    groupIds: uniqueTrimmedIds(groups.map((group) => group.id)),
+  };
+}
+
+export function normalizeSourceEventAudience(
+  audience: ReadingPlaylistSourceEventAudience | null | undefined,
+): ReadingPlaylistSourceEventAudience | null {
+  if (!audience) {
+    return null;
+  }
+
+  const musicianIds = uniqueTrimmedIds(audience.musicianIds);
+  const groupIds = uniqueTrimmedIds(audience.groupIds);
+  if (musicianIds.length === 0 && groupIds.length === 0) {
+    return null;
+  }
+
+  return { musicianIds, groupIds };
+}
+
+function uniqueTrimmedIds(ids: ReadonlyArray<string>): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter((id) => id.length > 0))];
+}
 
 const OPEN_AT_PAGE_NOTE = /^(.*?)(?:\s*·\s*)?Abrir na p\.\s*(\d+)\s*$/i;
 
@@ -159,6 +207,33 @@ export function playlistItemObservation(item: {
   }
   const notes = item.notes?.trim() ?? '';
   return notes || null;
+}
+
+export function programUnitFromPlaylistItem(
+  pieceFileId: string,
+  item: Pick<
+    CreateReadingPlaylistItemInput,
+    | 'label'
+    | 'startPage'
+    | 'endPage'
+    | 'pieceFileTocEntryId'
+    | 'navigationShortcutId'
+  >,
+): ProgramItemUnitInput {
+  const startPage = item.startPage ?? null;
+  let endPage = item.endPage ?? null;
+  if (startPage != null && endPage == null) {
+    endPage = startPage;
+  }
+
+  return {
+    pieceFileId,
+    startPage,
+    endPage,
+    pieceFileTocEntryId: item.pieceFileTocEntryId ?? null,
+    navigationShortcutId: item.navigationShortcutId ?? null,
+    label: item.label?.trim() || null,
+  };
 }
 
 export function playlistReferenceFromProgramUnit(unit: ProgramItemUnitDetail): {

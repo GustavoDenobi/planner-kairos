@@ -10,7 +10,9 @@ import {
 import { flushSync } from 'react-dom';
 import * as pdfjs from 'pdfjs-dist';
 import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/pdf-delivery';
-import { openPdfDocument, printPdfDocument } from '@/ui/features/repertoire/pdf-load';
+import { openPdfDocument, printPdfDocument, wirePdfDownloadProgress } from '@/ui/features/repertoire/pdf-load';
+import { ReaderLoadProgress } from '@/ui/features/repertoire/ReaderLoadProgress';
+import { useHybridLoadProgress } from '@/ui/features/repertoire/useHybridLoadProgress';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -43,6 +45,7 @@ import {
   PEN_STROKE_WIDTH,
   normalizeTextFontFamily,
   parsePresetColor,
+  buildDefaultVisibleLayers,
   resolvePresetAppearance,
   resolvePresetStroke,
 } from '@/domain/repertoire';
@@ -308,11 +311,15 @@ type PdfViewerProps = {
   onIncludeThirdPartyDirectedLayers?: () => void;
   isLoadingThirdPartyDirectedLayers?: boolean;
   directedSetSelectRequest?: { id: string; nonce: number } | null;
+  /** Conjuntos dirigidos que devem começar visíveis (ex.: audiência da aula). */
+  directedLayerAutoVisibleSetIds?: readonly string[];
   onManageDirectedSet?: (context?: { activeDirectedSetId?: string | null }) => void;
   playlist?: PdfViewerPlaylistContext;
   initialPage?: number;
   entryDirection?: 'next' | 'prev';
   preloadedPdf?: pdfjs.PDFDocumentProxy | null;
+  /** Fecha o leitor enquanto o PDF ainda carrega (sem documento pré-carregado). */
+  onLoadCancel?: () => void;
   allowDownload?: boolean;
   audioPicker?: {
     visible: boolean;
@@ -997,11 +1004,13 @@ export function PdfViewer({
   onIncludeThirdPartyDirectedLayers,
   isLoadingThirdPartyDirectedLayers = false,
   directedSetSelectRequest = null,
+  directedLayerAutoVisibleSetIds,
   onManageDirectedSet,
   playlist,
   initialPage = 1,
   entryDirection,
   preloadedPdf = null,
+  onLoadCancel,
   allowDownload = true,
   audioPicker,
   inlineAudioBar,
@@ -1054,6 +1063,9 @@ export function PdfViewer({
   const doubleTapFitRef = useRef<() => void>(() => {});
   const viewportSingleTapRef = useRef<(point: { x: number; y: number }) => void>(() => {});
   const [loading, setLoading] = useState(true);
+  const { progress: pdfLoadProgress, reportDownloadProgress } = useHybridLoadProgress(
+    loading && !preloadedPdf,
+  );
   useLoadingBar('pdf', loading);
   const [error, setError] = useState<string | null>(null);
   const [inverted, setInverted] = useState(() => defaultPreferences(userId).inverted);
@@ -1108,6 +1120,7 @@ export function PdfViewer({
     null,
   );
   const editorFlushersRef = useRef(new Set<() => void>());
+  const flushPendingAnnotationChangesRef = useRef<() => void>(() => {});
   const registerEditorFlush = useCallback((flush: () => void) => {
     editorFlushersRef.current.add(flush);
     return () => {
@@ -1136,11 +1149,17 @@ export function PdfViewer({
   const [activeDirectedSetId, setActiveDirectedSetId] = useState<string | null>(
     editableDirectedSets[0]?.id ?? directedSetOptions[0]?.id ?? null,
   );
-  const [visibleLayers, setVisibleLayers] = useState<VisibleLayers>({
-    personal: true,
-    section: true,
-    directed: Object.fromEntries(directedSetOptions.map((option) => [option.id, true])),
-  });
+  const directedSetOptionsRef = useRef(directedSetOptions);
+  directedSetOptionsRef.current = directedSetOptions;
+  const autoVisibleSetIdsRef = useRef(directedLayerAutoVisibleSetIds);
+  autoVisibleSetIdsRef.current = directedLayerAutoVisibleSetIds;
+  const manualDirectedVisibilityRef = useRef(new Set<string>());
+  const [visibleLayers, setVisibleLayers] = useState<VisibleLayers>(() =>
+    buildDefaultVisibleLayers(
+      directedSetOptions.map((option) => option.id),
+      directedLayerAutoVisibleSetIds ?? [],
+    ),
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
   const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | null>(null);
@@ -1176,12 +1195,37 @@ export function PdfViewer({
   }, [userId]);
 
   useEffect(() => {
-    setVisibleLayers({
-      personal: true,
-      section: true,
-      directed: {},
-    });
+    manualDirectedVisibilityRef.current = new Set();
+    setVisibleLayers(
+      buildDefaultVisibleLayers(
+        directedSetOptionsRef.current.map((option) => option.id),
+        autoVisibleSetIdsRef.current ?? [],
+      ),
+    );
   }, [url]);
+
+  useEffect(() => {
+    const autoVisible = new Set(directedLayerAutoVisibleSetIds ?? []);
+    setVisibleLayers((current) => {
+      const directed = { ...current.directed };
+      let changed = false;
+      for (const option of directedSetOptions) {
+        if (manualDirectedVisibilityRef.current.has(option.id)) {
+          if (directed[option.id] === undefined) {
+            directed[option.id] = autoVisible.has(option.id);
+            changed = true;
+          }
+          continue;
+        }
+        const nextVisible = autoVisible.has(option.id);
+        if (directed[option.id] !== nextVisible) {
+          directed[option.id] = nextVisible;
+          changed = true;
+        }
+      }
+      return changed ? { ...current, directed } : current;
+    });
+  }, [directedLayerAutoVisibleSetIds, directedSetOptions]);
 
   useEffect(() => {
     if (leadOptions.length === 0) {
@@ -1198,18 +1242,6 @@ export function PdfViewer({
   }, [leadOptions]);
 
   useEffect(() => {
-    setVisibleLayers((current) => {
-      const directed = { ...current.directed };
-      let changed = false;
-      for (const option of directedSetOptions) {
-        if (directed[option.id] === undefined) {
-          directed[option.id] = true;
-          changed = true;
-        }
-      }
-      return changed ? { ...current, directed } : current;
-    });
-
     if (directedSetOptions.length === 0) {
       setActiveDirectedSetId(null);
       return;
@@ -1266,7 +1298,7 @@ export function PdfViewer({
           id: option.id,
           label: option.label,
           authorLabel: option.authorLabel,
-          visible: visibleLayers.directed[option.id] ?? true,
+          visible: visibleLayers.directed[option.id] ?? false,
           canEdit: option.canEdit,
           editValue: option.canEdit ? `directed:${option.id}` : undefined,
         });
@@ -1294,14 +1326,33 @@ export function PdfViewer({
       return;
     }
 
-    setVisibleLayers((current) => ({
-      ...current,
-      directed: {
-        ...current.directed,
-        [id]: !(current.directed[id] ?? true),
-      },
-    }));
+    setVisibleLayers((current) => {
+      manualDirectedVisibilityRef.current.add(id);
+      return {
+        ...current,
+        directed: {
+          ...current.directed,
+          [id]: !(current.directed[id] ?? false),
+        },
+      };
+    });
   }, []);
+
+  const hideAllLayers = useCallback(() => {
+    for (const option of directedSetOptions) {
+      manualDirectedVisibilityRef.current.add(option.id);
+    }
+    setVisibleLayers((current) => {
+      const directed = { ...current.directed };
+      for (const id of Object.keys(directed)) {
+        directed[id] = false;
+      }
+      for (const option of directedSetOptions) {
+        directed[option.id] = false;
+      }
+      return { personal: false, section: false, directed };
+    });
+  }, [directedSetOptions]);
 
   const editLayerOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> = [
@@ -1684,6 +1735,7 @@ export function PdfViewer({
     loadedDocumentRef.current = null;
 
     const loadingTask = openPdfDocument({ url });
+    wirePdfDownloadProgress(loadingTask, reportDownloadProgress);
 
     setLoading(true);
     setError(null);
@@ -1716,7 +1768,7 @@ export function PdfViewer({
       cancelled = true;
       void loadingTask.destroy();
     };
-  }, [url, preloadedPdf, initialPage, entryDirection]);
+  }, [url, preloadedPdf, initialPage, entryDirection, reportDownloadProgress]);
 
   const getViewportElement = useCallback(() => {
     return navigation === 'horizontal' ? viewportRef.current : scrollRef.current;
@@ -2106,6 +2158,7 @@ export function PdfViewer({
     }
     if (currentPage <= 1) {
       if (navigation === 'horizontal' && playlist?.canGoPrevious) {
+        flushPendingAnnotationChangesRef.current();
         playlist.onContinueToPreviousItem();
       }
       return;
@@ -2119,6 +2172,7 @@ export function PdfViewer({
     }
     if (currentPage >= numPages) {
       if (navigation === 'horizontal' && playlist?.canGoNext) {
+        flushPendingAnnotationChangesRef.current();
         playlist.onContinueToNextItem();
       }
       return;
@@ -2149,6 +2203,7 @@ export function PdfViewer({
       void persistDraftChangesRef.current();
     }
   }, []);
+  flushPendingAnnotationChangesRef.current = flushPendingAnnotationChanges;
 
   const goToPage = useCallback(
     (targetPage: number) => {
@@ -3039,13 +3094,7 @@ export function PdfViewer({
 
   useEffect(() => {
     const flushPendingAnnotations = () => {
-      if (
-        draftAnnotationsRef.current.length > 0
-        || pendingDeletionIdsRef.current.length > 0
-        || Object.keys(pendingUpdatesRef.current).length > 0
-      ) {
-        void persistDraftChangesRef.current();
-      }
+      flushPendingAnnotationChangesRef.current();
     };
 
     window.addEventListener('pagehide', flushPendingAnnotations);
@@ -3069,7 +3118,11 @@ export function PdfViewer({
       }
       const draft = createDraftAnnotation(input, userId);
       hasAnnotatedRef.current = true;
-      setDraftAnnotations((current) => [...current, draft]);
+      setDraftAnnotations((current) => {
+        const next = [...current, draft];
+        draftAnnotationsRef.current = next;
+        return next;
+      });
       setSessionUndoStack((current) => [...current, { kind: 'create', annotationId: draft.id }]);
     },
     [userId],
@@ -3708,7 +3761,9 @@ export function PdfViewer({
   }, [isAnnotating, handleUndoLast]);
 
   if (loading) {
-    return <p className="p-4 text-sm text-muted">Carregando PDF…</p>;
+    return (
+      <ReaderLoadProgress progress={pdfLoadProgress} onCancel={onLoadCancel} />
+    );
   }
 
   if (error) {
@@ -3837,6 +3892,8 @@ export function PdfViewer({
     <AnnotationLayerVisibilityDropdown
       options={layerMenuOptions}
       onToggle={toggleLayerVisibility}
+      showHideAllLayers={directedSetOptions.length > 3}
+      onHideAllLayers={hideAllLayers}
       onEditLayer={layerMenuOptions.some((option) => option.canEdit) ? handleLayerEdit : undefined}
       onCreateLayer={canEditDirectedLayer && onManageDirectedSet ? handleCreateLayer : undefined}
       onShowThirdPartyLayers={onIncludeThirdPartyDirectedLayers}

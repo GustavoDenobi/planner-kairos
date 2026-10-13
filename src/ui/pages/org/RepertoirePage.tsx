@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
+import { OrgListRowsSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { CategoryHuePicker } from '@/ui/components/CategoryHuePicker';
 import { IconChevronLeft, IconPlus } from '@/ui/components/icons';
 import {
@@ -584,19 +585,27 @@ export function RepertoirePage() {
 
       {isAdmin && adminSection === 'categories' && (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <RepertoireCategoriesSection
-            categories={categories}
-            onEdit={openEditCategoryModal}
-            onReorder={handleReorderCategories}
-            isReordering={isReorderingCategories}
-            reorderError={categoryReorderError}
-          />
+          {isTaxonomyLoading ? (
+            <OrgListRowsSkeleton count={5} />
+          ) : (
+            <RepertoireCategoriesSection
+              categories={categories}
+              onEdit={openEditCategoryModal}
+              onReorder={handleReorderCategories}
+              isReordering={isReorderingCategories}
+              reorderError={categoryReorderError}
+            />
+          )}
         </div>
       )}
 
       {isAdmin && adminSection === 'themes' && (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <RepertoireThemesSection themes={themes} onEdit={openEditThemeModal} />
+          {isTaxonomyLoading ? (
+            <OrgListRowsSkeleton count={5} />
+          ) : (
+            <RepertoireThemesSection themes={themes} onEdit={openEditThemeModal} />
+          )}
         </div>
       )}
 

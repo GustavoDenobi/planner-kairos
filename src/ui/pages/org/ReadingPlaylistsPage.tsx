@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { IconPencil, IconPlus, IconScoreSheet } from '@/ui/components/icons';
+import { PlaylistListRowsSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { readingPlaylistErrorMessage } from '@/ui/features/repertoire/reading-playlist-labels';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import {
@@ -37,6 +38,8 @@ export function ReadingPlaylistsPage() {
   const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
 
   const [playlists, setPlaylists] = useState<ReadingPlaylist[]>([]);
+  const [archivedPlaylists, setArchivedPlaylists] = useState<ReadingPlaylist[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [cachedPlaylistIds, setCachedPlaylistIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +71,7 @@ export function ReadingPlaylistsPage() {
           name: detail.name,
           sourceEventId: detail.sourceEventId,
           sourceEventKind: detail.sourceEventKind,
+          sourceEventAudience: detail.sourceEventAudience ?? null,
           archivedAt: detail.archivedAt,
           createdAt: detail.createdAt,
           updatedAt: detail.updatedAt,
@@ -77,6 +81,7 @@ export function ReadingPlaylistsPage() {
       }
 
       setPlaylists(offlinePlaylists);
+      setArchivedPlaylists([]);
       setItemCounts(counts);
       setCachedPlaylistIds(cachedIds);
       setIsOfflineList(true);
@@ -84,7 +89,10 @@ export function ReadingPlaylistsPage() {
       return;
     }
 
-    const result = await repertoire.listReadingPlaylists(org.id, userId);
+    const [result, archivedResult] = await Promise.all([
+      repertoire.listReadingPlaylists(org.id, userId),
+      repertoire.listArchivedReadingPlaylists(org.id, userId),
+    ]);
     if (!result.ok) {
       const cached = await offline.listCachedPlaylistsForOrganization(org.id);
       if (cached.length > 0) {
@@ -101,6 +109,7 @@ export function ReadingPlaylistsPage() {
             name: detail.name,
             sourceEventId: detail.sourceEventId,
             sourceEventKind: detail.sourceEventKind,
+            sourceEventAudience: detail.sourceEventAudience ?? null,
             archivedAt: detail.archivedAt,
             createdAt: detail.createdAt,
             updatedAt: detail.updatedAt,
@@ -110,6 +119,7 @@ export function ReadingPlaylistsPage() {
         }
 
         setPlaylists(offlinePlaylists);
+        setArchivedPlaylists([]);
         setItemCounts(counts);
         setCachedPlaylistIds(cachedIds);
         setIsOfflineList(true);
@@ -124,9 +134,14 @@ export function ReadingPlaylistsPage() {
 
     setIsOfflineList(false);
     setPlaylists(result.value);
+    setArchivedPlaylists(archivedResult.ok ? archivedResult.value : []);
 
     const counts: Record<string, number> = {};
-    for (const playlist of result.value) {
+    const allListed = [
+      ...result.value,
+      ...(archivedResult.ok ? archivedResult.value : []),
+    ];
+    for (const playlist of allListed) {
       const detailResult = await repertoire.getReadingPlaylist(org.id, playlist.id, userId);
       if (detailResult.ok) {
         counts[playlist.id] = detailResult.value.items.length;
@@ -152,7 +167,75 @@ export function ReadingPlaylistsPage() {
     return null;
   }
 
+  const orgSlugResolved = orgSlug;
   const showOfflineUi = isOfflineList || !online;
+
+  function renderPlaylistRow(playlist: ReadingPlaylist, archived: boolean) {
+    return (
+      <li
+        key={playlist.id}
+        className={`flex items-start justify-between gap-3 rounded-xl border border-border px-4 py-3 ${
+          archived ? 'bg-bg' : 'bg-surface'
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          {showOfflineUi ? (
+            <span className={`font-medium ${archived ? 'text-muted' : 'text-text'}`}>
+              {playlist.name}
+            </span>
+          ) : (
+            <Link
+              to={readingPlaylistEditPath(orgSlugResolved, playlist.id)}
+              className={`font-medium hover:underline ${archived ? 'text-muted' : 'text-text'}`}
+            >
+              {playlist.name}
+            </Link>
+          )}
+          <p className="mt-0.5 text-sm text-muted">
+            {itemCounts[playlist.id] ?? 0}{' '}
+            {(itemCounts[playlist.id] ?? 0) === 1 ? 'partitura' : 'partituras'}
+            {playlist.sourceEventKind && ` · ${eventKindLabel(playlist.sourceEventKind)}`}
+            {archived && playlist.archivedAt && (
+              <>
+                {' '}
+                · Arquivada em{' '}
+                {new Date(playlist.archivedAt).toLocaleDateString('pt-BR')}
+              </>
+            )}
+            {cachedPlaylistIds.has(playlist.id) && (
+              <span className="ml-1 text-primary">· Disponível offline</span>
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {(itemCounts[playlist.id] ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                navigate(readingPlaylistReaderPath(orgSlugResolved, playlist.id, 0), {
+                  state: { returnTo: locationPath(location) },
+                })
+              }
+              aria-label="Abrir leitor"
+              className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
+            >
+              <IconScoreSheet className="h-4 w-4" />
+            </button>
+          )}
+          {!showOfflineUi && (
+            <button
+              type="button"
+              onClick={() => navigate(readingPlaylistEditPath(orgSlugResolved, playlist.id))}
+              aria-label={`Editar ${playlist.name}`}
+              className="rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text"
+            >
+              <IconPencil className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  }
 
   return (
     <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
@@ -180,71 +263,40 @@ export function ReadingPlaylistsPage() {
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
         {isLoading ? (
-          <p className="text-sm text-muted">Carregando…</p>
-        ) : playlists.length === 0 ? (
+          <PlaylistListRowsSkeleton />
+        ) : playlists.length === 0 && archivedPlaylists.length === 0 ? (
           <p className="text-center text-sm text-muted">
             {showOfflineUi
               ? 'Nenhuma playlist salva neste dispositivo. Com conexão, as partituras das playlists são salvas automaticamente.'
               : 'Nenhuma playlist até agora.'}
           </p>
         ) : (
-          <ul className="space-y-2">
-            {playlists.map((playlist) => (
-              <li
-                key={playlist.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  {showOfflineUi ? (
-                    <span className="font-medium text-text">{playlist.name}</span>
-                  ) : (
-                    <Link
-                      to={readingPlaylistEditPath(orgSlug, playlist.id)}
-                      className="font-medium text-text hover:underline"
-                    >
-                      {playlist.name}
-                    </Link>
-                  )}
-                  <p className="mt-0.5 text-sm text-muted">
-                    {itemCounts[playlist.id] ?? 0}{' '}
-                    {(itemCounts[playlist.id] ?? 0) === 1 ? 'partitura' : 'partituras'}
-                    {playlist.sourceEventKind && ` · ${eventKindLabel(playlist.sourceEventKind)}`}
-                    {cachedPlaylistIds.has(playlist.id) && (
-                      <span className="ml-1 text-primary">· Disponível offline</span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {(itemCounts[playlist.id] ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(readingPlaylistReaderPath(orgSlug, playlist.id, 0), {
-                          state: { returnTo: locationPath(location) },
-                        })
-                      }
-                      aria-label="Abrir leitor"
-                      className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-primary hover:bg-bg"
-                    >
-                      <IconScoreSheet className="h-4 w-4" />
-                    </button>
-                  )}
-                  {!showOfflineUi && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(readingPlaylistEditPath(orgSlug, playlist.id))
-                      }
-                      aria-label={`Editar ${playlist.name}`}
-                      className="rounded-lg border border-border p-2 text-muted hover:bg-bg hover:text-text"
-                    >
-                      <IconPencil className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            {playlists.length > 0 && (
+              <ul className="space-y-2">
+                {playlists.map((playlist) => renderPlaylistRow(playlist, false))}
+              </ul>
+            )}
+            {playlists.length === 0 && archivedPlaylists.length > 0 && !showArchived && (
+              <p className="text-center text-sm text-muted">Nenhuma playlist ativa.</p>
+            )}
+            {!showOfflineUi && archivedPlaylists.length > 0 && !showArchived && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowArchived(true)}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Ver arquivadas
+                </button>
+              </div>
+            )}
+            {showArchived && archivedPlaylists.length > 0 && (
+              <ul className="space-y-2">
+                {archivedPlaylists.map((playlist) => renderPlaylistRow(playlist, true))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>

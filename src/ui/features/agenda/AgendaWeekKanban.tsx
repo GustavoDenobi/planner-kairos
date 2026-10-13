@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { EventListItem, MusicianBirthdayItem } from '@/domain/agenda';
 import { IconPlus } from '@/ui/components/icons';
+import { AgendaWeekKanbanSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { AgendaBirthdayCard } from '@/ui/features/agenda/AgendaBirthdayCard';
 import { AgendaEventCard } from '@/ui/features/agenda/AgendaEventCard';
 import {
@@ -190,7 +191,7 @@ export function AgendaWeekKanban({
   }, [anchor, isLoading, weekContainsToday]);
 
   if (isLoading) {
-    return <p className="text-sm text-muted">Carregando…</p>;
+    return <AgendaWeekKanbanSkeleton />;
   }
 
   return (

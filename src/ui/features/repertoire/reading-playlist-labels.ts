@@ -4,6 +4,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_file: 'Arquivo inválido. Selecione outra partitura do repertório.',
   invalid_file_kind: 'Apenas partituras PDF podem entrar na playlist.',
   not_found: 'Playlist não encontrada. Ela pode ter sido removida — volte à lista.',
+  source_event_audience_required:
+    'Não foi possível gravar os participantes da aula nesta playlist. Abra o evento e tente de novo.',
   create_failed: 'Não foi possível criar a playlist. Verifique o nome e tente novamente.',
   delete_failed: 'Não foi possível excluir a playlist. Verifique sua conexão e tente novamente.',
 };

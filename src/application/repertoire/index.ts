@@ -57,6 +57,7 @@ import {
   createReadingPlaylist,
   deleteReadingPlaylist,
   getReadingPlaylist,
+  listArchivedReadingPlaylists,
   listReadingPlaylists,
   replaceReadingPlaylistItems,
   updateReadingPlaylist,
@@ -353,6 +354,8 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
 
     listReadingPlaylists: (organizationId: string, ownerUserId: string) =>
       listReadingPlaylists(deps.playlistRepo, organizationId, ownerUserId),
+    listArchivedReadingPlaylists: (organizationId: string, ownerUserId: string) =>
+      listArchivedReadingPlaylists(deps.playlistRepo, organizationId, ownerUserId),
     getReadingPlaylist: (organizationId: string, playlistId: string, ownerUserId: string) =>
       getReadingPlaylist(deps.playlistRepo, organizationId, playlistId, ownerUserId),
     createReadingPlaylist: (

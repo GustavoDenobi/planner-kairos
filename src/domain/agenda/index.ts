@@ -26,6 +26,10 @@ export {
   formatProgramUnitsSummary,
 } from './program-units-format';
 export { resolveProgramUnitStartPage, resolveProgramUnitEndPage } from './program-item';
+export {
+  appendScoreFileToEventProgram,
+  programUnitIdentityKey,
+} from './append-event-program-score';
 export type { EventDetail } from './event-detail';
 export type {
   EventRecurrence,
@@ -42,6 +46,7 @@ export type {
   EventParticipantAssignment,
   EventAbsence,
 } from './event-absence';
+export { eventAllParticipantsAbsent } from './event-absence';
 export type { AbsenceGroupingMode, AbsenceParticipantBucket } from './absence-grouping';
 export { groupEventParticipants } from './absence-grouping';
 export type {

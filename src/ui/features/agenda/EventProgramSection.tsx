@@ -399,7 +399,10 @@ export function EventProgramSection({
     }
 
     setIsCheckingPlaylists(true);
-    const result = await repertoire.listReadingPlaylists(organizationId, userId);
+    const [result, archivedResult] = await Promise.all([
+      repertoire.listReadingPlaylists(organizationId, userId),
+      repertoire.listArchivedReadingPlaylists(organizationId, userId),
+    ]);
     setIsCheckingPlaylists(false);
 
     if (!result.ok) {
@@ -407,7 +410,10 @@ export function EventProgramSection({
       return;
     }
 
-    const forEvent = result.value.filter((playlist) => playlist.sourceEventId === eventId);
+    const archived = archivedResult.ok ? archivedResult.value : [];
+    const forEvent = [...result.value, ...archived].filter(
+      (playlist) => playlist.sourceEventId === eventId,
+    );
     if (forEvent.length === 0) {
       navigate(prepareReadingPlaylistPath(orgSlug, eventId));
       return;

@@ -63,4 +63,5 @@ export type EventListItem = {
   recurrenceId: string | null;
   isException: boolean;
   cancelledAt: string | null;
+  allParticipantsAbsent: boolean;
 };

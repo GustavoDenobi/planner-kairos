@@ -18,11 +18,14 @@ import { DirectedAnnotationSetManageModal } from '@/ui/features/repertoire/Direc
 import { pieceDetailPath } from '@/ui/features/repertoire/piece-file-routes';
 import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
 import { resolvePdfDocument, revokePdfObjectUrl } from '@/ui/features/repertoire/pdf-load';
+import { ReaderLoadProgress } from '@/ui/features/repertoire/ReaderLoadProgress';
+import { useHybridLoadProgress } from '@/ui/features/repertoire/useHybridLoadProgress';
 import { OfflineBanner } from '@/ui/features/pwa/OfflineBanner';
 import {
   OfflineDownloadButton,
 } from '@/ui/features/pwa/OfflineDownloadButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
+import { useGoBack } from '@/ui/hooks/useGoBack';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { PieceAudioPickerModal } from '@/ui/features/repertoire/PieceAudioPickerModal';
@@ -73,6 +76,8 @@ export function PiecePdfViewerPage() {
   const [manageHighlightedSetId, setManageHighlightedSetId] = useState<string | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { progress: readerLoadProgress, reportDownloadProgress, completeProgress } =
+    useHybridLoadProgress(isLoading);
   useLoadingBar('piece-pdf-viewer', isLoading);
   const [error, setError] = useState<string | null>(null);
   const [isCachedLocally, setIsCachedLocally] = useState(false);
@@ -131,6 +136,8 @@ export function PiecePdfViewerPage() {
 
   const detailPath =
     orgSlug && pieceId ? pieceDetailPath(orgSlug, pieceId) : `/${orgSlug ?? ''}/repertorio`;
+
+  const closeReader = useGoBack(detailPath);
 
   async function resolveDownloadAccess(
     pieceDetail: PieceDetail,
@@ -213,6 +220,7 @@ export function PiecePdfViewerPage() {
     }
 
     let cancelled = false;
+    const abortController = new AbortController();
 
     async function load() {
       setIsLoading(true);
@@ -232,9 +240,15 @@ export function PiecePdfViewerPage() {
         resolvedOrganizationId,
         currentPieceId,
         currentFileId,
+        reportDownloadProgress,
+        abortController.signal,
       );
 
-      if (cancelled) {
+      if (cancelled || abortController.signal.aborted) {
+        return;
+      }
+
+      if (pdfLoad.error === 'aborted') {
         return;
       }
 
@@ -395,6 +409,7 @@ export function PiecePdfViewerPage() {
       }
 
       loadedKeyRef.current = loadKey;
+      completeProgress();
       setIsLoading(false);
     }
 
@@ -402,8 +417,21 @@ export function PiecePdfViewerPage() {
 
     return () => {
       cancelled = true;
+      abortController.abort();
     };
-  }, [organizationId, pieceId, fileId, repertoire, offline, online, isAdmin, ensemble, userId]);
+  }, [
+    organizationId,
+    pieceId,
+    fileId,
+    repertoire,
+    offline,
+    online,
+    isAdmin,
+    ensemble,
+    userId,
+    reportDownloadProgress,
+    completeProgress,
+  ]);
 
   useEffect(() => {
     if (!organizationId || !fileId) {
@@ -1021,7 +1049,7 @@ export function PiecePdfViewerPage() {
   if (isLoading) {
     return (
       <ReaderLayout title="Carregando…" backTo={detailPath}>
-        <p className="p-4 text-sm text-muted">Carregando partitura…</p>
+        <ReaderLoadProgress progress={readerLoadProgress} onCancel={closeReader} />
       </ReaderLayout>
     );
   }
@@ -1088,6 +1116,7 @@ export function PiecePdfViewerPage() {
           setDirectedSetManageModalOpen(true);
         }}
         preloadedPdf={preloadedPdf}
+        onLoadCancel={closeReader}
         allowDownload={allowFileDownload}
         readerInfo={{
           open: infoModalOpen,

@@ -7,12 +7,12 @@ import type {
   ReadingPlaylistItemDetail,
   UpdateReadingPlaylistInput,
 } from '@/domain/repertoire';
-import { isEventSourcedPlaylistExpired } from '@/domain/repertoire';
+import { isEventSourcedPlaylistExpired, normalizeSourceEventAudience } from '@/domain/repertoire';
 import type { EventKind } from '@/domain/agenda';
 import { supabase } from './client';
 
 const PLAYLIST_COLUMNS =
-  'id, organization_id, owner_user_id, name, source_event_id, archived_at, created_at, updated_at';
+  'id, organization_id, owner_user_id, name, source_event_id, source_event_musician_ids, source_event_group_ids, archived_at, created_at, updated_at';
 
 const ITEM_COLUMNS =
   'id, organization_id, playlist_id, piece_file_id, sort_order, label, notes, reference_kind, start_page, end_page, piece_file_toc_entry_id, navigation_shortcut_id, created_at';
@@ -59,6 +59,8 @@ function mapPlaylist(row: {
   owner_user_id: string;
   name: string;
   source_event_id: string | null;
+  source_event_musician_ids: string[] | null;
+  source_event_group_ids: string[] | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +72,10 @@ function mapPlaylist(row: {
     name: row.name,
     sourceEventId: row.source_event_id,
     sourceEventKind: null,
+    sourceEventAudience: normalizeSourceEventAudience({
+      musicianIds: row.source_event_musician_ids ?? [],
+      groupIds: row.source_event_group_ids ?? [],
+    }),
     archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -102,9 +108,60 @@ async function markPlaylistsArchived(ids: string[]): Promise<void> {
     .in('id', ids);
 }
 
+async function loadEventsById(eventIds: string[]): Promise<Map<string, EventSourceRow>> {
+  const eventById = new Map<string, EventSourceRow>();
+  if (eventIds.length === 0) {
+    return eventById;
+  }
+
+  const { data: events } = await supabase
+    .from('events')
+    .select('id, starts_at, ends_at, event_types (kind)')
+    .in('id', eventIds);
+
+  for (const event of events ?? []) {
+    eventById.set(event.id, event);
+  }
+
+  return eventById;
+}
+
+function withSourceEventKind(
+  playlist: ReadingPlaylist,
+  eventById: Map<string, EventSourceRow>,
+): ReadingPlaylist {
+  if (!playlist.sourceEventId) {
+    return playlist;
+  }
+
+  const event = eventById.get(playlist.sourceEventId);
+  if (!event) {
+    return playlist;
+  }
+
+  return {
+    ...playlist,
+    sourceEventKind: eventKindFromRow(event),
+  };
+}
+
+async function enrichPlaylistsWithEventKind(
+  playlists: ReadingPlaylist[],
+): Promise<ReadingPlaylist[]> {
+  const eventIds = [
+    ...new Set(
+      playlists
+        .map((playlist) => playlist.sourceEventId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const eventById = await loadEventsById(eventIds);
+  return playlists.map((playlist) => withSourceEventKind(playlist, eventById));
+}
+
 async function activePlaylistOrArchive(playlist: ReadingPlaylist): Promise<ReadingPlaylist | null> {
   if (playlist.archivedAt) {
-    return null;
+    return playlist;
   }
   if (!playlist.sourceEventId) {
     return playlist;
@@ -117,8 +174,9 @@ async function activePlaylistOrArchive(playlist: ReadingPlaylist): Promise<Readi
     .maybeSingle();
 
   if (error || !data || isEventSourcedPlaylistExpired(data.starts_at, data.ends_at)) {
+    const archivedAt = new Date().toISOString();
     await markPlaylistsArchived([playlist.id]);
-    return null;
+    return { ...playlist, archivedAt };
   }
 
   return playlist;
@@ -259,12 +317,7 @@ async function getPlaylistForOwner(
     return null;
   }
 
-  const playlist = mapPlaylist(data);
-  if (playlist.archivedAt) {
-    return null;
-  }
-
-  return playlist;
+  return mapPlaylist(data);
 }
 
 export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
@@ -282,32 +335,21 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
         return [];
       }
 
+      const playlists = data.map((row) => mapPlaylist(row));
       const eventIds = [
         ...new Set(
-          data
-            .map((row) => row.source_event_id)
+          playlists
+            .map((playlist) => playlist.sourceEventId)
             .filter((id): id is string => Boolean(id)),
         ),
       ];
-
-      const eventById = new Map<string, EventSourceRow>();
-      if (eventIds.length > 0) {
-        const { data: events } = await supabase
-          .from('events')
-          .select('id, starts_at, ends_at, event_types (kind)')
-          .in('id', eventIds);
-
-        for (const event of events ?? []) {
-          eventById.set(event.id, event);
-        }
-      }
+      const eventById = await loadEventsById(eventIds);
 
       const now = new Date();
       const active: ReadingPlaylist[] = [];
       const expiredIds: string[] = [];
 
-      for (const row of data) {
-        const playlist = mapPlaylist(row);
+      for (const playlist of playlists) {
         if (!playlist.sourceEventId) {
           active.push(playlist);
           continue;
@@ -319,14 +361,27 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
           continue;
         }
 
-        active.push({
-          ...playlist,
-          sourceEventKind: eventKindFromRow(event),
-        });
+        active.push(withSourceEventKind(playlist, eventById));
       }
 
       await markPlaylistsArchived(expiredIds);
       return active;
+    },
+
+    async listArchivedForUser(organizationId, ownerUserId) {
+      const { data, error } = await supabase
+        .from('reading_playlists')
+        .select(PLAYLIST_COLUMNS)
+        .eq('organization_id', organizationId)
+        .eq('owner_user_id', ownerUserId)
+        .not('archived_at', 'is', null)
+        .order('archived_at', { ascending: false });
+
+      if (error || !data) {
+        return [];
+      }
+
+      return enrichPlaylistsWithEventKind(data.map((row) => mapPlaylist(row)));
     },
 
     async getDetail(organizationId, playlistId, ownerUserId) {
@@ -335,13 +390,14 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
         return null;
       }
 
-      const active = await activePlaylistOrArchive(playlist);
-      if (!active) {
+      const accessible = await activePlaylistOrArchive(playlist);
+      if (!accessible) {
         return null;
       }
 
+      const [enriched] = await enrichPlaylistsWithEventKind([accessible]);
       const items = await loadItemsForPlaylist(playlistId, organizationId);
-      return { ...active, items };
+      return { ...enriched, items };
     },
 
     async create(organizationId, ownerUserId, input: CreateReadingPlaylistInput) {
@@ -352,6 +408,8 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
           owner_user_id: ownerUserId,
           name: input.name.trim(),
           source_event_id: input.sourceEventId ?? null,
+          source_event_musician_ids: input.sourceEventAudience?.musicianIds ?? [],
+          source_event_group_ids: input.sourceEventAudience?.groupIds ?? [],
         })
         .select(PLAYLIST_COLUMNS)
         .single();
@@ -390,13 +448,25 @@ export function createReadingPlaylistRepository(): ReadingPlaylistRepository {
       const patch: {
         name?: string;
         source_event_id?: string | null;
+        source_event_musician_ids?: string[];
+        source_event_group_ids?: string[];
       } = {};
 
       if (input.name !== undefined) {
         patch.name = input.name.trim();
       }
-      if (input.sourceEventId !== undefined) {
-        patch.source_event_id = input.sourceEventId;
+      if (input.sourceEventId === null) {
+        patch.source_event_id = null;
+        patch.source_event_musician_ids = [];
+        patch.source_event_group_ids = [];
+      } else {
+        if (input.sourceEventId !== undefined) {
+          patch.source_event_id = input.sourceEventId;
+        }
+        if (input.sourceEventAudience !== undefined) {
+          patch.source_event_musician_ids = input.sourceEventAudience?.musicianIds ?? [];
+          patch.source_event_group_ids = input.sourceEventAudience?.groupIds ?? [];
+        }
       }
 
       if (Object.keys(patch).length === 0) {

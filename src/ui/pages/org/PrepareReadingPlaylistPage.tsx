@@ -8,6 +8,7 @@ import {
   filterScoreCandidatesForUser,
   playlistReferenceFromProgramUnit,
   resolveDefaultScoreFile,
+  snapshotSourceEventAudienceFromEvent,
 } from '@/domain/repertoire';
 import { formatProgramUnitDetail } from '@/domain/agenda';
 import { useAgenda, useEnsemble, useOffline, useRepertoire } from '@/ui/app/AppServicesContext';
@@ -252,7 +253,7 @@ export function PrepareReadingPlaylistPage() {
   }
 
   async function handleSave() {
-    if (!org || !userId || !eventId || !canSave) {
+    if (!org || !userId || !event || !eventId || !canSave) {
       return;
     }
 
@@ -275,6 +276,7 @@ export function PrepareReadingPlaylistPage() {
     const result = await repertoire.createReadingPlaylist(org.id, userId, {
       name: playlistName.trim(),
       sourceEventId: eventId,
+      sourceEventAudience: snapshotSourceEventAudienceFromEvent(event.musicians, event.groups),
       items,
     });
 
