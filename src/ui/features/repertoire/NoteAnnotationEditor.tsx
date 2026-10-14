@@ -64,11 +64,7 @@ export function NoteAnnotationEditor({
     const flush = () => {
       handleCommitRef.current();
     };
-    const unregister = registerFlush(flush);
-    return () => {
-      flush();
-      unregister();
-    };
+    return registerFlush(flush);
   }, [registerFlush]);
 
   useLayoutEffect(() => {

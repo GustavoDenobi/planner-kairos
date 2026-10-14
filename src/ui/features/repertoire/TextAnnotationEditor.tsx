@@ -197,11 +197,7 @@ export function TextAnnotationEditor({
     const flush = () => {
       handleCommitRef.current();
     };
-    const unregister = registerFlush(flush);
-    return () => {
-      flush();
-      unregister();
-    };
+    return registerFlush(flush);
   }, [registerFlush]);
 
   const insertSymbol = useCallback((char: string) => {
