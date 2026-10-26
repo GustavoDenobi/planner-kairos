@@ -1,6 +1,16 @@
 export type { Group, GroupFileAccessSettings, GroupKind, GroupListItem } from './group';
 export type { Musician, MusicianInput, MusicianListItem } from './musician';
 export type { Part, PartInput, PartKind } from './part';
+export {
+  clampPartTransposeSemitones,
+  formatTransposeKeyDisplay,
+  formatTransposeKeyWithSemitones,
+  formatTransposeSemitonesLabel,
+  isValidPartTransposeSemitones,
+  MAX_PART_TRANSPOSE_SEMITONES,
+  MIN_PART_TRANSPOSE_SEMITONES,
+  transposeKeyPitchClass,
+} from './transpose-semitones';
 export type { PartDivision, PartDivisionInput } from './part-division';
 export type { Section, SectionInput, SectionListItem } from './section';
 export type {

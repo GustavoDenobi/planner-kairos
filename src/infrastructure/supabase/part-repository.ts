@@ -4,7 +4,8 @@ import { compareByName, sortOrdersFromIds } from '@/domain/ensemble/sort-order';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { supabase } from './client';
 
-const PART_COLUMNS = 'id, organization_id, name, kind, sort_order';
+const PART_COLUMNS =
+  'id, organization_id, name, kind, sort_order, default_transpose_semitones';
 const DIVISION_COLUMNS = 'id, organization_id, part_id, name, sort_order';
 
 function mapPart(row: {
@@ -13,6 +14,7 @@ function mapPart(row: {
   name: string;
   kind: Part['kind'];
   sort_order: number;
+  default_transpose_semitones: number;
 }): Part {
   return {
     id: row.id,
@@ -20,6 +22,7 @@ function mapPart(row: {
     name: row.name,
     kind: row.kind,
     sortOrder: row.sort_order,
+    defaultTransposeSemitones: row.default_transpose_semitones,
   };
 }
 
@@ -114,6 +117,7 @@ export function createPartRepository(): PartRepository {
           name: input.name,
           kind: input.kind,
           sort_order: input.sortOrder ?? 0,
+          default_transpose_semitones: input.defaultTransposeSemitones ?? 0,
         })
         .select(PART_COLUMNS)
         .single();
@@ -130,6 +134,7 @@ export function createPartRepository(): PartRepository {
         name: string;
         kind: Part['kind'];
         sort_order?: number;
+        default_transpose_semitones?: number;
       } = {
         name: input.name,
         kind: input.kind,
@@ -137,6 +142,9 @@ export function createPartRepository(): PartRepository {
 
       if (input.sortOrder !== undefined) {
         payload.sort_order = input.sortOrder;
+      }
+      if (input.defaultTransposeSemitones !== undefined) {
+        payload.default_transpose_semitones = input.defaultTransposeSemitones;
       }
 
       const { data, error } = await supabase

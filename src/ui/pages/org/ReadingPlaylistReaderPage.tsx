@@ -24,6 +24,7 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { BackLink } from '@/ui/components/BackButton';
 
 import { PdfViewer, PdfViewerPlaylistNav, type DirectedSetOption, type SectionLeadOption } from '@/ui/features/repertoire/PdfViewer';
+import { mapTransposePartOptions } from '@/ui/features/repertoire/transpose-part-options';
 
 import { DirectedAnnotationSetModal } from '@/ui/features/repertoire/DirectedAnnotationSetModal';
 
@@ -291,6 +292,11 @@ export function ReadingPlaylistReaderPage() {
         ? { includeThirdPartyDirectedLayers: true as const }
         : undefined,
     [includeThirdPartyDirectedLayers],
+  );
+
+  const transposePartOptions = useMemo(
+    () => mapTransposePartOptions(catalogParts),
+    [catalogParts],
   );
 
   useEffect(() => {
@@ -2309,6 +2315,8 @@ export function ReadingPlaylistReaderPage() {
         preloadedPdf={cachedCurrentItem?.pdfDocument ?? null}
 
         onLoadCancel={closeReader}
+
+        transposePartOptions={transposePartOptions}
 
         readerInfo={{
           open: infoModalOpen,

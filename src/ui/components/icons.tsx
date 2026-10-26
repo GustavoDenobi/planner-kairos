@@ -447,6 +447,25 @@ export function IconMetronome(props: IconProps) {
   );
 }
 
+export function IconGauge(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m12 14 4-4" />
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+    </svg>
+  );
+}
+
+export function IconTranspose(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 3v18" />
+      <path d="m8 7 4-4 4 4" />
+      <path d="m8 17 4 4 4-4" />
+    </svg>
+  );
+}
+
 export function IconMic(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

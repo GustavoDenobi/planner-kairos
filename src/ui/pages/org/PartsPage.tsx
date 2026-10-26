@@ -9,6 +9,12 @@ import { Modal } from '@/ui/components/Modal';
 import { PartsListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { IconPencil } from '@/ui/components/icons';
 import { SortableDragHandle, SortableList, type SortableDragHandleProps } from '@/ui/components/SortableList';
+import {
+  MAX_PART_TRANSPOSE_SEMITONES,
+  MIN_PART_TRANSPOSE_SEMITONES,
+  formatTransposeKeyWithSemitones,
+  transposeKeyPitchClass,
+} from '@/domain/ensemble';
 import { PART_KIND_OPTIONS } from '@/ui/features/ensemble/ensemble-labels';
 import { OrgListPageLayout } from '@/ui/layouts/OrgListPageLayout';
 import { matchesSearchText, normalizeSearchText } from '@/ui/utils/normalize-search-text';
@@ -32,6 +38,7 @@ export function PartsPage() {
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [kind, setKind] = useState<PartKind>('instrument');
+  const [defaultTransposeSemitones, setDefaultTransposeSemitones] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
@@ -74,6 +81,7 @@ export function PartsPage() {
     setEditingPartId(null);
     setName('');
     setKind('instrument');
+    setDefaultTransposeSemitones(0);
     setError(null);
   }
 
@@ -86,6 +94,7 @@ export function PartsPage() {
     setEditingPartId(part.id);
     setName(part.name);
     setKind(part.kind);
+    setDefaultTransposeSemitones(part.defaultTransposeSemitones);
     setError(null);
     setPartModalOpen(true);
   }
@@ -152,6 +161,7 @@ export function PartsPage() {
     const input = {
       name,
       kind,
+      defaultTransposeSemitones,
     };
 
     const result = editingPartId
@@ -163,6 +173,10 @@ export function PartsPage() {
     if (!result.ok) {
       if (result.error === 'invalid_name') {
         setError('Informe o nome da parte antes de salvar.');
+      } else if (result.error === 'invalid_transpose') {
+        setError(
+          `A transposição deve ficar entre ${MIN_PART_TRANSPOSE_SEMITONES} e ${MAX_PART_TRANSPOSE_SEMITONES} semitons.`,
+        );
       } else if (result.error === 'duplicate_name') {
         setError('Já existe uma parte com este nome. Escolha outro nome.');
       } else {
@@ -244,7 +258,15 @@ export function PartsPage() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-medium text-text ml-1">{part.name}</p>
+                <p className="ml-1 font-medium text-text">
+                  {part.name}
+                  {part.defaultTransposeSemitones !== 0 ? (
+                    <span className="font-normal text-muted">
+                      {' '}
+                      ({transposeKeyPitchClass(part.defaultTransposeSemitones)})
+                    </span>
+                  ) : null}
+                </p>
               </div>
               <button
                 type="button"
@@ -371,6 +393,38 @@ export function PartsPage() {
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text">Transposição no afinador (semitons)</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setDefaultTransposeSemitones((value) =>
+                    Math.max(MIN_PART_TRANSPOSE_SEMITONES, value - 1),
+                  )
+                }
+                disabled={defaultTransposeSemitones <= MIN_PART_TRANSPOSE_SEMITONES}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border disabled:opacity-40"
+              >
+                −
+              </button>
+              <span className="min-w-12 text-center tabular-nums">
+                {formatTransposeKeyWithSemitones(defaultTransposeSemitones)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setDefaultTransposeSemitones((value) =>
+                    Math.min(MAX_PART_TRANSPOSE_SEMITONES, value + 1),
+                  )
+                }
+                disabled={defaultTransposeSemitones >= MAX_PART_TRANSPOSE_SEMITONES}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button

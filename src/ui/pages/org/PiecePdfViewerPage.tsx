@@ -28,6 +28,7 @@ import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { useGoBack } from '@/ui/hooks/useGoBack';
 import { ReaderLayout } from '@/ui/layouts/ReaderLayout';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
+import { mapTransposePartOptions } from '@/ui/features/repertoire/transpose-part-options';
 import { PieceAudioPickerModal } from '@/ui/features/repertoire/PieceAudioPickerModal';
 import { PdfViewerInlineAudioBar } from '@/ui/features/repertoire/PdfViewerInlineAudioBar';
 import { loadPieceViewerAudioContext } from '@/ui/features/repertoire/piece-viewer-audio';
@@ -1042,6 +1043,8 @@ export function PiecePdfViewerPage() {
     [org, fileId, file, offline],
   );
 
+  const transposePartOptions = useMemo(() => mapTransposePartOptions(parts), [parts]);
+
   if (!orgSlug || !pieceId || !fileId) {
     return null;
   }
@@ -1118,6 +1121,7 @@ export function PiecePdfViewerPage() {
         preloadedPdf={preloadedPdf}
         onLoadCancel={closeReader}
         allowDownload={allowFileDownload}
+        transposePartOptions={transposePartOptions}
         readerInfo={{
           open: infoModalOpen,
           onClose: () => setInfoModalOpen(false),

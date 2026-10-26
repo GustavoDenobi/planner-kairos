@@ -1,7 +1,11 @@
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { PartDivisionInput, PartInput } from '@/domain/ensemble';
 import { nextSortOrder } from '@/domain/ensemble/sort-order';
-import { validatePartDivisionInput, validatePartInput } from '@/domain/ensemble';
+import {
+  clampPartTransposeSemitones,
+  validatePartDivisionInput,
+  validatePartInput,
+} from '@/domain/ensemble';
 import { Result } from '@/domain/shared';
 export async function listParts(partRepo: PartRepository, organizationId: string) {
   const parts = await partRepo.listForOrg(organizationId);
@@ -36,7 +40,11 @@ export async function registerPart(
       name: input.name.trim(),
       kind: input.kind,
       sortOrder: input.sortOrder ?? nextSortOrder(parts),
-    });    return Result.ok(part);
+      defaultTransposeSemitones: clampPartTransposeSemitones(
+        input.defaultTransposeSemitones ?? 0,
+      ),
+    });
+    return Result.ok(part);
   } catch (error) {
     if (error instanceof Error && /duplicate|unique/i.test(error.message)) {
       return Result.fail('duplicate_name');
@@ -61,7 +69,12 @@ export async function updatePart(
       name: input.name.trim(),
       kind: input.kind,
       sortOrder: input.sortOrder,
-    });    return Result.ok(part);
+      defaultTransposeSemitones:
+        input.defaultTransposeSemitones === undefined
+          ? undefined
+          : clampPartTransposeSemitones(input.defaultTransposeSemitones),
+    });
+    return Result.ok(part);
   } catch (error) {
     if (error instanceof Error && /duplicate|unique/i.test(error.message)) {
       return Result.fail('duplicate_name');

@@ -6,10 +6,12 @@ export type Part = {
   name: string;
   kind: PartKind;
   sortOrder: number;
+  defaultTransposeSemitones: number;
 };
 
 export type PartInput = {
   name: string;
   kind: PartKind;
   sortOrder?: number;
+  defaultTransposeSemitones?: number;
 };

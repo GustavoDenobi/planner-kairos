@@ -4,6 +4,7 @@ import type { PartDivisionInput } from './part-division';
 import type { PartInput } from './part';
 import type { Section } from './section';
 import type { SectionInput } from './section';
+import { isValidPartTransposeSemitones } from './transpose-semitones';
 
 export function isValidMusicianName(fullName: string): boolean {
   return fullName.trim().length > 0;
@@ -72,6 +73,12 @@ export function validatePartInput(input: PartInput): string | null {
   }
   if (input.sortOrder !== undefined && !isValidSortOrder(input.sortOrder)) {
     return 'invalid_sort_order';
+  }
+  if (
+    input.defaultTransposeSemitones !== undefined
+    && !isValidPartTransposeSemitones(input.defaultTransposeSemitones)
+  ) {
+    return 'invalid_transpose';
   }
   return null;
 }

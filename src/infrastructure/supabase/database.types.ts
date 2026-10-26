@@ -1081,6 +1081,7 @@ export type Database = {
       parts: {
         Row: {
           created_at: string
+          default_transpose_semitones: number
           id: string
           kind: Database["public"]["Enums"]["part_kind"]
           name: string
@@ -1090,6 +1091,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_transpose_semitones?: number
           id?: string
           kind: Database["public"]["Enums"]["part_kind"]
           name: string
@@ -1099,6 +1101,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_transpose_semitones?: number
           id?: string
           kind?: Database["public"]["Enums"]["part_kind"]
           name?: string

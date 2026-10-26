@@ -41,6 +41,9 @@
   --color-text: #18181b;
   --color-muted: #52525b;
   --color-border: #d0d3da;
+  --color-tuner-in-tune: #dcfce7;
+  --color-tuner-in-tune-border: #86efac;
+  --color-tuner-in-tune-needle: #15803d;
 
   --font-sans: Inter, system-ui, -apple-system, sans-serif;
   --font-brand: Ubuntu, sans-serif;
@@ -55,6 +58,9 @@
   --color-text: #f4f4f5;
   --color-muted: #a1a1aa;
   --color-border: #27272a;
+  --color-tuner-in-tune: #14532d;
+  --color-tuner-in-tune-border: #22c55e;
+  --color-tuner-in-tune-needle: #86efac;
 }
 
 @layer base {
@@ -156,6 +162,18 @@ html[data-keyboard-open] [data-modal-overlay] {
 
 @utility bg-accent {
   background-color: var(--color-accent);
+}
+
+@utility bg-tuner-in-tune {
+  background-color: var(--color-tuner-in-tune);
+}
+
+@utility border-tuner-in-tune-border {
+  border-color: var(--color-tuner-in-tune-border);
+}
+
+@utility bg-tuner-in-tune-needle {
+  background-color: var(--color-tuner-in-tune-needle);
 }
 
 .category-hue-slider::-webkit-slider-thumb {

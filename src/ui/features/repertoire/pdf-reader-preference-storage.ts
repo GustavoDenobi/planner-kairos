@@ -1,3 +1,9 @@
+import { clampPartTransposeSemitones } from '@/domain/ensemble';
+import {
+  DEFAULT_TUNER_REFERENCE_A4_HZ,
+  normalizeTunerReferenceA4Hz,
+  type TunerReferenceA4Hz,
+} from '@/ui/features/repertoire/tuner-reference-a4';
 import {
   clampMetronomeBpm,
   normalizeBeatsPerMeasure,
@@ -38,6 +44,9 @@ export type PdfReaderPreferences = {
   metronomeBpm?: number;
   metronomeBeatsPerMeasure?: number;
   metronomeVolume?: number;
+  tunerTransposeSemitones?: number;
+  tunerTransposePartId?: string | null;
+  tunerReferenceA4Hz?: number;
   annotationTools?: AnnotationToolPreferences;
 };
 
@@ -251,6 +260,51 @@ export function loadMetronomePreferences(userId: string): Pick<
       preferences.metronomeBeatsPerMeasure ?? DEFAULT_METRONOME_BEATS,
     metronomeVolume: preferences.metronomeVolume ?? DEFAULT_METRONOME_VOLUME,
   };
+}
+
+export function loadTunerTransposePreferences(userId: string): {
+  tunerTransposeSemitones: number;
+  tunerTransposePartId: string | null;
+  tunerReferenceA4Hz: TunerReferenceA4Hz;
+} {
+  const preferences = loadPdfReaderPreferences(userId);
+  const partId = preferences.tunerTransposePartId;
+  return {
+    tunerTransposeSemitones: clampPartTransposeSemitones(
+      preferences.tunerTransposeSemitones ?? 0,
+    ),
+    tunerTransposePartId: typeof partId === 'string' && partId.length > 0 ? partId : null,
+    tunerReferenceA4Hz: normalizeTunerReferenceA4Hz(
+      preferences.tunerReferenceA4Hz ?? DEFAULT_TUNER_REFERENCE_A4_HZ,
+    ),
+  };
+}
+
+export function saveTunerTransposePreferences(
+  userId: string,
+  patch: Partial<
+    Pick<
+      PdfReaderPreferences,
+      'tunerTransposeSemitones' | 'tunerTransposePartId' | 'tunerReferenceA4Hz'
+    >
+  >,
+): void {
+  const current = loadPdfReaderPreferences(userId);
+  savePdfReaderPreferences(userId, {
+    ...current,
+    tunerTransposeSemitones:
+      patch.tunerTransposeSemitones === undefined
+        ? current.tunerTransposeSemitones
+        : clampPartTransposeSemitones(patch.tunerTransposeSemitones),
+    tunerTransposePartId:
+      patch.tunerTransposePartId === undefined
+        ? current.tunerTransposePartId
+        : patch.tunerTransposePartId,
+    tunerReferenceA4Hz:
+      patch.tunerReferenceA4Hz === undefined
+        ? current.tunerReferenceA4Hz
+        : normalizeTunerReferenceA4Hz(patch.tunerReferenceA4Hz),
+  });
 }
 
 export function saveMetronomePreferences(

@@ -57,6 +57,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconMaximize,
+  IconGauge,
   IconMetronome,
   IconMinimize,
   IconMoon,
@@ -118,9 +119,11 @@ import {
   loadAnnotationToolPreferences,
   loadNavigationShortcutsVisible,
   loadPdfReaderPreferences,
+  loadTunerTransposePreferences,
   saveAnnotationToolPreferences,
   saveNavigationShortcutsVisible,
   savePdfReaderPreferences,
+  saveTunerTransposePreferences,
   type AnnotationToolPreferences,
   type PdfNavigationMode,
 } from '@/ui/features/repertoire/pdf-reader-preference-storage';
@@ -141,6 +144,20 @@ import {
 import { usePdfViewportGestures } from '@/ui/features/repertoire/usePdfViewportGestures';
 import { usePdfVisiblePages } from '@/ui/features/repertoire/usePdfVisiblePages';
 import { PdfViewerMetronomeBar } from '@/ui/features/repertoire/PdfViewerMetronomeBar';
+import {
+  PdfViewerTranspositionModal,
+  type PdfViewerTransposePartOption,
+} from '@/ui/features/repertoire/PdfViewerTranspositionModal';
+import { PdfViewerTunerBar } from '@/ui/features/repertoire/PdfViewerTunerBar';
+import {
+  clampPartTransposeSemitones,
+  formatTransposeKeyWithSemitones,
+  transposeKeyPitchClass,
+} from '@/domain/ensemble';
+import {
+  DEFAULT_TUNER_REFERENCE_A4_HZ,
+  type TunerReferenceA4Hz,
+} from '@/ui/features/repertoire/tuner-reference-a4';
 import { PdfViewerPageNavBar } from '@/ui/features/repertoire/PdfViewerPageNavBar';
 import {
   PdfReaderInfoModal,
@@ -364,7 +381,10 @@ type PdfViewerProps = {
     downloadUrl?: string | null;
     downloadName?: string;
   };
+  transposePartOptions?: PdfViewerTransposePartOption[];
 };
+
+export type { PdfViewerTransposePartOption };
 
 type PdfPageFrameProps = {
   pdf: pdfjs.PDFDocumentProxy;
@@ -1030,6 +1050,7 @@ export function PdfViewer({
   onTocEntryDelete,
   onTocEntryReorder,
   readerInfo,
+  transposePartOptions = [],
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1164,6 +1185,13 @@ export function PdfViewer({
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
   const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | null>(null);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
+  const [tunerOpen, setTunerOpen] = useState(false);
+  const [transposeModalOpen, setTransposeModalOpen] = useState(false);
+  const [tunerTransposeSemitones, setTunerTransposeSemitones] = useState(0);
+  const [tunerTransposePartId, setTunerTransposePartId] = useState<string | null>(null);
+  const [tunerReferenceA4Hz, setTunerReferenceA4Hz] = useState<TunerReferenceA4Hz>(
+    DEFAULT_TUNER_REFERENCE_A4_HZ,
+  );
   const [shortcutEditorOpen, setShortcutEditorOpen] = useState(false);
   const [shortcutPickRequest, setShortcutPickRequest] = useState<ShortcutPickRequest>(null);
   const [shortcutPickResult, setShortcutPickResult] = useState<ShortcutPickResult | null>(null);
@@ -1193,6 +1221,30 @@ export function PdfViewer({
     }
     setAnnotationToolPrefs(loadAnnotationToolPreferences(userId));
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setTunerTransposeSemitones(0);
+      setTunerTransposePartId(null);
+      setTunerReferenceA4Hz(DEFAULT_TUNER_REFERENCE_A4_HZ);
+      return;
+    }
+    const preferences = loadTunerTransposePreferences(userId);
+    setTunerTransposeSemitones(preferences.tunerTransposeSemitones);
+    setTunerTransposePartId(preferences.tunerTransposePartId);
+    setTunerReferenceA4Hz(preferences.tunerReferenceA4Hz);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !tunerTransposePartId || transposePartOptions.length === 0) {
+      return;
+    }
+    if (transposePartOptions.some((option) => option.id === tunerTransposePartId)) {
+      return;
+    }
+    setTunerTransposePartId(null);
+    saveTunerTransposePreferences(userId, { tunerTransposePartId: null });
+  }, [transposePartOptions, tunerTransposePartId, userId]);
 
   useEffect(() => {
     manualDirectedVisibilityRef.current = new Set();
@@ -1502,6 +1554,7 @@ export function PdfViewer({
       const next = !current;
       if (next) {
         setMobileToolbarPanel(null);
+        setTunerOpen(false);
       }
       return next;
     });
@@ -1509,6 +1562,99 @@ export function PdfViewer({
 
   const closeMetronome = useCallback(() => {
     setMetronomeOpen(false);
+  }, []);
+
+  const handleTransposeSemitonesChange = useCallback(
+    (nextSemitones: number) => {
+      const clamped = clampPartTransposeSemitones(nextSemitones);
+      setTunerTransposeSemitones(clamped);
+      if (userId) {
+        saveTunerTransposePreferences(userId, { tunerTransposeSemitones: clamped });
+      }
+    },
+    [userId],
+  );
+
+  const handleTransposePartPresetChange = useCallback(
+    (partId: string | null) => {
+      setTunerTransposePartId(partId);
+      if (partId === null) {
+        setTunerTransposeSemitones(0);
+        if (userId) {
+          saveTunerTransposePreferences(userId, {
+            tunerTransposePartId: null,
+            tunerTransposeSemitones: 0,
+          });
+        }
+        return;
+      }
+
+      const part = transposePartOptions.find((option) => option.id === partId);
+      const semitones = clampPartTransposeSemitones(part?.defaultTransposeSemitones ?? 0);
+      setTunerTransposeSemitones(semitones);
+      if (userId) {
+        saveTunerTransposePreferences(userId, {
+          tunerTransposePartId: partId,
+          tunerTransposeSemitones: semitones,
+        });
+      }
+    },
+    [transposePartOptions, userId],
+  );
+
+  const tunerTransposePartName = useMemo(() => {
+    if (!tunerTransposePartId) {
+      return null;
+    }
+    return transposePartOptions.find((option) => option.id === tunerTransposePartId)?.name ?? null;
+  }, [tunerTransposePartId, transposePartOptions]);
+
+  const isTransposeActive = tunerTransposeSemitones !== 0 || tunerTransposePartId !== null;
+
+  const handleTunerReferenceA4Change = useCallback(
+    (next: TunerReferenceA4Hz) => {
+      setTunerReferenceA4Hz(next);
+      if (userId) {
+        saveTunerTransposePreferences(userId, { tunerReferenceA4Hz: next });
+      }
+    },
+    [userId],
+  );
+
+  const transposeButtonLabel = useMemo(() => {
+    if (!isTransposeActive) {
+      return 'Transpor';
+    }
+    return `Transpor: ${transposeKeyPitchClass(tunerTransposeSemitones)}`;
+  }, [isTransposeActive, tunerTransposeSemitones]);
+
+  const transposeCompactLabel = useMemo(() => {
+    if (!isTransposeActive) {
+      return transposeKeyPitchClass(0);
+    }
+    return transposeKeyPitchClass(tunerTransposeSemitones);
+  }, [isTransposeActive, tunerTransposeSemitones]);
+
+  const transposeButtonHint = useMemo(() => {
+    if (!isTransposeActive) {
+      return 'Transpor';
+    }
+    const keyLabel = formatTransposeKeyWithSemitones(tunerTransposeSemitones);
+    if (tunerTransposePartName) {
+      return `${keyLabel} — ${tunerTransposePartName}`;
+    }
+    return keyLabel;
+  }, [isTransposeActive, tunerTransposePartName, tunerTransposeSemitones]);
+
+  const toggleTuner = useCallback(() => {
+    setTunerOpen((current) => {
+      const next = !current;
+      if (next) {
+        setMobileToolbarPanel(null);
+        setMetronomeOpen(false);
+      }
+      return next;
+    });
   }, []);
 
   const handleShare = useCallback(() => {
@@ -1552,6 +1698,7 @@ export function PdfViewer({
 
   const enterAnnotationMode = useCallback(() => {
     setMetronomeOpen(false);
+    setTunerOpen(false);
     setDraftAnnotations([]);
     setPendingDeletionIds([]);
     pointerActiveRef.current = false;
@@ -4198,6 +4345,16 @@ export function PdfViewer({
               >
                 <IconMetronome className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                onClick={toggleTuner}
+                aria-label={tunerOpen ? 'Fechar afinador' : 'Abrir afinador'}
+                aria-pressed={tunerOpen}
+                title={tunerOpen ? 'Fechar afinador' : 'Afinador'}
+                className={toolbarIconButtonClass(tunerOpen)}
+              >
+                <IconGauge className="h-4 w-4" />
+              </button>
               {renderAnnotationLayerMenu()}
               {canManageNavigationShortcuts && onNavigationShortcutCreate ? (
                 <button
@@ -4232,6 +4389,18 @@ export function PdfViewer({
       {controlsBar}
       {metronomeOpen ? (
         <PdfViewerMetronomeBar userId={userId} onClose={closeMetronome} />
+      ) : null}
+      {tunerOpen ? (
+        <PdfViewerTunerBar
+          transposeSemitones={tunerTransposeSemitones}
+          referenceA4Hz={tunerReferenceA4Hz}
+          onReferenceA4Change={handleTunerReferenceA4Change}
+          transposeButtonLabel={transposeButtonLabel}
+          transposeCompactLabel={transposeCompactLabel}
+          transposeButtonHint={transposeButtonHint}
+          isTransposeActive={isTransposeActive}
+          onOpenTranspose={() => setTransposeModalOpen(true)}
+        />
       ) : null}
       {inlineAudioBar}
 
@@ -4426,6 +4595,15 @@ export function PdfViewer({
           }}
         />
       )}
+      <PdfViewerTranspositionModal
+        open={transposeModalOpen}
+        onClose={() => setTransposeModalOpen(false)}
+        partOptions={transposePartOptions}
+        semitones={tunerTransposeSemitones}
+        selectedPartId={tunerTransposePartId}
+        onSemitonesChange={handleTransposeSemitonesChange}
+        onPartPresetChange={handleTransposePartPresetChange}
+      />
       {readerInfo ? (
         <PdfReaderInfoModal
           open={readerInfo.open}
