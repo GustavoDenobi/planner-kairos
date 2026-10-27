@@ -6,6 +6,10 @@ import {
   TUNER_REFERENCE_A4_OPTIONS,
   type TunerReferenceA4Hz,
 } from '@/ui/features/repertoire/tuner-reference-a4';
+import {
+  TUNER_PITCH_MAX_HZ,
+  TUNER_PITCH_MIN_HZ,
+} from '@/ui/features/repertoire/tuner-pitch-detection';
 import { useMicrophone } from '@/ui/features/repertoire/useMicrophone';
 import { usePitch } from '@/ui/features/repertoire/usePitch';
 
@@ -32,8 +36,8 @@ export function PdfViewerTunerBar({
 }: PdfViewerTunerBarProps) {
   const microphone = useMicrophone();
   const pitch = usePitch(microphone.analyser, {
-    minHz: 60,
-    maxHz: 1200,
+    minHz: TUNER_PITCH_MIN_HZ,
+    maxHz: TUNER_PITCH_MAX_HZ,
     reference: referenceA4Hz,
   });
 

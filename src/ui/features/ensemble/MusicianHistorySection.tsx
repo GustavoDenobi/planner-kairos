@@ -164,6 +164,7 @@ export function MusicianHistorySection({
         <ul className="space-y-2">
           {visibleEvents.map((event) => {
             const cancelled = isEventCancelled(event);
+            const absent = event.wasAbsent;
             const title = eventDisplayTitle(event, { name: event.typeName });
             const badgeStyle = eventTypeBadgeStyle({
               kind: event.typeKind,
@@ -175,16 +176,26 @@ export function MusicianHistorySection({
               <li key={event.eventId}>
                 <Link
                   to={eventPath(orgSlug, event.eventId)}
-                  className={`block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-bg ${cancelled ? 'opacity-60' : ''}`}
+                  className={`block rounded-xl border px-4 py-3 transition-colors ${
+                    absent
+                      ? 'border-red-300 bg-red-50 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/30 dark:hover:bg-red-950/50'
+                      : 'border-border bg-surface hover:bg-bg'
+                  } ${cancelled ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p
-                        className={`font-medium text-text ${cancelled ? 'line-through' : ''}`}
+                        className={`font-medium ${cancelled ? 'line-through' : ''} ${
+                          absent ? 'text-red-700 dark:text-red-300' : 'text-text'
+                        }`}
                       >
                         {title}
                       </p>
-                      <p className="mt-0.5 text-sm text-muted">
+                      <p
+                        className={`mt-0.5 text-sm ${
+                          absent ? 'text-red-600/80 dark:text-red-400/80' : 'text-muted'
+                        }`}
+                      >
                         {formatEventScheduleLabel(event.startsAt, event.endsAt)}
                       </p>
                     </div>
@@ -195,8 +206,8 @@ export function MusicianHistorySection({
                       >
                         {event.typeName}
                       </span>
-                      {event.wasAbsent && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                      {absent && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/50 dark:text-red-300">
                           Ausente
                         </span>
                       )}

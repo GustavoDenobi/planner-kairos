@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-const ANALYSER_FFT_SIZE = 4096;
+import { TUNER_ANALYSER_FFT_SIZE } from '@/ui/features/repertoire/tuner-pitch-detection';
 
 export type UseMicrophoneReturn = {
   analyser: AnalyserNode | null;
@@ -59,7 +58,7 @@ export function useMicrophone(): UseMicrophoneReturn {
       audioContextRef.current = ctx;
 
       const node = ctx.createAnalyser();
-      node.fftSize = ANALYSER_FFT_SIZE;
+      node.fftSize = TUNER_ANALYSER_FFT_SIZE;
       ctx.createMediaStreamSource(stream).connect(node);
 
       setError(null);

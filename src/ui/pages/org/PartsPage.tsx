@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PartDivision, PartKind } from '@/domain/ensemble';
-import type { PartWithDivisions } from '@/application/ports/part-repository';
+import type { PartRemovalImpact, PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
+import { ConfirmModal } from '@/ui/components/ConfirmModal';
 import { Modal } from '@/ui/components/Modal';
 import { PartsListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { IconPencil } from '@/ui/components/icons';
@@ -47,6 +48,10 @@ export function PartsPage() {
   const [divisionError, setDivisionError] = useState<string | null>(null);
   const [isSavingDivision, setIsSavingDivision] = useState(false);
   const [isDeletingDivision, setIsDeletingDivision] = useState(false);
+  const [partDeleteConfirmOpen, setPartDeleteConfirmOpen] = useState(false);
+  const [partRemovalImpact, setPartRemovalImpact] = useState<PartRemovalImpact | null>(null);
+  const [isLoadingPartRemovalImpact, setIsLoadingPartRemovalImpact] = useState(false);
+  const [isDeletingPart, setIsDeletingPart] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
@@ -225,6 +230,59 @@ export function PartsPage() {
     await refreshParts();
   }
 
+  function closePartModal() {
+    if (isSubmitting || isDeletingPart || isLoadingPartRemovalImpact) {
+      return;
+    }
+    setPartModalOpen(false);
+    resetPartForm();
+  }
+
+  async function handleRequestDeletePart() {
+    if (!editingPartId) {
+      return;
+    }
+
+    setError(null);
+    setIsLoadingPartRemovalImpact(true);
+
+    const result = await ensemble.getPartRemovalImpact(org!.id, editingPartId);
+
+    setIsLoadingPartRemovalImpact(false);
+
+    if (!result.ok) {
+      setError('Não foi possível preparar a exclusão. Tente novamente.');
+      return;
+    }
+
+    setPartRemovalImpact(result.value);
+    setPartDeleteConfirmOpen(true);
+  }
+
+  async function handleConfirmDeletePart() {
+    if (!editingPartId) {
+      return;
+    }
+
+    setIsDeletingPart(true);
+
+    const result = await ensemble.removePart(org!.id, editingPartId);
+
+    setIsDeletingPart(false);
+
+    if (!result.ok) {
+      setError('Não foi possível excluir a parte.');
+      setPartDeleteConfirmOpen(false);
+      return;
+    }
+
+    setPartDeleteConfirmOpen(false);
+    setPartRemovalImpact(null);
+    setPartModalOpen(false);
+    resetPartForm();
+    await refreshParts();
+  }
+
   async function handleDeleteDivision() {
     if (!divisionModal?.divisionId) {
       return;
@@ -368,7 +426,7 @@ export function PartsPage() {
 
     <Modal
         open={partModalOpen}
-        onClose={() => setPartModalOpen(false)}
+        onClose={closePartModal}
         title={editingPartId ? 'Editar parte' : 'Nova parte'}
       >
         <form className="flex flex-col gap-4" onSubmit={handleSubmitPart}>
@@ -427,15 +485,66 @@ export function PartsPage() {
             </div>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {isSubmitting ? 'Salvando…' : 'Salvar'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={isSubmitting || isDeletingPart || isLoadingPartRemovalImpact}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Salvando…' : 'Salvar'}
+            </button>
+            {editingPartId && (
+              <button
+                type="button"
+                disabled={isSubmitting || isDeletingPart || isLoadingPartRemovalImpact}
+                onClick={() => void handleRequestDeletePart()}
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-red-600 hover:bg-bg disabled:opacity-50"
+              >
+                {isLoadingPartRemovalImpact ? 'Carregando…' : 'Excluir'}
+              </button>
+            )}
+          </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={partDeleteConfirmOpen}
+        title="Excluir parte"
+        message={
+          partRemovalImpact ? (
+            <>
+              <p>
+                Esta parte está vinculada a{' '}
+                <strong>
+                  {partRemovalImpact.musicianCount}{' '}
+                  {partRemovalImpact.musicianCount === 1 ? 'músico' : 'músicos'}
+                </strong>{' '}
+                e{' '}
+                <strong>
+                  {partRemovalImpact.linkedFileCount}{' '}
+                  {partRemovalImpact.linkedFileCount === 1 ? 'arquivo' : 'arquivos'}
+                </strong>
+                .
+              </p>
+              <p className="mt-2">
+                A exclusão remove esses vínculos e apaga a parte permanentemente, incluindo suas
+                divisões. Deseja continuar?
+              </p>
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel="Excluir"
+        onConfirm={() => void handleConfirmDeletePart()}
+        onClose={() => {
+          if (!isDeletingPart) {
+            setPartDeleteConfirmOpen(false);
+            setPartRemovalImpact(null);
+          }
+        }}
+        isConfirming={isDeletingPart}
+      />
 
       <Modal
         open={divisionModal !== null}

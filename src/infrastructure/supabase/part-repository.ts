@@ -1,7 +1,7 @@
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { Part, PartDivision, PartDivisionInput, PartInput } from '@/domain/ensemble';
 import { compareByName, sortOrdersFromIds } from '@/domain/ensemble/sort-order';
-import type { PartWithDivisions } from '@/application/ports/part-repository';
+import type { PartRemovalImpact, PartWithDivisions } from '@/application/ports/part-repository';
 import { supabase } from './client';
 
 const PART_COLUMNS =
@@ -236,6 +236,76 @@ export function createPartRepository(): PartRepository {
       const failed = results.find((result) => result.error);
       if (failed?.error) {
         throw new Error(failed.error.message);
+      }
+    },
+
+    async getRemovalImpact(organizationId, partId): Promise<PartRemovalImpact> {
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('assignments')
+        .select('musician_id')
+        .eq('organization_id', organizationId)
+        .eq('part_id', partId);
+
+      if (assignmentsError) {
+        throw new Error(assignmentsError.message);
+      }
+
+      const musicianCount = new Set((assignments ?? []).map((row) => row.musician_id)).size;
+
+      const { data: fileLinks, error: fileLinksError } = await supabase
+        .from('piece_file_part_links')
+        .select('piece_file_id')
+        .eq('organization_id', organizationId)
+        .eq('part_id', partId);
+
+      if (fileLinksError) {
+        throw new Error(fileLinksError.message);
+      }
+
+      const linkedFileCount = new Set((fileLinks ?? []).map((row) => row.piece_file_id)).size;
+
+      return { musicianCount, linkedFileCount };
+    },
+
+    async remove(organizationId, partId) {
+      const { error: clearAssignmentsError } = await supabase
+        .from('assignments')
+        .update({ part_id: null })
+        .eq('organization_id', organizationId)
+        .eq('part_id', partId);
+
+      if (clearAssignmentsError) {
+        throw new Error(clearAssignmentsError.message);
+      }
+
+      const { error: clearSectionPartsError } = await supabase
+        .from('section_parts')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('part_id', partId);
+
+      if (clearSectionPartsError) {
+        throw new Error(clearSectionPartsError.message);
+      }
+
+      const { error: clearFileLinksError } = await supabase
+        .from('piece_file_part_links')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('part_id', partId);
+
+      if (clearFileLinksError) {
+        throw new Error(clearFileLinksError.message);
+      }
+
+      const { error: deletePartError } = await supabase
+        .from('parts')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('id', partId);
+
+      if (deletePartError) {
+        throw new Error(deletePartError.message);
       }
     },
   };

@@ -156,3 +156,35 @@ export async function reorderParts(
     return Result.fail('reorder_failed');
   }
 }
+
+export async function getPartRemovalImpact(
+  partRepo: PartRepository,
+  organizationId: string,
+  partId: string,
+) {
+  const part = await partRepo.getById(organizationId, partId);
+  if (!part) {
+    return Result.fail('not_found');
+  }
+
+  const impact = await partRepo.getRemovalImpact(organizationId, partId);
+  return Result.ok(impact);
+}
+
+export async function removePart(
+  partRepo: PartRepository,
+  organizationId: string,
+  partId: string,
+) {
+  const part = await partRepo.getById(organizationId, partId);
+  if (!part) {
+    return Result.fail('not_found');
+  }
+
+  try {
+    await partRepo.remove(organizationId, partId);
+    return Result.ok(undefined);
+  } catch {
+    return Result.fail('delete_failed');
+  }
+}

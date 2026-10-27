@@ -17,9 +17,11 @@ import { listGroups } from './list-groups';
 import { createMusician, deleteMusician, getMusician, getMyMusician, listMusicians, mergeMusicians, updateMusician } from './musician-use-cases';
 import {
   getPart,
+  getPartRemovalImpact,
   listParts,
   registerPart,
   registerPartDivision,
+  removePart,
   removePartDivision,
   reorderParts,
   updatePart,
@@ -97,6 +99,10 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
     ) => updatePartDivision(deps.partRepo, organizationId, divisionId, input),
     removePartDivision: (organizationId: string, divisionId: string) =>
       removePartDivision(deps.partRepo, organizationId, divisionId),
+    getPartRemovalImpact: (organizationId: string, partId: string) =>
+      getPartRemovalImpact(deps.partRepo, organizationId, partId),
+    removePart: (organizationId: string, partId: string) =>
+      removePart(deps.partRepo, organizationId, partId),
     reorderParts: (organizationId: string, orderedPartIds: string[]) =>
       reorderParts(deps.partRepo, organizationId, orderedPartIds),
 

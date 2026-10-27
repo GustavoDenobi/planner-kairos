@@ -4,6 +4,11 @@ export type PartWithDivisions = Part & {
   divisions: PartDivision[];
 };
 
+export type PartRemovalImpact = {
+  musicianCount: number;
+  linkedFileCount: number;
+};
+
 export type PartRepository = {
   listForOrg(organizationId: string): Promise<PartWithDivisions[]>;
   getById(organizationId: string, partId: string): Promise<PartWithDivisions | null>;
@@ -21,4 +26,6 @@ export type PartRepository = {
   ): Promise<PartDivision>;
   removeDivision(organizationId: string, divisionId: string): Promise<void>;
   reorderParts(organizationId: string, orderedPartIds: string[]): Promise<void>;
+  getRemovalImpact(organizationId: string, partId: string): Promise<PartRemovalImpact>;
+  remove(organizationId: string, partId: string): Promise<void>;
 };
