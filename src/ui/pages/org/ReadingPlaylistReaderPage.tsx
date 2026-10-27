@@ -2318,6 +2318,8 @@ export function ReadingPlaylistReaderPage() {
 
         transposePartOptions={transposePartOptions}
 
+        filePartLinks={currentItem.partLinks}
+
         readerInfo={{
           open: infoModalOpen,
           onClose: () => setInfoModalOpen(false),

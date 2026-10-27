@@ -1,4 +1,4 @@
-import type { PieceDetail, PieceInput, PieceListItem } from '@/domain/repertoire';
+import type { PieceDetail, PieceInput, PieceListItem, PieceListSort } from '@/domain/repertoire';
 
 export type SearchPiecesOptions = {
   query?: string;
@@ -7,6 +7,7 @@ export type SearchPiecesOptions = {
   groupId?: string;
   unlinkedOnly?: boolean;
   accessibleForPartId?: string;
+  sort?: PieceListSort;
 };
 
 export type PieceRepository = {

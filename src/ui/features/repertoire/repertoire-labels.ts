@@ -1,4 +1,5 @@
-import type { PieceFileKind } from '@/domain/repertoire';
+import type { PieceFileKind, PieceListSort } from '@/domain/repertoire';
+import { DEFAULT_PIECE_LIST_SORT } from '@/domain/repertoire/piece-list-sort';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { PieceFilePartLink } from '@/domain/repertoire';
 
@@ -76,6 +77,25 @@ function mapStorageErrorDetail(detail: string): string | null {
   }
 
   return null;
+}
+
+export const PIECE_LIST_SORT_OPTIONS: { value: PieceListSort; label: string }[] = [
+  { value: 'title_asc', label: 'Ordem alfabética (A–Z)' },
+  { value: 'created_desc', label: 'Mais recentes' },
+  { value: 'created_asc', label: 'Mais antigas' },
+  { value: 'performances_year_desc', label: 'Mais tocadas (ano)' },
+  { value: 'performances_year_asc', label: 'Menos tocadas (ano)' },
+];
+
+export function isPieceListSort(value: string): value is PieceListSort {
+  return PIECE_LIST_SORT_OPTIONS.some((option) => option.value === value);
+}
+
+export function pieceListSortLabel(sort: PieceListSort): string {
+  return (
+    PIECE_LIST_SORT_OPTIONS.find((option) => option.value === sort)?.label ??
+    PIECE_LIST_SORT_OPTIONS.find((option) => option.value === DEFAULT_PIECE_LIST_SORT)!.label
+  );
 }
 
 export function repertoireErrorMessage(code: string): string {

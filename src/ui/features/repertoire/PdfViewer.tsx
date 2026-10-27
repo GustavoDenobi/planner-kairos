@@ -22,6 +22,7 @@ import type {
   NoteGeometry,
   PdfAnnotation,
   PdfNavigationShortcut,
+  PieceFilePartLink,
   PieceFileTocEntry,
   CreatePieceFileTocEntryInput,
   UpdatePieceFileTocEntryInput,
@@ -148,6 +149,7 @@ import {
   PdfViewerTranspositionModal,
   type PdfViewerTransposePartOption,
 } from '@/ui/features/repertoire/PdfViewerTranspositionModal';
+import { inferDefaultTunerTransposeFromFilePartLinks } from '@/ui/features/repertoire/transpose-part-options';
 import { PdfViewerTunerBar } from '@/ui/features/repertoire/PdfViewerTunerBar';
 import {
   clampPartTransposeSemitones,
@@ -382,6 +384,7 @@ type PdfViewerProps = {
     downloadName?: string;
   };
   transposePartOptions?: PdfViewerTransposePartOption[];
+  filePartLinks?: PieceFilePartLink[];
 };
 
 export type { PdfViewerTransposePartOption };
@@ -1051,6 +1054,7 @@ export function PdfViewer({
   onTocEntryReorder,
   readerInfo,
   transposePartOptions = [],
+  filePartLinks = [],
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1245,6 +1249,21 @@ export function PdfViewer({
     setTunerTransposePartId(null);
     saveTunerTransposePreferences(userId, { tunerTransposePartId: null });
   }, [transposePartOptions, tunerTransposePartId, userId]);
+
+  useEffect(() => {
+    const inferred = inferDefaultTunerTransposeFromFilePartLinks(
+      filePartLinks,
+      transposePartOptions,
+    );
+    if (inferred) {
+      const semitones = clampPartTransposeSemitones(inferred.semitones);
+      setTunerTransposePartId(inferred.partId);
+      setTunerTransposeSemitones(semitones);
+      return;
+    }
+    setTunerTransposePartId(null);
+    setTunerTransposeSemitones(0);
+  }, [filePartLinks, transposePartOptions, url]);
 
   useEffect(() => {
     manualDirectedVisibilityRef.current = new Set();

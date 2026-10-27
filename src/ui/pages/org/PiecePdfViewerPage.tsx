@@ -1122,6 +1122,7 @@ export function PiecePdfViewerPage() {
         onLoadCancel={closeReader}
         allowDownload={allowFileDownload}
         transposePartOptions={transposePartOptions}
+        filePartLinks={file.partLinks}
         readerInfo={{
           open: infoModalOpen,
           onClose: () => setInfoModalOpen(false),

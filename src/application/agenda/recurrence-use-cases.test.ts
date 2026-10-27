@@ -108,6 +108,16 @@ function createRepos() {
     bulkUpdateFutureOccurrences: vi.fn(),
     replaceAudienceForFutureOccurrences: vi.fn(),
     getOccurrenceByIndex: vi.fn(async () => null),
+    getPieceEventHistory: vi.fn(async () => ({
+      events: [],
+      performancesThisYear: 0,
+      lastPerformanceAt: null,
+    })),
+    getMusicianEventHistory: vi.fn(async () => ({
+      events: [],
+      eventsThisYear: 0,
+      absencesThisYear: 0,
+    })),
   };
 
   const orgRepo: OrganizationRepository = {
@@ -120,6 +130,7 @@ function createRepos() {
     clearImage: vi.fn(),
     updateName: vi.fn(),
     updateRules: vi.fn(),
+    getPlanOverview: vi.fn(),
   };
 
   const recurrenceRepo: EventRecurrenceRepository = {

@@ -20,6 +20,7 @@ import { downloadFromUrl } from '@/ui/utils/download-url';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
+import { Tabs } from '@/ui/components/Tabs';
 import { IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
 import { AudienceChips } from '@/ui/features/audience';
 import { PiecePermissionsModal } from '@/ui/features/repertoire/PiecePermissionsModal';
@@ -30,6 +31,7 @@ import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import { AudioPlayerModal } from '@/ui/features/repertoire/AudioPlayerModal';
 import { PieceFilesSection } from '@/ui/features/repertoire/PieceFilesSection';
+import { PieceHistorySection } from '@/ui/features/repertoire/PieceHistorySection';
 import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/pdf-delivery';
 import {
   printPdfDocument,
@@ -879,43 +881,67 @@ export function PieceDetailPage() {
         <p className="text-sm text-red-600">{uploadError}</p>
       )}
 
-      <PieceFilesSection
-        files={piece.files}
-        parts={parts}
-        fileOrganization={piece.fileOrganization}
-        isAdmin={isAdmin}
-        userPartIds={userPartIds}
-        isConductor={isConductor}
-        allowDownload={allowFileDownload}
-        onOpen={handleOpen}
-        onShare={(file) => void handlePdfOutput(file, 'share')}
-        onPrint={(file) => void handlePdfOutput(file, 'print')}
-        printingFileId={printingFileId}
-        onEdit={setEditingFile}
-        onAddFiles={handleAddFiles}
-        onReorderScoreFiles={
-          isAdmin
-            ? async (orderedFileIds) => {
-                if (!org) {
-                  return false;
+      <Tabs
+        className="flex min-h-0 flex-1 flex-col"
+        panelClassName="flex min-h-0 flex-1 flex-col"
+        tabs={[
+          {
+            id: 'arquivos',
+            label: 'Arquivos',
+            content: (
+              <PieceFilesSection
+                hideHeading
+                files={piece.files}
+                parts={parts}
+                fileOrganization={piece.fileOrganization}
+                isAdmin={isAdmin}
+                userPartIds={userPartIds}
+                isConductor={isConductor}
+                allowDownload={allowFileDownload}
+                onOpen={handleOpen}
+                onShare={(file) => void handlePdfOutput(file, 'share')}
+                onPrint={(file) => void handlePdfOutput(file, 'print')}
+                printingFileId={printingFileId}
+                onEdit={setEditingFile}
+                onAddFiles={handleAddFiles}
+                onReorderScoreFiles={
+                  isAdmin
+                    ? async (orderedFileIds) => {
+                        if (!org) {
+                          return false;
+                        }
+                        const result = await repertoire.reorderPieceScoreFiles(
+                          org.id,
+                          piece.id,
+                          orderedFileIds,
+                        );
+                        if (!result.ok) {
+                          setError(repertoireErrorMessage(result.error));
+                          return false;
+                        }
+                        setPiece((current) =>
+                          current ? { ...current, files: result.value } : current,
+                        );
+                        return true;
+                      }
+                    : undefined
                 }
-                const result = await repertoire.reorderPieceScoreFiles(
-                  org.id,
-                  piece.id,
-                  orderedFileIds,
-                );
-                if (!result.ok) {
-                  setError(repertoireErrorMessage(result.error));
-                  return false;
-                }
-                setPiece((current) =>
-                  current ? { ...current, files: result.value } : current,
-                );
-                return true;
-              }
-            : undefined
-        }
-        isAddingFiles={isPreparingUpload}
+                isAddingFiles={isPreparingUpload}
+              />
+            ),
+          },
+          {
+            id: 'historico',
+            label: 'Histórico',
+            content: (
+              <PieceHistorySection
+                organizationId={org.id}
+                orgSlug={orgSlug!}
+                pieceId={piece.id}
+              />
+            ),
+          },
+        ]}
       />
     </div>
 

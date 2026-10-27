@@ -32,6 +32,8 @@ import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases
 import { listAssociableAudience } from './list-associable-audience';
 import { setEventProgram, getPreviousEventProgram } from './program-use-cases';
 import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
+import { getPieceEventHistory } from './piece-event-history-use-cases';
+import { getMusicianEventHistory } from './musician-event-history-use-cases';
 import {
   cancelRecurrence,
   cancelRecurrenceOccurrence,
@@ -313,6 +315,10 @@ export function createAgendaUseCases(deps: AgendaDeps) {
         userId,
         options,
       ),
+    getPieceEventHistory: (organizationId: string, pieceId: string) =>
+      getPieceEventHistory(deps.eventRepo, organizationId, pieceId),
+    getMusicianEventHistory: (organizationId: string, musicianId: string) =>
+      getMusicianEventHistory(deps.eventRepo, deps.assignmentRepo, organizationId, musicianId),
   };
 }
 

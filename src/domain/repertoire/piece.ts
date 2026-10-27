@@ -50,6 +50,8 @@ export type PieceListItem = {
   fileOrganization: PieceFileOrganization;
   category: Pick<PieceCategory, 'id' | 'name' | 'slug' | 'color'>;
   themeIds: string[];
+  createdAt: string;
+  performancesThisYear: number;
 };
 
 export type PieceFileAccessSettingsInput = {

@@ -3,6 +3,8 @@ import type {
   EventDetail,
   EventInput,
   EventListItem,
+  MusicianEventHistory,
+  PieceEventHistory,
   ProgramItemInput,
 } from '@/domain/agenda';
 
@@ -74,4 +76,10 @@ export type EventRepository = {
     musicianIds: string[],
     skipExceptions: boolean,
   ): Promise<void>;
+  getPieceEventHistory(organizationId: string, pieceId: string): Promise<PieceEventHistory>;
+  getMusicianEventHistory(
+    organizationId: string,
+    musicianId: string,
+    groupIds: string[],
+  ): Promise<MusicianEventHistory>;
 };

@@ -34,6 +34,7 @@ type PieceFilesSectionProps = {
   onAddFiles: (files: File[]) => void;
   onReorderScoreFiles?: (orderedFileIds: string[]) => Promise<boolean>;
   isAddingFiles?: boolean;
+  hideHeading?: boolean;
 };
 
 const FILE_ACCEPT = 'application/pdf,audio/mpeg,audio/wav';
@@ -245,6 +246,7 @@ export function PieceFilesSection({
   onAddFiles,
   onReorderScoreFiles,
   isAddingFiles = false,
+  hideHeading = false,
 }: PieceFilesSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filtersPanelId = useId();
@@ -362,8 +364,10 @@ export function PieceFilesSection({
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 space-y-3">
-        <div className="flex items-center justify-between gap-3 mt-3">
-          <h2 className="text-lg font-medium text-text">Arquivos</h2>
+        <div
+          className={`flex items-center gap-3 mt-3 ${hideHeading ? 'justify-end' : 'justify-between'}`}
+        >
+          {!hideHeading && <h2 className="text-lg font-medium text-text">Arquivos</h2>}
           {isAdmin && (
             <>
               <input

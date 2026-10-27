@@ -1,12 +1,12 @@
 import type { PieceRepository, SearchPiecesOptions } from '@/application/ports/piece-repository';
 import type { PieceCategory, PieceDetail, PieceInput, PieceListItem } from '@/domain/repertoire';
-import { normalizePieceAliases } from '@/domain/repertoire';
+import { DEFAULT_PIECE_LIST_SORT, normalizePieceAliases, sortPieceListItems } from '@/domain/repertoire';
 import { createPieceAccessRepository } from './piece-access-repository';
 import { createPieceFileRepository } from './piece-file-repository';
 import { supabase } from './client';
 
 const PIECE_COLUMNS =
-  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, file_organization, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download';
+  'id, organization_id, title, category_id, composer, description, notes, aliases, deleted_at, created_at, file_organization, file_access_scope, allow_file_download, audio_access_scope, audio_allow_download';
 
 const CATEGORY_COLUMNS = 'id, organization_id, name, slug, sort_order, color';
 
@@ -86,6 +86,40 @@ async function loadPieceIdsAccessibleForPart(
   }
 
   return [...accessiblePieceIds];
+}
+
+async function loadPerformancesThisYearByPieceId(
+  organizationId: string,
+  pieceIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (pieceIds.length === 0) {
+    return counts;
+  }
+
+  const year = new Date().getFullYear();
+  const yearStart = new Date(year, 0, 1).toISOString();
+  const yearEnd = new Date(year + 1, 0, 1).toISOString();
+
+  const { data, error } = await supabase
+    .from('program_items')
+    .select('piece_id, events!inner(starts_at)')
+    .eq('organization_id', organizationId)
+    .eq('status', 'performed')
+    .in('piece_id', pieceIds)
+    .gte('events.starts_at', yearStart)
+    .lt('events.starts_at', yearEnd);
+
+  if (error || !data) {
+    return counts;
+  }
+
+  for (const row of data) {
+    const pieceId = row.piece_id;
+    counts.set(pieceId, (counts.get(pieceId) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 function intersectPieceIds(current: string[] | null, next: string[]): string[] | null {
@@ -283,8 +317,7 @@ export function createPieceRepository(): PieceRepository {
         .from('pieces')
         .select(`${PIECE_COLUMNS}, piece_categories (${CATEGORY_COLUMNS})`)
         .eq('organization_id', organizationId)
-        .is('deleted_at', null)
-        .order('title');
+        .is('deleted_at', null);
 
       if (options?.categoryId) {
         query = query.eq('category_id', options.categoryId);
@@ -314,12 +347,13 @@ export function createPieceRepository(): PieceRepository {
           })
         : data;
 
-      const themeIdsByPiece = await loadThemeLinksForPieces(
-        organizationId,
-        filtered.map((row) => row.id),
-      );
+      const pieceIds = filtered.map((row) => row.id);
+      const [themeIdsByPiece, performancesByPiece] = await Promise.all([
+        loadThemeLinksForPieces(organizationId, pieceIds),
+        loadPerformancesThisYearByPieceId(organizationId, pieceIds),
+      ]);
 
-      return filtered.map((row): PieceListItem => {
+      const items = filtered.map((row): PieceListItem => {
         const categoryRow = row.piece_categories as unknown as {
           id: string;
           organization_id: string;
@@ -342,8 +376,12 @@ export function createPieceRepository(): PieceRepository {
             color: categoryRow.color,
           },
           themeIds: themeIdsByPiece.get(row.id) ?? [],
+          createdAt: row.created_at,
+          performancesThisYear: performancesByPiece.get(row.id) ?? 0,
         };
       });
+
+      return sortPieceListItems(items, options?.sort ?? DEFAULT_PIECE_LIST_SORT);
     },
 
     async getById(organizationId, pieceId) {

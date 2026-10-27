@@ -6,7 +6,18 @@ import type {
   EventInput,
   EventKind,
   EventListItem,
+  MusicianEventHistory,
+  MusicianEventHistorySourceRow,
+  PieceEventHistory,
+  PieceEventHistorySourceRow,
   ProgramItemInput,
+  ProgramItemStatus,
+} from '@/domain/agenda';
+import {
+  buildMusicianEventHistory,
+  countPiecePerformancesInLocalYear,
+  findLastPiecePerformanceAt,
+  mergePieceEventHistoryRows,
 } from '@/domain/agenda';
 import type { GroupKind } from '@/domain/ensemble';
 import { eventAllParticipantsAbsent, normalizeOptionalText, uniqueIds } from '@/domain/agenda';
@@ -65,6 +76,40 @@ function unwrapEventType(row: EventRow): EventTypeRow | null {
     return null;
   }
   return Array.isArray(row.event_types) ? (row.event_types[0] ?? null) : row.event_types;
+}
+
+type HistoryEventJoinRow = {
+  id: string;
+  title: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  cancelled_at: string | null;
+  type_id: string;
+  event_types: EventTypeRow | EventTypeRow[] | null;
+};
+
+function mapMusicianHistorySourceRow(
+  event: HistoryEventJoinRow,
+  wasAbsent: boolean,
+): MusicianEventHistorySourceRow | null {
+  const eventType = event.event_types
+    ? Array.isArray(event.event_types)
+      ? (event.event_types[0] ?? null)
+      : event.event_types
+    : null;
+
+  return {
+    eventId: event.id,
+    title: event.title,
+    startsAt: event.starts_at,
+    endsAt: event.ends_at,
+    cancelledAt: event.cancelled_at,
+    typeId: event.type_id,
+    typeName: eventType?.name ?? 'Evento',
+    typeKind: eventType?.kind ?? 'special',
+    typeColor: eventType?.color ?? null,
+    wasAbsent,
+  };
 }
 
 async function loadProgramCounts(
@@ -960,6 +1005,122 @@ export function createEventRepository(): EventRepository {
         }
         await replaceAudience(organizationId, row.id, groupIds, musicianIds);
       }
+    },
+
+    async getPieceEventHistory(organizationId, pieceId): Promise<PieceEventHistory> {
+      const { data, error } = await supabase
+        .from('program_items')
+        .select(
+          'status, sort_order, events!inner (id, title, starts_at, ends_at, cancelled_at, type_id, event_types (name, kind, color))',
+        )
+        .eq('organization_id', organizationId)
+        .eq('piece_id', pieceId);
+
+      if (error || !data) {
+        return { events: [], performancesThisYear: 0, lastPerformanceAt: null };
+      }
+
+      const sourceRows: PieceEventHistorySourceRow[] = [];
+
+      for (const row of data) {
+        const event = row.events as unknown as {
+          id: string;
+          title: string | null;
+          starts_at: string;
+          ends_at: string | null;
+          cancelled_at: string | null;
+          type_id: string;
+          event_types: EventTypeRow | EventTypeRow[] | null;
+        } | null;
+
+        if (!event) {
+          continue;
+        }
+
+        const eventType = event.event_types
+          ? Array.isArray(event.event_types)
+            ? (event.event_types[0] ?? null)
+            : event.event_types
+          : null;
+
+        sourceRows.push({
+          eventId: event.id,
+          sortOrder: row.sort_order,
+          status: row.status as ProgramItemStatus,
+          title: event.title,
+          startsAt: event.starts_at,
+          endsAt: event.ends_at,
+          cancelledAt: event.cancelled_at,
+          typeId: event.type_id,
+          typeName: eventType?.name ?? 'Evento',
+          typeKind: eventType?.kind ?? 'special',
+          typeColor: eventType?.color ?? null,
+        });
+      }
+
+      const events = mergePieceEventHistoryRows(sourceRows);
+      const performancesThisYear = countPiecePerformancesInLocalYear(sourceRows);
+      const lastPerformanceAt = findLastPiecePerformanceAt(sourceRows);
+
+      return { events, performancesThisYear, lastPerformanceAt };
+    },
+
+    async getMusicianEventHistory(organizationId, musicianId, groupIds): Promise<MusicianEventHistory> {
+      const eventSelect =
+        'id, title, starts_at, ends_at, cancelled_at, type_id, event_types (name, kind, color)';
+
+      const [directResult, indirectResult, absencesResult] = await Promise.all([
+        supabase
+          .from('event_musicians')
+          .select(`events!inner (${eventSelect})`)
+          .eq('organization_id', organizationId)
+          .eq('musician_id', musicianId),
+        groupIds.length > 0
+          ? supabase
+              .from('event_groups')
+              .select(`events!inner (${eventSelect})`)
+              .eq('organization_id', organizationId)
+              .in('group_id', groupIds)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('event_absences')
+          .select('event_id')
+          .eq('organization_id', organizationId)
+          .eq('musician_id', musicianId),
+      ]);
+
+      if (directResult.error || indirectResult.error || absencesResult.error) {
+        return buildMusicianEventHistory([]);
+      }
+
+      const absentEventIds = new Set(
+        (absencesResult.data ?? []).map((row) => row.event_id as string),
+      );
+      const byEventId = new Map<string, MusicianEventHistorySourceRow>();
+
+      const ingest = (joinedEvent: HistoryEventJoinRow | null) => {
+        if (!joinedEvent) {
+          return;
+        }
+        const mapped = mapMusicianHistorySourceRow(
+          joinedEvent,
+          absentEventIds.has(joinedEvent.id),
+        );
+        if (!mapped) {
+          return;
+        }
+        byEventId.set(mapped.eventId, mapped);
+      };
+
+      for (const row of directResult.data ?? []) {
+        ingest(row.events as unknown as HistoryEventJoinRow | null);
+      }
+
+      for (const row of indirectResult.data ?? []) {
+        ingest(row.events as unknown as HistoryEventJoinRow | null);
+      }
+
+      return buildMusicianEventHistory([...byEventId.values()]);
     },
   };
 }

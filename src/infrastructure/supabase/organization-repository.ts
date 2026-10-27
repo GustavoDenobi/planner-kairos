@@ -1,5 +1,6 @@
 import type { OrganizationRepository, OrganizationWithRole } from '@/application/ports';
 import type { Organization } from '@/domain/identity';
+import type { OrganizationPlanOverview } from '@/domain/platform/plan';
 import { mapOrganizationRules } from './map-organization-rules';
 import { supabase } from './client';
 
@@ -232,6 +233,77 @@ export function createOrganizationRepository(): OrganizationRepository {
       }
 
       return mapOrganization(data).rules!;
+    },
+
+    async getPlanOverview(organizationId) {
+      const { data: orgRow, error: orgError } = await supabase
+        .from('organizations')
+        .select(
+          `
+          plan_id,
+          plans (
+            id,
+            name,
+            slug,
+            description,
+            max_groups,
+            max_musicians,
+            max_pieces,
+            max_storage_bytes
+          )
+        `,
+        )
+        .eq('id', organizationId)
+        .maybeSingle();
+
+      if (orgError) {
+        throw new Error(orgError.message);
+      }
+
+      const planRaw = orgRow?.plans;
+      const plan = (Array.isArray(planRaw) ? planRaw[0] : planRaw) as {
+        id: string;
+        name: string;
+        slug: string;
+        description: string | null;
+        max_groups: number | null;
+        max_musicians: number | null;
+        max_pieces: number | null;
+        max_storage_bytes: number | null;
+      } | null | undefined;
+
+      if (!plan) {
+        return null;
+      }
+
+      const { data: usageRows, error: usageError } = await supabase.rpc('get_org_plan_usage', {
+        p_org_id: organizationId,
+      });
+
+      if (usageError) {
+        throw new Error(usageError.message);
+      }
+
+      const usage = usageRows?.[0];
+      if (!usage) {
+        return null;
+      }
+
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        planSlug: plan.slug,
+        planDescription: plan.description,
+        maxGroups: plan.max_groups,
+        maxMusicians: plan.max_musicians,
+        maxPieces: plan.max_pieces,
+        maxStorageBytes: plan.max_storage_bytes,
+        groupsCount: usage.groups_count,
+        musiciansCount: usage.musicians_count,
+        piecesCount: usage.pieces_count,
+        eventsCount: usage.events_count,
+        storageBytes: Number(usage.storage_bytes),
+      } satisfies OrganizationPlanOverview;
     },
   };
 }

@@ -50,13 +50,19 @@ export function formatKanbanDayHeader(date: Date): string {
     .replace(/\.$/, '')
     .toUpperCase();
   const pad = (value: number) => String(value).padStart(2, '0');
-  return `${weekday} - ${pad(date.getMonth() + 1)}/${pad(date.getDate())}`;
+  return `${weekday} - ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
 }
 
 export function formatEventDateShort(startsAt: string): string {
   const date = new Date(startsAt);
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
+
+export function formatEventDateNumeric(startsAt: string): string {
+  const date = new Date(startsAt);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 export function formatEventTime(startsAt: string, endsAt: string | null): string {
@@ -67,6 +73,11 @@ export function formatEventTime(startsAt: string, endsAt: string | null): string
   }
   const end = new Date(endsAt);
   return `${timeFmt.format(start)} – ${timeFmt.format(end)}`;
+}
+
+/** Data civil + horário — para listas de histórico (ex.: eventos recorrentes com o mesmo título). */
+export function formatEventScheduleLabel(startsAt: string, endsAt: string | null): string {
+  return `${formatEventDateNumeric(startsAt)}, ${formatEventTime(startsAt, endsAt)}`;
 }
 
 export function formatRangeLabel(mode: AgendaRangeMode, anchor: Date): string {

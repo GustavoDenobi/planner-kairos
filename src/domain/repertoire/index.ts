@@ -11,6 +11,11 @@ export type {
   PieceInput,
   PieceListItem,
 } from './piece';
+export type { PieceListSort } from './piece-list-sort';
+export {
+  DEFAULT_PIECE_LIST_SORT,
+  sortPieceListItems,
+} from './piece-list-sort';
 export type {
   PieceFile,
   PieceFileKind,

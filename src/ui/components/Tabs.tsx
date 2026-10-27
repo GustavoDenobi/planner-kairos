@@ -9,9 +9,11 @@ export type TabItem = {
 type TabsProps = {
   tabs: TabItem[];
   defaultTab?: string;
+  className?: string;
+  panelClassName?: string;
 };
 
-export function Tabs({ tabs, defaultTab }: TabsProps) {
+export function Tabs({ tabs, defaultTab, className = '', panelClassName = '' }: TabsProps) {
   const [activeTab, setActiveTab] = useState(defaultTab ?? tabs[0]?.id);
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
@@ -20,7 +22,7 @@ export function Tabs({ tabs, defaultTab }: TabsProps) {
   }
 
   return (
-    <div>
+    <div className={className}>
       <div role="tablist" className="-mb-px flex gap-1 border-b border-border">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -42,7 +44,7 @@ export function Tabs({ tabs, defaultTab }: TabsProps) {
           );
         })}
       </div>
-      <div role="tabpanel" className="mt-6">
+      <div role="tabpanel" className={`mt-6 ${panelClassName}`.trim()}>
         {active.content}
       </div>
     </div>

@@ -24,6 +24,7 @@ import { Tabs } from '@/ui/components/Tabs';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
+import { MusicianHistorySection } from '@/ui/features/ensemble/MusicianHistorySection';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 
@@ -816,6 +817,18 @@ export function MusicianDetailPage() {
                     </div>
                   )}
                 </>
+              ),
+            },
+            {
+              id: 'historico',
+              label: 'Histórico',
+              content: (
+                <MusicianHistorySection
+                  organizationId={org.id}
+                  orgSlug={orgSlug!}
+                  musicianId={musician.id}
+                  isOfflineReadOnly={isOfflineReadOnly}
+                />
               ),
             },
           ]}

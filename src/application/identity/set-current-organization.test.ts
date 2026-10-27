@@ -13,6 +13,7 @@ function createOrgRepo(orgs: import('@/application/ports/organization-repository
     clearImage: vi.fn(),
     updateName: vi.fn(),
     updateRules: vi.fn(),
+    getPlanOverview: vi.fn(),
   };
 }
 

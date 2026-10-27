@@ -32,6 +32,27 @@ export {
 } from './append-event-program-score';
 export type { EventDetail } from './event-detail';
 export type {
+  PieceEventHistory,
+  PieceEventHistoryItem,
+  PieceEventHistorySourceRow,
+} from './piece-event-history';
+export {
+  countPiecePerformancesInLocalYear,
+  findLastPiecePerformanceAt,
+  localCalendarDaysSince,
+  mergePieceEventHistoryRows,
+} from './piece-event-history';
+export type {
+  MusicianEventHistory,
+  MusicianEventHistoryItem,
+  MusicianEventHistorySourceRow,
+} from './musician-event-history';
+export {
+  buildMusicianEventHistory,
+  countMusicianAbsencesInLocalYear,
+  countMusicianEventsInLocalYear,
+} from './musician-event-history';
+export type {
   EventRecurrence,
   ScheduleRecurrenceInput,
   RecurrenceEditScope,

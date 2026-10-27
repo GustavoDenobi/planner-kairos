@@ -17,6 +17,7 @@ import { createGroupInvite } from './create-group-invite';
 import { getPendingLegalAcceptances } from './get-pending-legal-acceptances';
 import { listGroupInvites } from './list-group-invites';
 import { listMyOrganizations } from './list-my-organizations';
+import { getOrganizationPlanOverview } from './get-organization-plan-overview';
 import { getUserOrganizationRulesAcceptance } from './get-user-organization-rules-acceptance';
 import { previewGroupInvite } from './preview-group-invite';
 import { previewMusicianClaim } from './preview-musician-claim';
@@ -78,6 +79,8 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       setOrganizationName(deps.orgRepo, organizationId, name),
     getOrganizationRules: (organizationId: string) =>
       getOrganizationRules(deps.orgRepo, organizationId),
+    getOrganizationPlanOverview: (organizationId: string) =>
+      getOrganizationPlanOverview(deps.orgRepo, organizationId),
     setOrganizationRules: (input: Parameters<typeof setOrganizationRules>[1]) =>
       setOrganizationRules(deps.orgRepo, input),
     previewGroupInvite: (token: string) => previewGroupInvite(deps.inviteRepo, token),

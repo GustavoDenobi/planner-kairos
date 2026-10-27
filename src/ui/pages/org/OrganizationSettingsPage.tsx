@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
+import type { OrganizationPlanOverview } from '@/domain/platform/plan';
 import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { BackButton } from '@/ui/components/BackButton';
 import { MarkdownContent } from '@/ui/components/MarkdownContent';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
+import { Tabs } from '@/ui/components/Tabs';
+import { OrganizationPlanOverviewSection } from '@/ui/features/org/OrganizationPlanOverviewSection';
 import { useIsOrgAdmin } from '@/ui/hooks/useIsOrgAdmin';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 import { organizationImageErrorMessage } from '@/ui/utils/organizationImageValidation';
@@ -21,6 +24,8 @@ export function OrganizationSettingsPage() {
   const [rulesMarkdown, setRulesMarkdown] = useState('');
   const [requiresRulesAcceptance, setRequiresRulesAcceptance] = useState(false);
   const [showRulesPreview, setShowRulesPreview] = useState(false);
+  const [planOverview, setPlanOverview] = useState<OrganizationPlanOverview | null>(null);
+  const [isPlanLoading, setIsPlanLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rulesSaved, setRulesSaved] = useState(false);
@@ -41,6 +46,32 @@ export function OrganizationSettingsPage() {
     setRulesSaved(false);
     setShowRulesPreview(false);
   }, [organization]);
+
+  useEffect(() => {
+    if (!organization || !isAdmin) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsPlanLoading(true);
+
+    void identity.getOrganizationPlanOverview(organization.id).then((result) => {
+      if (cancelled) {
+        return;
+      }
+
+      setIsPlanLoading(false);
+      if (result.ok) {
+        setPlanOverview(result.value);
+      } else {
+        setPlanOverview(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organization?.id, isAdmin, identity]);
 
   if (!organization) {
     return (
@@ -147,142 +178,170 @@ export function OrganizationSettingsPage() {
         <h1 className="text-2xl font-semibold text-text">Editar organização</h1>
       </div>
 
-      <article className="mt-6 min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
-            <OrgAvatar organization={organization} size="lg" variant="square" />
-            <div className="min-w-0 flex-1">
-              <label className="flex min-w-0 flex-col gap-1 text-sm">
-                <span className="font-medium text-text">Nome</span>
-                <input
-                  type="text"
-                  value={name}
-                  disabled={isBusy}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={handleSaveName}
-                  className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-                />
-              </label>
-            </div>
-          </div>
+      <div className="mt-6 min-w-0">
+        <Tabs
+          defaultTab="visao-geral"
+          tabs={[
+            {
+              id: 'visao-geral',
+              label: 'Visão Geral',
+              content: (
+                <article className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+                  <div className="flex min-w-0 flex-col gap-6">
+                    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+                      <OrgAvatar organization={organization} size="lg" variant="square" />
+                      <div className="min-w-0 flex-1">
+                        <label className="flex min-w-0 flex-col gap-1 text-sm">
+                          <span className="font-medium text-text">Nome</span>
+                          <input
+                            type="text"
+                            value={name}
+                            disabled={isBusy}
+                            onChange={(e) => setName(e.target.value)}
+                            onBlur={handleSaveName}
+                            className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                          />
+                        </label>
+                      </div>
+                    </div>
 
-          <div className="min-w-0 flex flex-col gap-2">
-            <label className="text-sm font-medium text-text">Imagem da organização</label>
-            <p className="mb-2 text-xs text-muted">
-              PNG, JPEG ou WebP, mínimo 200×200 px.
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={isBusy}
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) {
-                  handleUpload(file);
-                }
-              }}
-            />
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              Escolher imagem
-            </button>
-            {organization.imageStorageKey && (
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={handleRemove}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50"
-              >
-                Remover imagem
-              </button>
-            )}
-          </div>
+                    <div className="min-w-0 flex flex-col gap-2">
+                      <label className="text-sm font-medium text-text">Imagem da organização</label>
+                      <p className="text-xs text-muted">PNG, JPEG ou WebP, mínimo 200×200 px.</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        disabled={isBusy}
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (file) {
+                            handleUpload(file);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-fit rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        Escolher imagem
+                      </button>
+                      {organization.imageStorageKey && (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={handleRemove}
+                          className="w-fit text-sm text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          Remover imagem
+                        </button>
+                      )}
+                    </div>
 
-          <div className="min-w-0 border-t border-border pt-4">
-            <h2 className="text-sm font-semibold text-text">Regulamento da organização</h2>
-            <p className="mt-1 text-xs text-muted">
-              Texto exibido no convite e no vínculo de músicos. Texto formatado em Markdown.
-            </p>
+                    <div className="min-w-0 border-t border-border pt-6">
+                      <OrganizationPlanOverviewSection
+                        overview={planOverview}
+                        isLoading={isPlanLoading}
+                      />
+                    </div>
 
-            <label className="mt-3 flex min-w-0 flex-col gap-1 text-sm">
-              <span className="font-medium text-text">Título</span>
-              <input
-                type="text"
-                value={rulesTitle}
-                disabled={isBusy}
-                onChange={(e) => setRulesTitle(e.target.value)}
-                className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-              />
-            </label>
+                    {error && <p className="text-sm text-red-600">{error}</p>}
+                    {isBusy && <p className="text-sm text-muted">Processando…</p>}
+                  </div>
+                </article>
+              ),
+            },
+            {
+              id: 'regulamento',
+              label: 'Regulamento',
+              content: (
+                <article className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-text">Regulamento da organização</h2>
+                    <p className="mt-1 text-xs text-muted">
+                      Texto exibido no convite e no vínculo de músicos. Texto formatado em Markdown.
+                    </p>
 
-            <label className="mt-3 flex min-w-0 flex-col gap-1 text-sm">
-              <span className="font-medium text-text">Conteúdo (Markdown)</span>
-              <textarea
-                value={rulesMarkdown}
-                disabled={isBusy}
-                rows={12}
-                onChange={(e) => setRulesMarkdown(e.target.value)}
-                className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
-              />
-            </label>
+                    <label className="mt-3 flex min-w-0 flex-col gap-1 text-sm">
+                      <span className="font-medium text-text">Título</span>
+                      <input
+                        type="text"
+                        value={rulesTitle}
+                        disabled={isBusy}
+                        onChange={(e) => setRulesTitle(e.target.value)}
+                        className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                      />
+                    </label>
 
-            <label className="mt-3 flex items-center gap-2 text-sm text-text">
-              <input
-                type="checkbox"
-                checked={requiresRulesAcceptance}
-                disabled={isBusy}
-                onChange={(e) => setRequiresRulesAcceptance(e.target.checked)}
-              />
-              Exigir aceite no cadastro de músicos
-            </label>
+                    <label className="mt-3 flex min-w-0 flex-col gap-1 text-sm">
+                      <span className="font-medium text-text">Conteúdo (Markdown)</span>
+                      <textarea
+                        value={rulesMarkdown}
+                        disabled={isBusy}
+                        rows={12}
+                        onChange={(e) => setRulesMarkdown(e.target.value)}
+                        className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"
+                      />
+                    </label>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => setShowRulesPreview((current) => !current)}
-                className="rounded-lg border border-border px-3 py-2 text-sm text-text hover:bg-bg disabled:opacity-50"
-              >
-                {showRulesPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
-              </button>
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={handleSaveRules}
-                className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                Salvar regulamento
-              </button>
-            </div>
+                    <label className="mt-3 flex items-center gap-2 text-sm text-text">
+                      <input
+                        type="checkbox"
+                        checked={requiresRulesAcceptance}
+                        disabled={isBusy}
+                        onChange={(e) => setRequiresRulesAcceptance(e.target.checked)}
+                      />
+                      Exigir aceite no cadastro de músicos
+                    </label>
 
-            {organization.rules && (
-              <p className="mt-2 text-xs text-muted">
-                Versão atual: v{organization.rules.version}
-              </p>
-            )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => setShowRulesPreview((current) => !current)}
+                        className="rounded-lg border border-border px-3 py-2 text-sm text-text hover:bg-bg disabled:opacity-50"
+                      >
+                        {showRulesPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={handleSaveRules}
+                        className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        Salvar regulamento
+                      </button>
+                    </div>
 
-            {rulesSaved && (
-              <p className="mt-2 text-sm text-green-700">Regulamento salvo com sucesso.</p>
-            )}
+                    {organization.rules && (
+                      <p className="mt-2 text-xs text-muted">
+                        Versão atual: v{organization.rules.version}
+                      </p>
+                    )}
 
-            {showRulesPreview && rulesMarkdown.trim() && (
-              <div className="mt-3 rounded-lg border border-border bg-bg p-3">
-                <MarkdownContent markdown={rulesMarkdown} />
-              </div>
-            )}
-          </div>
+                    {rulesSaved && (
+                      <p className="mt-2 text-sm text-green-700">Regulamento salvo com sucesso.</p>
+                    )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {isBusy && <p className="text-sm text-muted">Processando…</p>}
-        </div>
-      </article>
+                    {showRulesPreview && rulesMarkdown.trim() && (
+                      <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+                        <MarkdownContent markdown={rulesMarkdown} />
+                      </div>
+                    )}
+
+                    {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+                    {isBusy && <p className="mt-3 text-sm text-muted">Processando…</p>}
+                  </div>
+                </article>
+              ),
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }

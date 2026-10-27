@@ -1,5 +1,6 @@
 import type { AccessRole, Organization } from '@/domain/identity';
 import type { OrganizationRules } from '@/domain/identity/legal-documents';
+import type { OrganizationPlanOverview } from '@/domain/platform/plan';
 
 export type OrganizationWithRole = Organization & {
   accessRole: AccessRole;
@@ -24,4 +25,5 @@ export type OrganizationRepository = {
     organizationId: string,
     input: OrganizationRulesUpdateInput,
   ): Promise<OrganizationRules>;
+  getPlanOverview(organizationId: string): Promise<OrganizationPlanOverview | null>;
 };

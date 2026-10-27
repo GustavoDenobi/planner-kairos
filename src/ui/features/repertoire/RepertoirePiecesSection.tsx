@@ -14,6 +14,8 @@ import {
   REPERTOIRE_UNLINKED_FILTER,
   REPERTOIRE_UNLINKED_LABEL,
 } from '@/ui/features/repertoire/repertoire-filter-ids';
+import type { PieceListSort } from '@/domain/repertoire';
+import { PIECE_LIST_SORT_OPTIONS } from '@/ui/features/repertoire/repertoire-labels';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -35,6 +37,8 @@ type RepertoirePiecesSectionProps = {
   onCategoryFilterChange: (categoryId: string) => void;
   themeFilter: string;
   onThemeFilterChange: (themeId: string) => void;
+  sortFilter: PieceListSort;
+  onSortFilterChange: (sort: PieceListSort) => void;
   memberCategoryId?: string;
   onOpenCategoryPicker?: () => void;
 };
@@ -59,6 +63,8 @@ export function RepertoirePiecesSection({
   onCategoryFilterChange,
   themeFilter,
   onThemeFilterChange,
+  sortFilter,
+  onSortFilterChange,
   memberCategoryId,
   onOpenCategoryPicker,
 }: RepertoirePiecesSectionProps) {
@@ -154,6 +160,24 @@ export function RepertoirePiecesSection({
                 </select>
               </label>
             )}
+
+            <label className="min-w-0 col-span-2 md:col-span-1 md:flex-1">
+              <span className="sr-only">Ordenar</span>
+              <select
+                aria-label="Ordenar"
+                value={sortFilter}
+                onChange={(event) =>
+                  onSortFilterChange(event.target.value as PieceListSort)
+                }
+                className={filterSelectClass}
+              >
+                {PIECE_LIST_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </div>

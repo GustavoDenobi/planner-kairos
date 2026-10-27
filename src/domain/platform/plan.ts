@@ -52,6 +52,23 @@ export type PlatformOrganizationDetail = PlatformOrganizationSummary & {
   storageBytes: number;
 };
 
+/** Plano ativo e uso atual, visível a administradores da organização. */
+export type OrganizationPlanOverview = {
+  planId: string;
+  planName: string;
+  planSlug: string;
+  planDescription: string | null;
+  maxGroups: number | null;
+  maxMusicians: number | null;
+  maxPieces: number | null;
+  maxStorageBytes: number | null;
+  groupsCount: number;
+  musiciansCount: number;
+  piecesCount: number;
+  eventsCount: number;
+  storageBytes: number;
+};
+
 export type PlatformUserMembership = {
   membershipId: string;
   organizationId: string;

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { AssignmentWithDetails, GroupListItem } from '@/domain/ensemble';
-import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
+import type { PieceCategory, PieceListItem, PieceListSort, PieceTheme } from '@/domain/repertoire';
+import { DEFAULT_PIECE_LIST_SORT } from '@/domain/repertoire';
 import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
@@ -88,6 +89,7 @@ export function RepertoirePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [themeFilter, setThemeFilter] = useState('');
+  const [sortFilter, setSortFilter] = useState<PieceListSort>(DEFAULT_PIECE_LIST_SORT);
   const [memberCategoryId, setMemberCategoryId] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(true);
   const previousAdminSectionRef = useRef<RepertoireAdminSection | 'menu'>(adminSection);
@@ -264,6 +266,7 @@ export function RepertoirePage() {
       themeIds: themeFilter ? [themeFilter] : undefined,
       groupId: resolvedFilters.groupId,
       unlinkedOnly: resolvedFilters.unlinkedOnly || undefined,
+      sort: sortFilter,
     };
 
     const piecesResult = await repertoire.searchPieces(org.id, searchOptions);
@@ -283,6 +286,7 @@ export function RepertoirePage() {
     memberCategoryId,
     memberGroupId,
     groupFilter,
+    sortFilter,
     repertoire,
   ]);
 
@@ -577,6 +581,8 @@ export function RepertoirePage() {
             onCategoryFilterChange={setCategoryFilter}
             themeFilter={themeFilter}
             onThemeFilterChange={setThemeFilter}
+            sortFilter={sortFilter}
+            onSortFilterChange={setSortFilter}
             memberCategoryId={memberCategoryId}
             onOpenCategoryPicker={() => setShowCategoryPicker(true)}
           />

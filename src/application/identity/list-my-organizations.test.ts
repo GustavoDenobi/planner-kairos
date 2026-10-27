@@ -15,6 +15,7 @@ function createOrgRepo(
     clearImage: vi.fn(),
     updateName: vi.fn(),
     updateRules: vi.fn(),
+    getPlanOverview: vi.fn(),
   };
 }
 
