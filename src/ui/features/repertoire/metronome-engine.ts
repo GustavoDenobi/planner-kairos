@@ -1,5 +1,6 @@
 export const METRONOME_MIN_BPM = 40;
 export const METRONOME_MAX_BPM = 208;
+export const METRONOME_VOLUME = 1;
 
 export const METRONOME_BEATS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 export type MetronomeBeatsPerMeasure = (typeof METRONOME_BEATS_OPTIONS)[number];

@@ -155,7 +155,7 @@ export function PieceHistorySection({
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3"
       >
         {isLoading && <p className="text-sm text-muted">Carregando histórico…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}

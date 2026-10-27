@@ -26,7 +26,7 @@ import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { MusicianHistorySection } from '@/ui/features/ensemble/MusicianHistorySection';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
-import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
+import { orgListPageHeightClass, orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 
 type AssignmentFormState = {
   groupId: string;
@@ -584,8 +584,10 @@ export function MusicianDetailPage() {
   const showRulesAcceptanceSection = rulesAcceptance?.status !== 'not_required';
 
   return (
-    <div className={orgPageContentClass}>
-      <div className="flex items-center gap-2">
+    <div
+      className={`flex min-h-0 flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}
+    >
+      <div className="flex shrink-0 items-center gap-2">
         <BackButton fallbackTo={`/${orgSlug}/musicos`} />
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -606,13 +608,16 @@ export function MusicianDetailPage() {
         </div>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex min-h-0 flex-1 flex-col">
         <Tabs
+          className="flex min-h-0 flex-1 flex-col"
+          panelClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
           tabs={[
             {
               id: 'geral',
               label: 'Geral',
               content: (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <>
                   <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
                     <label className="flex flex-col gap-1 text-sm">
@@ -768,12 +773,14 @@ export function MusicianDetailPage() {
                     </div>
                   )}
                 </>
+                </div>
               ),
             },
             {
               id: 'atribuicoes',
               label: 'Atribuições',
               content: (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <>
                   <ul className="flex flex-col gap-2">
                     {assignments.map((assignment) => (
@@ -817,6 +824,7 @@ export function MusicianDetailPage() {
                     </div>
                   )}
                 </>
+                </div>
               ),
             },
             {

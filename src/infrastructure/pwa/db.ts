@@ -167,6 +167,18 @@ export type CachedTocEntryRecord = {
   syncStatus: import('@/application/ports/offline-toc-entry-store').TocEntrySyncStatus;
 };
 
+export type StudyRecordingRecord = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  durationMs: number;
+  mimeType: string;
+  byteSize: number;
+  blob: Blob;
+};
+
 export class PlannerKairosOfflineDb extends Dexie {
   cachedFiles!: Table<CachedFileRecord, string>;
   cachedAnnotations!: Table<CachedAnnotationRecord, string>;
@@ -181,6 +193,7 @@ export class PlannerKairosOfflineDb extends Dexie {
   navigationShortcutSyncOutbox!: Table<NavigationShortcutSyncOutboxRecord, string>;
   cachedTocEntries!: Table<CachedTocEntryRecord, string>;
   tocEntrySyncOutbox!: Table<TocEntrySyncOutboxRecord, string>;
+  studyRecordings!: Table<StudyRecordingRecord, string>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -289,6 +302,26 @@ export class PlannerKairosOfflineDb extends Dexie {
       cachedTocEntries:
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
       tocEntrySyncOutbox: 'id, createdAt',
+    });
+    this.version(10).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, annotationSetId, [organizationId+pieceFileId]',
+      cachedAnnotationSets:
+        'id, pieceFileId, organizationId, syncStatus, authorUserId, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedOrgImages: 'storageKey',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
+      cachedTocEntries:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      tocEntrySyncOutbox: 'id, createdAt',
+      studyRecordings: 'id, organizationId, userId, createdAt, [organizationId+userId]',
     });
   }
 }

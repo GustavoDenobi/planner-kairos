@@ -22,6 +22,15 @@ export function IconCalendar(props: IconProps) {
   );
 }
 
+export function IconClock(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+
 export function IconMusic(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -181,6 +190,16 @@ export function IconMenu(props: IconProps) {
       <line x1="4" x2="20" y1="6" y2="6" />
       <line x1="4" x2="20" y1="12" y2="12" />
       <line x1="4" x2="20" y1="18" y2="18" />
+    </svg>
+  );
+}
+
+export function IconMoreVertical(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -472,6 +491,14 @@ export function IconMic(props: IconProps) {
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" x2="12" y1="19" y2="22" />
+    </svg>
+  );
+}
+
+export function IconRecord(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} fill="currentColor" stroke="none">
+      <circle cx="12" cy="12" r="10" />
     </svg>
   );
 }

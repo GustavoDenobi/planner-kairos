@@ -1,6 +1,7 @@
 import type { OrganizationWithRole } from '@/application/ports';
 import {
   IconCalendar,
+  IconGauge,
   IconMusic,
   IconPlay,
   IconTrumpet,
@@ -20,6 +21,11 @@ export const baseNavItems: NavItem[] = [
   { to: 'agenda', label: 'Agenda', icon: <IconCalendar className="h-5 w-5 shrink-0" /> },
   { to: 'repertorio', label: 'Repertório', icon: <IconMusic className="h-5 w-5 shrink-0" /> },
   { to: 'leitura', label: 'Playlist', icon: <IconPlay className="h-5 w-5 shrink-0" /> },
+  {
+    to: 'ferramentas',
+    label: 'Ferramentas',
+    icon: <IconGauge className="h-5 w-5 shrink-0" />,
+  },
 ];
 
 export const adminNavItems: NavItem[] = [

@@ -746,7 +746,9 @@ export function PieceDetailPage() {
 
   return (
     <>
-    <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
+    <div
+      className={`flex min-h-0 flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}
+    >
       <div className="shrink-0 space-y-4">
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -877,13 +879,14 @@ export function PieceDetailPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
 
-      {uploadError && !uploadOpen && (
-        <p className="text-sm text-red-600">{uploadError}</p>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {uploadError && !uploadOpen && (
+          <p className="mb-2 shrink-0 text-sm text-red-600">{uploadError}</p>
+        )}
 
-      <Tabs
-        className="flex min-h-0 flex-1 flex-col"
-        panelClassName="flex min-h-0 flex-1 flex-col"
+        <Tabs
+          className="flex min-h-0 flex-1 flex-col"
+          panelClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
         tabs={[
           {
             id: 'arquivos',
@@ -942,7 +945,8 @@ export function PieceDetailPage() {
             ),
           },
         ]}
-      />
+        />
+      </div>
     </div>
 
       <Modal

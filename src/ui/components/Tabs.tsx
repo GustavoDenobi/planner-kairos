@@ -23,7 +23,7 @@ export function Tabs({ tabs, defaultTab, className = '', panelClassName = '' }: 
 
   return (
     <div className={className}>
-      <div role="tablist" className="-mb-px flex gap-1 border-b border-border">
+      <div role="tablist" className="-mb-px flex shrink-0 gap-1 border-b border-border">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -44,7 +44,7 @@ export function Tabs({ tabs, defaultTab, className = '', panelClassName = '' }: 
           );
         })}
       </div>
-      <div role="tabpanel" className={`mt-6 ${panelClassName}`.trim()}>
+      <div role="tabpanel" className={`mt-4 min-h-0 ${panelClassName}`.trim()}>
         {active.content}
       </div>
     </div>

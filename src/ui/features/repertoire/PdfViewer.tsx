@@ -13,6 +13,7 @@ import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/
 import { openPdfDocument, printPdfDocument, wirePdfDownloadProgress } from '@/ui/features/repertoire/pdf-load';
 import { ReaderLoadProgress } from '@/ui/features/repertoire/ReaderLoadProgress';
 import { useHybridLoadProgress } from '@/ui/features/repertoire/useHybridLoadProgress';
+import { useScreenWakeLock } from '@/ui/features/repertoire/useScreenWakeLock';
 import type {
   AnnotationLayer,
   CreatePdfAnnotationInput,
@@ -1093,6 +1094,7 @@ export function PdfViewer({
   );
   useLoadingBar('pdf', loading);
   const [error, setError] = useState<string | null>(null);
+  useScreenWakeLock(!error);
   const [inverted, setInverted] = useState(() => defaultPreferences(userId).inverted);
   const [navigation, setNavigation] = useState<PdfNavigationMode>(
     () => defaultPreferences(userId).navigation,

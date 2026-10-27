@@ -26,6 +26,9 @@ function isOfflineAllowedPath(pathname: string): boolean {
   if (pathname.includes('/grupos')) {
     return true;
   }
+  if (pathname.includes('/ferramentas')) {
+    return true;
+  }
   return false;
 }
 

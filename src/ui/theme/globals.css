@@ -398,6 +398,23 @@ html[data-keyboard-open] [data-modal-overlay] {
   --metronome-pulse-color: var(--color-metronome-downbeat);
 }
 
+@keyframes study-timer-finished-blink {
+  0%,
+  100% {
+    background-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-bg));
+    border-color: var(--color-primary);
+  }
+
+  50% {
+    background-color: var(--color-bg);
+    border-color: var(--color-border);
+  }
+}
+
+.study-timer-finished-blink {
+  animation: study-timer-finished-blink 0.55s ease-in-out 10;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .navigation-shortcut-target-pulse {
     animation: none;
@@ -406,6 +423,12 @@ html[data-keyboard-open] [data-modal-overlay] {
 
   .metronome-bpm-pulse {
     animation: none;
+  }
+
+  .study-timer-finished-blink {
+    animation: none;
+    background-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-bg));
+    border-color: var(--color-primary);
   }
 
   .navigation-shortcut-target-dot {

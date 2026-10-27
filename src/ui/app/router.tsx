@@ -36,6 +36,7 @@ import { ReadingPlaylistReaderPage } from '@/ui/pages/org/ReadingPlaylistReaderP
 import { OrganizationSettingsPage } from '@/ui/pages/org/OrganizationSettingsPage';
 import { ReadingPlaylistsPage } from '@/ui/pages/org/ReadingPlaylistsPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
+import { StudyToolsPage } from '@/ui/pages/org/StudyToolsPage';
 
 function RootLayout() {
   const navigation = useNavigation();
@@ -100,6 +101,7 @@ export const router = createBrowserRouter([
               { path: 'repertorio', element: <RepertoirePage /> },
               { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
               { path: 'leitura', element: <ReadingPlaylistsPage /> },
+              { path: 'ferramentas', element: <StudyToolsPage /> },
               { path: 'leitura/novo', element: <ReadingPlaylistNewPage /> },
               { path: 'leitura/:playlistId', element: <ReadingPlaylistEditPage /> },
               { path: 'eventos/:eventId/preparar-partituras', element: <PrepareReadingPlaylistPage /> },

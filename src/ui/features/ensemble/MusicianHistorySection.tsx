@@ -27,6 +27,7 @@ export function MusicianHistorySection({
   isOfflineReadOnly,
 }: MusicianHistorySectionProps) {
   const agenda = useAgenda();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const [allEvents, setAllEvents] = useState<MusicianEventHistoryItem[]>([]);
@@ -92,7 +93,8 @@ export function MusicianHistorySection({
     }
 
     const sentinel = sentinelRef.current;
-    if (!sentinel) {
+    const scrollRoot = scrollRef.current;
+    if (!sentinel || !scrollRoot) {
       return;
     }
 
@@ -102,7 +104,7 @@ export function MusicianHistorySection({
           loadMore();
         }
       },
-      { root: null, rootMargin: '200px' },
+      { root: scrollRoot, rootMargin: '200px' },
     );
 
     observer.observe(sentinel);
@@ -125,8 +127,8 @@ export function MusicianHistorySection({
   }
 
   return (
-    <section>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <section className="flex min-h-0 flex-1 flex-col">
+      <div className="grid shrink-0 gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
           <p className="text-sm font-medium text-text">Eventos neste ano</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-text">
@@ -150,9 +152,12 @@ export function MusicianHistorySection({
         </div>
       </div>
 
-      <hr className="my-6 border-border" />
+      <hr className="my-4 shrink-0 border-border" />
 
-      <div>
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3"
+      >
         {isLoading && <p className="text-sm text-muted">Carregando histórico…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!isLoading && !error && allEvents.length === 0 && (

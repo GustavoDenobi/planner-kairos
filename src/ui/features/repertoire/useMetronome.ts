@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_METRONOME_BEATS,
   DEFAULT_METRONOME_BPM,
-  DEFAULT_METRONOME_VOLUME,
   loadMetronomePreferences,
   saveMetronomePreferences,
 } from '@/ui/features/repertoire/pdf-reader-preference-storage';
@@ -11,6 +10,7 @@ import {
   MetronomeEngine,
   METRONOME_MAX_BPM,
   METRONOME_MIN_BPM,
+  METRONOME_VOLUME,
   type MetronomeBeatsPerMeasure,
 } from '@/ui/features/repertoire/metronome-engine';
 import { registerTapTempo } from '@/ui/features/repertoire/tap-tempo';
@@ -32,14 +32,12 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
   const [beatsPerMeasure, setBeatsPerMeasureState] = useState<MetronomeBeatsPerMeasure>(
     DEFAULT_METRONOME_BEATS,
   );
-  const [volume, setVolumeState] = useState(DEFAULT_METRONOME_VOLUME);
 
   const persistPreferences = useCallback(
     (
       patch: Partial<{
         metronomeBpm: number;
         metronomeBeatsPerMeasure: number;
-        metronomeVolume: number;
       }>,
     ) => {
       if (!userId) {
@@ -61,7 +59,6 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     if (!userId) {
       setBpmState(DEFAULT_METRONOME_BPM);
       setBeatsPerMeasureState(DEFAULT_METRONOME_BEATS);
-      setVolumeState(DEFAULT_METRONOME_VOLUME);
       return;
     }
 
@@ -70,7 +67,6 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     setBeatsPerMeasureState(
       (preferences.metronomeBeatsPerMeasure ?? DEFAULT_METRONOME_BEATS) as MetronomeBeatsPerMeasure,
     );
-    setVolumeState(preferences.metronomeVolume ?? DEFAULT_METRONOME_VOLUME);
   }, [userId]);
 
   const clearBeatPulseTimeouts = useCallback(() => {
@@ -94,12 +90,12 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
       engineRef.current = new MetronomeEngine({
         bpm,
         beatsPerMeasure,
-        volume,
+        volume: METRONOME_VOLUME,
       });
     } else {
       engineRef.current.setBpm(bpm);
       engineRef.current.setBeatsPerMeasure(beatsPerMeasure);
-      engineRef.current.setVolume(volume);
+      engineRef.current.setVolume(METRONOME_VOLUME);
     }
 
     engineRef.current.setOnBeat((beatIndex, delaySec) => {
@@ -107,7 +103,7 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     });
 
     return engineRef.current;
-  }, [bpm, beatsPerMeasure, scheduleBeatPulse, volume]);
+  }, [bpm, beatsPerMeasure, scheduleBeatPulse]);
 
   useEffect(() => {
     if (!engineRef.current || !isPlaying) {
@@ -116,8 +112,8 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
 
     engineRef.current.setBpm(bpm);
     engineRef.current.setBeatsPerMeasure(beatsPerMeasure);
-    engineRef.current.setVolume(volume);
-  }, [bpm, beatsPerMeasure, volume, isPlaying]);
+    engineRef.current.setVolume(METRONOME_VOLUME);
+  }, [bpm, beatsPerMeasure, isPlaying]);
 
   const stop = useCallback(() => {
     engineRef.current?.stop();
@@ -170,15 +166,6 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     [persistPreferences],
   );
 
-  const setVolume = useCallback(
-    (nextVolume: number) => {
-      const clamped = Math.min(1, Math.max(0, nextVolume));
-      setVolumeState(clamped);
-      persistPreferences({ metronomeVolume: clamped });
-    },
-    [persistPreferences],
-  );
-
   const registerTap = useCallback(() => {
     const result = registerTapTempo(tapTimestampsRef.current, Date.now());
     tapTimestampsRef.current = result.taps;
@@ -194,14 +181,12 @@ export function useMetronome({ userId }: UseMetronomeOptions) {
     downbeatPulse,
     bpm,
     beatsPerMeasure,
-    volume,
     minBpm: METRONOME_MIN_BPM,
     maxBpm: METRONOME_MAX_BPM,
     togglePlay,
     stop,
     setBpm,
     setBeatsPerMeasure,
-    setVolume,
     registerTap,
   };
 }
