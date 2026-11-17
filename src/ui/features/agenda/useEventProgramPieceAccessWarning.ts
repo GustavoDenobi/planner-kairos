@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { GroupFileAccessSettings } from '@/domain/ensemble';
 import { resolvePracticeTaskStudents } from '@/domain/practice';
 import { musiciansWithoutPieceAccess } from '@/domain/repertoire';
-import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
+import { useEnsemble, useIdentity, useRepertoire } from '@/ui/app/AppServicesContext';
 
 export type ProgramAccessMusician = {
   musicianId: string;
@@ -17,7 +17,8 @@ export type ProgramAccessItem = {
 
 /**
  * Músicos da audiência do evento que não abrem a obra (ou o trecho) escolhido.
- * Professores e regentes dos grupos do evento ficam de fora, como nas tarefas.
+ * Professores e regentes dos grupos do evento ficam de fora, como nas tarefas,
+ * assim como owners e admins da organização (que veem todo o repertório).
  */
 export function useEventProgramPieceAccessWarning(input: {
   organizationId: string;
@@ -28,6 +29,7 @@ export function useEventProgramPieceAccessWarning(input: {
 }): Record<string, ProgramAccessMusician[]> {
   const ensemble = useEnsemble();
   const repertoire = useRepertoire();
+  const identity = useIdentity();
   const { organizationId, groupIds, musicians, items, enabled } = input;
   const [blockedByKey, setBlockedByKey] = useState<Record<string, ProgramAccessMusician[]>>({});
   const [groupSettingsById, setGroupSettingsById] = useState<Map<
@@ -93,7 +95,7 @@ export function useEventProgramPieceAccessWarning(input: {
         return;
       }
 
-      const audience = resolvePracticeTaskStudents({
+      const audienceAll = resolvePracticeTaskStudents({
         groupIds,
         directMusicians: musicians.map((musician) => ({
           musicianId: musician.id,
@@ -110,6 +112,23 @@ export function useEventProgramPieceAccessWarning(input: {
             : [],
         ),
       }).filter((student) => student.musicianName.trim().length > 0);
+
+      // Owners e admins da org veem todo o repertório: não entram no aviso.
+      const adminFlags = await Promise.all(
+        audienceAll.map(async (student) => {
+          const musicianResult = await ensemble.getMusician(organizationId, student.musicianId);
+          const userId = musicianResult.ok ? musicianResult.value.userId : null;
+          if (!userId) {
+            return false;
+          }
+          const roleResult = await identity.getMembershipAccessRole(organizationId, userId);
+          return roleResult.ok && (roleResult.value === 'owner' || roleResult.value === 'admin');
+        }),
+      );
+      if (cancelled) {
+        return;
+      }
+      const audience = audienceAll.filter((_, index) => !adminFlags[index]);
 
       if (audience.length === 0) {
         setBlockedByKey({});
@@ -193,6 +212,7 @@ export function useEventProgramPieceAccessWarning(input: {
     ensemble,
     groupKey,
     groupSettingsById,
+    identity,
     itemKey,
     musicianKey,
     organizationId,
