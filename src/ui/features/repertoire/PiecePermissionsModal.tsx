@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { PieceDetail, PieceFileAccessScope } from '@/domain/repertoire';
+import type { PartWithDivisions } from '@/application/ports/part-repository';
+import type { PieceDetail, PieceFileAccessScope, PiecePartLink } from '@/domain/repertoire';
 import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/audience';
 import { AudienceFields } from '@/ui/features/audience';
 import { Modal } from '@/ui/components/Modal';
@@ -8,16 +9,20 @@ import {
   PieceFileAccessOverrideForm,
   toPieceAccessSettingsInput,
 } from '@/ui/features/repertoire/PieceAccessSettingsFields';
+import { PiecePartLinksField } from '@/ui/features/repertoire/PiecePartLinksField';
+import type { PartLinkSelection } from '@/ui/features/repertoire/PieceFileUploadEntries';
 
 type PiecePermissionsModalProps = {
   open: boolean;
   piece: PieceDetail;
+  parts: PartWithDivisions[];
   groups: AudienceGroupOption[];
   musicians: AudienceMusicianOption[];
   onClose: () => void;
   onSave: (input: {
     groupIds: string[];
     musicianIds: string[];
+    partLinks: PiecePartLink[];
     fileAccessScope: PieceFileAccessScope | null;
     allowFileDownload: boolean | null;
     audioAccessScope: PieceFileAccessScope | null;
@@ -30,6 +35,7 @@ type PiecePermissionsModalProps = {
 export function PiecePermissionsModal({
   open,
   piece,
+  parts,
   groups,
   musicians,
   onClose,
@@ -39,6 +45,7 @@ export function PiecePermissionsModal({
 }: PiecePermissionsModalProps) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedMusicianIds, setSelectedMusicianIds] = useState<string[]>([]);
+  const [partLinks, setPartLinks] = useState<PartLinkSelection[]>([]);
   const [inheritScoreRules, setInheritScoreRules] = useState(true);
   const [fileAccessScope, setFileAccessScope] = useState<PieceFileAccessScope | null>(null);
   const [allowFileDownload, setAllowFileDownload] = useState<boolean | null>(null);
@@ -53,6 +60,12 @@ export function PiecePermissionsModal({
     }
     setSelectedGroupIds(piece.groups.map((group) => group.id));
     setSelectedMusicianIds(piece.musicians.map((musician) => musician.id));
+    setPartLinks(
+      piece.partLinks.map((link) => ({
+        partId: link.partId,
+        partDivisionId: link.partDivisionId,
+      })),
+    );
     setInheritScoreRules(piece.fileAccessScope === null && piece.allowFileDownload === null);
     setFileAccessScope(piece.fileAccessScope);
     setAllowFileDownload(piece.allowFileDownload);
@@ -81,6 +94,7 @@ export function PiecePermissionsModal({
     const ok = await onSave({
       groupIds: selectedGroupIds,
       musicianIds: selectedMusicianIds,
+      partLinks,
       ...settings,
     });
     if (ok) {
@@ -108,6 +122,14 @@ export function PiecePermissionsModal({
             onGroupIdsChange={setSelectedGroupIds}
             onMusicianIdsChange={setSelectedMusicianIds}
             disabled={isSaving}
+          />
+
+          <PiecePartLinksField
+            parts={parts}
+            links={partLinks}
+            fileOrganization={piece.fileOrganization}
+            disabled={isSaving}
+            onChange={setPartLinks}
           />
 
           <PieceFileAccessOverrideForm
@@ -150,8 +172,8 @@ export function PiecePermissionsModal({
 
       <ConfirmModal
         open={confirmEmptyAudience}
-        title="Peça sem visibilidade"
-        message="Sem grupos ou músicos vinculados, apenas administradores verão esta peça. Deseja continuar?"
+        title="Obra sem visibilidade"
+        message="Sem grupos ou músicos vinculados, apenas administradores verão esta obra. Deseja continuar?"
         confirmLabel="Salvar mesmo assim"
         onClose={() => setConfirmEmptyAudience(false)}
         onConfirm={() => {

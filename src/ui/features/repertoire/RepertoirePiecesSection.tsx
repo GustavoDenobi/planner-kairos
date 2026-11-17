@@ -16,6 +16,7 @@ import {
 } from '@/ui/features/repertoire/repertoire-filter-ids';
 import type { PieceListSort } from '@/domain/repertoire';
 import { PIECE_LIST_SORT_OPTIONS } from '@/ui/features/repertoire/repertoire-labels';
+import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 type RepertoirePiecesSectionProps = {
   orgSlug: string;
@@ -182,7 +183,9 @@ export function RepertoirePiecesSection({
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3 overscroll-contain">
+      <div
+        className={`mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3 overscroll-contain ${scrollContentEndPaddingClass}`}
+      >
         {isLoading ? (
           <RepertoirePieceRowsSkeleton />
         ) : pieces.length === 0 ? (

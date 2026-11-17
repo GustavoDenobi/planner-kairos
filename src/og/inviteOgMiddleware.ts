@@ -8,12 +8,14 @@ import {
   fetchInvitePreviewRow,
   injectInviteOgIntoHtml,
   parseProductionAssets,
+  signInvitePreviewImage,
 } from '../og/inviteOg';
 import { normalizeEnvUrl } from '../domain/shared/normalizeEnvUrl.js';
 
 type InviteOgMiddlewareOptions = {
   supabaseUrl: string;
   supabaseAnonKey: string;
+  serviceRoleKey?: string;
   appUrl?: string;
   mode: 'development' | 'production';
   distDir?: string;
@@ -77,7 +79,14 @@ export function createInviteOgMiddleware(options: InviteOgMiddlewareOptions): Co
 
         html = injectInviteOgIntoHtml(
           transformedHtml,
-          buildInviteOgMeta(preview, { token, siteOrigin, supabaseUrl: options.supabaseUrl }),
+          buildInviteOgMeta(
+            preview,
+            { token, siteOrigin },
+            await signInvitePreviewImage(preview, {
+              supabaseUrl: options.supabaseUrl,
+              serviceRoleKey: options.serviceRoleKey,
+            }),
+          ),
         );
       } else {
         html = await buildInviteOgHtml({
@@ -85,6 +94,7 @@ export function createInviteOgMiddleware(options: InviteOgMiddlewareOptions): Co
           siteOrigin,
           supabaseUrl: options.supabaseUrl,
           supabaseAnonKey: options.supabaseAnonKey,
+          serviceRoleKey: options.serviceRoleKey,
           productionAssets,
         });
       }

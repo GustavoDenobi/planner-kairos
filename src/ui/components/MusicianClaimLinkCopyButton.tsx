@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { IconCheck, IconLink } from '@/ui/components/icons';
+import { useEnsemble } from '@/ui/app/AppServicesContext';
 
 type MusicianClaimLinkCopyButtonProps = {
   musicianId: string;
@@ -12,11 +13,16 @@ export function MusicianClaimLinkCopyButton({
   musicianName,
   className,
 }: MusicianClaimLinkCopyButtonProps) {
+  const ensemble = useEnsemble();
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/musico/${musicianId}`;
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(url);
+    const result = await ensemble.ensureMusicianClaimToken(musicianId);
+    if (!result.ok) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(`${window.location.origin}/reivindicar/${result.value}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

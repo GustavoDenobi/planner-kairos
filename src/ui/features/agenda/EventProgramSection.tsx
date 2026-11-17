@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { PreviousEventProgram } from '@/application/agenda';
 import type { EventDetail, ProgramItemDetail, ProgramItemStatus, ProgramItemUnitInput } from '@/domain/agenda';
@@ -18,8 +18,13 @@ import {
 import { repertoirePiecePath } from '@/ui/features/agenda/agenda-routes';
 import {
   agendaErrorMessage,
+  PROGRAM_PIECE_ACCESS_WARNING,
   programItemStatusLabel,
 } from '@/ui/features/agenda/agenda-labels';
+import {
+  useEventProgramPieceAccessWarning,
+  type ProgramAccessMusician,
+} from '@/ui/features/agenda/useEventProgramPieceAccessWarning';
 import { EventProgramUnitsEditor } from '@/ui/features/agenda/EventProgramUnitsEditor';
 import { EventProgramPiecePicker } from '@/ui/features/agenda/EventProgramPiecePicker';
 import { EventPreviousProgramSection } from '@/ui/features/agenda/EventPreviousProgramSection';
@@ -48,6 +53,8 @@ type EventProgramSectionProps = {
   eventId: string;
   program: ProgramItemDetail[];
   canEditProgram: boolean;
+  eventGroups?: Array<{ id: string }>;
+  eventMusicians?: Array<{ id: string; fullName: string }>;
   hideHeading?: boolean;
   recurrenceId?: string | null;
   occurrenceIndex?: number | null;
@@ -98,6 +105,23 @@ function statusBadgeClassName(status: ProgramItemStatus): string {
     default:
       return 'bg-bg text-muted';
   }
+}
+
+function ProgramPieceAccessWarning({ musicians }: { musicians: ProgramAccessMusician[] }) {
+  if (musicians.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
+      <p>{PROGRAM_PIECE_ACCESS_WARNING}</p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        {musicians.map((musician) => (
+          <li key={musician.musicianId}>{musician.musicianName}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function ProgramItemStatusBadge({ status }: { status: ProgramItemStatus }) {
@@ -155,6 +179,8 @@ export function EventProgramSection({
   eventId,
   program,
   canEditProgram,
+  eventGroups = [],
+  eventMusicians = [],
   hideHeading = false,
   recurrenceId = null,
   occurrenceIndex = null,
@@ -166,6 +192,24 @@ export function EventProgramSection({
   const repertoire = useRepertoire();
   const { userId } = useAuth();
   const [rows, setRows] = useState<ProgramRow[]>(() => toRows(program));
+  const accessItems = useMemo(
+    () =>
+      rows
+        .filter((row) => !row.pieceDeleted)
+        .map((row) => ({
+          key: row.id,
+          pieceId: row.pieceId,
+          unitFileIds: row.units.map((unit) => unit.pieceFileId),
+        })),
+    [rows],
+  );
+  const blockedByRowId = useEventProgramPieceAccessWarning({
+    organizationId,
+    groupIds: eventGroups.map((group) => group.id),
+    musicians: eventMusicians,
+    items: accessItems,
+    enabled: canEditProgram,
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
   const [existingPlaylists, setExistingPlaylists] = useState<ReadingPlaylist[]>([]);
@@ -462,7 +506,7 @@ export function EventProgramSection({
                 className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
               >
                 <IconPlus className="h-4 w-4" />
-                Peça
+                Obra
               </button>
             )}
           </div>
@@ -549,6 +593,7 @@ export function EventProgramSection({
                   placeholder="Notas (opcional)"
                   className="mt-2 w-full rounded-lg border border-border bg-bg px-2 py-1 text-sm text-text"
                 />
+                <ProgramPieceAccessWarning musicians={blockedByRowId[row.id] ?? []} />
               </div>
             </div>
           )}

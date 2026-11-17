@@ -82,4 +82,9 @@ export type EventRepository = {
     musicianId: string,
     groupIds: string[],
   ): Promise<MusicianEventHistory>;
+  /** Histórico de vários músicos de uma vez. `groupIdsByMusician` mapeia cada músico aos seus grupos. */
+  getMusiciansEventHistory(
+    organizationId: string,
+    groupIdsByMusician: Map<string, string[]>,
+  ): Promise<Map<string, MusicianEventHistory>>;
 };

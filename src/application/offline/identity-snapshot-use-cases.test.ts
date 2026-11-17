@@ -30,6 +30,7 @@ const sampleOrgs: OrganizationWithRole[] = [
     name: 'Kairós',
     slug: 'kairos',
     imageStorageKey: null,
+    timeZone: 'America/Sao_Paulo',
     rules: null,
     accessRole: 'member',
   },

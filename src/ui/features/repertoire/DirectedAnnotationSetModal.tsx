@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { AnnotationSet, CreateAnnotationSetInput, UpdateAnnotationSetInput } from '@/domain/repertoire';
+import type {
+  AnnotationSet,
+  CreateAnnotationSetInput,
+  ReadingPlaylistSourceEventAudience,
+  UpdateAnnotationSetInput,
+} from '@/domain/repertoire';
 import { AudienceFields, type AudienceGroupOption, type AudienceMusicianOption } from '@/ui/features/audience/AudienceFields';
 import { Modal } from '@/ui/components/Modal';
 
@@ -9,6 +14,7 @@ export type DirectedAnnotationSetModalProps = {
   groups: AudienceGroupOption[];
   musicians: AudienceMusicianOption[];
   initialSet?: AnnotationSet | null;
+  defaultAudience?: ReadingPlaylistSourceEventAudience | null;
   disabled?: boolean;
   onClose: () => void;
   onSubmit: (input: CreateAnnotationSetInput | UpdateAnnotationSetInput) => Promise<boolean>;
@@ -20,6 +26,7 @@ export function DirectedAnnotationSetModal({
   groups,
   musicians,
   initialSet,
+  defaultAudience = null,
   disabled = false,
   onClose,
   onSubmit,
@@ -34,11 +41,17 @@ export function DirectedAnnotationSetModal({
     if (!open) {
       return;
     }
-    setTitle(initialSet?.title ?? '');
-    setGroupIds(initialSet?.groups.map((group) => group.id) ?? []);
-    setMusicianIds(initialSet?.musicians.map((musician) => musician.id) ?? []);
+    if (mode === 'edit' && initialSet) {
+      setTitle(initialSet.title ?? '');
+      setGroupIds(initialSet.groups.map((group) => group.id));
+      setMusicianIds(initialSet.musicians.map((musician) => musician.id));
+    } else {
+      setTitle('');
+      setGroupIds(defaultAudience?.groupIds ?? []);
+      setMusicianIds(defaultAudience?.musicianIds ?? []);
+    }
     setError(null);
-  }, [open, initialSet]);
+  }, [open, initialSet, mode, defaultAudience]);
 
   async function handleSubmit() {
     if (groupIds.length === 0 && musicianIds.length === 0) {

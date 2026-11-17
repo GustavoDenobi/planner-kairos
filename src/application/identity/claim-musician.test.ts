@@ -21,7 +21,7 @@ function createAuth(overrides: Partial<AuthGateway> = {}): AuthGateway {
 
 function createClaimRepo(overrides: Partial<MusicianClaimRepository> = {}): MusicianClaimRepository {
   return {
-    previewByMusicianId: vi.fn(),
+    previewByToken: vi.fn(),
     claim: vi.fn(),
     ...overrides,
   };
@@ -74,7 +74,7 @@ describe('claimMusician', () => {
     });
 
     const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
-      musicianId: 'musician-1',
+      claimToken: 'claim-token',
       email: 'joao@example.com',
       password: 'secret1',
       displayName: 'João Silva',
@@ -89,7 +89,7 @@ describe('claimMusician', () => {
       expect(result.value.organizationSlug).toBe('kairos');
     }
     expect(legalRepo.recordAcceptance).toHaveBeenCalledTimes(2);
-    expect(claimRepo.claim).toHaveBeenCalledWith('musician-1', {
+    expect(claimRepo.claim).toHaveBeenCalledWith('claim-token', {
       displayName: 'João Silva',
       phone: '11987654321',
       birthDate: '1990-01-01',
@@ -107,7 +107,7 @@ describe('claimMusician', () => {
     const legalRepo = createLegalRepo();
 
     const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
-      musicianId: 'musician-1',
+      claimToken: 'claim-token',
       email: 'joao@example.com',
       password: '',
       displayName: 'João Atualizado',
@@ -116,7 +116,7 @@ describe('claimMusician', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(claimRepo.claim).toHaveBeenCalledWith('musician-1', {
+    expect(claimRepo.claim).toHaveBeenCalledWith('claim-token', {
       displayName: 'João Atualizado',
       phone: undefined,
       birthDate: undefined,
@@ -131,7 +131,7 @@ describe('claimMusician', () => {
     const legalRepo = createLegalRepo();
 
     const result = await claimMusician(auth, claimRepo, profileRepo, legalRepo, {
-      musicianId: 'musician-1',
+      claimToken: 'claim-token',
       email: 'joao@example.com',
       password: 'secret1',
       displayName: 'João Silva',

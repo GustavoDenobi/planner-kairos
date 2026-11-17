@@ -2,6 +2,7 @@ export type { PieceCategory, PieceCategoryInput } from './piece-category';
 export type { PieceTheme, PieceThemeInput } from './piece-theme';
 export type {
   Piece,
+  PiecePartLink,
   PieceAccessInput,
   PieceAudienceGroup,
   PieceAudienceMusician,
@@ -160,6 +161,19 @@ export {
   buildDefaultVisibleLayers,
   matchDirectedAnnotationSetIds,
 } from './directed-layer-visibility';
+export type {
+  AnnotationSetAudienceFingerprint,
+  PickDirectedAnnotationSetResult,
+  SourceEventAudienceLabelLookup,
+} from './lesson-directed-layer';
+export {
+  annotationSetAudienceFingerprint,
+  annotationSetMatchesLessonSession,
+  defaultLessonDirectedLayerTitle,
+  fingerprintsEqual,
+  formatSourceEventAudienceLabel,
+  pickDirectedAnnotationSetForLesson,
+} from './lesson-directed-layer';
 export {
   defaultPieceFileTitle,
   filterScoreCandidatesForUser,
@@ -171,6 +185,8 @@ export {
   resolvePieceFileMime,
   normalizePieceAliases,
   pieceFileMatchesUserParts,
+  pieceMatchesUserParts,
+  pieceRestrictsByPart,
   resolveDefaultScoreFile,
   slugifyName,
   validateCreatePdfNavigationShortcutInput,
@@ -202,13 +218,18 @@ export {
   filterPieceFilesForAccess,
   filterPieceFilesForKindAccess,
   isUserConductorInLinkedGroups,
+  isUserGroupWriterInLinkedGroups,
   mergeResolvedAccess,
+  musiciansWithoutPieceAccess,
+  musiciansWithoutPieceFileAccess,
   pieceHasNoAudience,
   resolvePieceAudioAccess,
   resolvePieceFileAccess,
   resolveRulesForPath,
 } from './file-access';
 export type {
+  MusicianFileAccessAssignment,
+  MusicianFileAccessSubject,
   PieceAccessContext,
   PieceAccessPath,
   ResolvedPieceFileAccess,

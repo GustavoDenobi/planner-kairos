@@ -126,7 +126,7 @@ async function finishMusicianSignup(
 
   try {
     const normalizedBirthDate = normalizeInviteBirthDate(context.birthDate);
-    const orgSlug = await deps.claimRepo.claim(context.musicianId, {
+    const orgSlug = await deps.claimRepo.claim(context.claimToken, {
       displayName: context.displayName.trim(),
       phone: normalizePhone(context.phone),
       birthDate: normalizedBirthDate ?? undefined,

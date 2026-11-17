@@ -7,6 +7,6 @@ export type MusicianClaimContact = {
 };
 
 export type MusicianClaimRepository = {
-  previewByMusicianId(musicianId: string): Promise<MusicianClaimPreview | null>;
-  claim(musicianId: string, contact: MusicianClaimContact): Promise<string>;
+  previewByToken(claimToken: string): Promise<MusicianClaimPreview | null>;
+  claim(claimToken: string, contact: MusicianClaimContact): Promise<string>;
 };

@@ -20,6 +20,8 @@ type OrgContextValue = {
   currentOrg: OrganizationWithRole | null;
   isLoading: boolean;
   isOfflineData: boolean;
+  /** A última busca falhou e não havia cópia offline para mostrar. */
+  loadFailed: boolean;
   isPlatformAdmin: boolean;
   setCurrentOrgBySlug: (slug: string) => Promise<boolean>;
   refreshOrganizations: () => Promise<void>;
@@ -38,6 +40,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isOfflineData, setIsOfflineData] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const loadGenerationRef = useRef(0);
 
@@ -51,6 +54,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       loadGenerationRef.current += 1;
       setOrganizations([]);
       setIsOfflineData(false);
+      setLoadFailed(false);
       setIsPlatformAdmin(false);
       setIsLoading(false);
       return;
@@ -67,6 +71,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
+        setLoadFailed(false);
         offline.prefetchOrgImages(snapshot.organizations.map((org) => org.imageStorageKey));
         setIsLoading(false);
         return;
@@ -80,6 +85,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (result.ok) {
       setOrganizations(result.value);
       setIsOfflineData(false);
+      setLoadFailed(false);
       const platformAdmin = await identity.isPlatformAdmin(userId);
       if (generation === loadGenerationRef.current) {
         setIsPlatformAdmin(platformAdmin);
@@ -100,7 +106,10 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       if (snapshot && snapshot.userId === userId) {
         setOrganizations(snapshot.organizations);
         setIsOfflineData(true);
+        setLoadFailed(false);
         offline.prefetchOrgImages(snapshot.organizations.map((org) => org.imageStorageKey));
+      } else {
+        setLoadFailed(true);
       }
     }
     setIsLoading(false);
@@ -161,6 +170,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       currentOrg,
       isLoading,
       isOfflineData,
+      loadFailed,
       isPlatformAdmin,
       setCurrentOrgBySlug,
       refreshOrganizations,
@@ -171,6 +181,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       currentOrg,
       isLoading,
       isOfflineData,
+      loadFailed,
       isPlatformAdmin,
       setCurrentOrgBySlug,
       refreshOrganizations,

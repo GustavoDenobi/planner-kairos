@@ -85,6 +85,7 @@ function createRepos(options?: {
     delete: vi.fn(),
     create: vi.fn(),
     merge: vi.fn(),
+    ensureClaimToken: vi.fn(),
   };
 
   const assignmentRepo: AssignmentRepository = {
@@ -101,6 +102,7 @@ function createRepos(options?: {
         sectionName: null,
         partName: null,
       })),
+    listForMusicians: async () => [],
     listForGroup: async () => [],
     listForGroups: async () =>
       (options?.students ?? [{ musicianId: 'student-1', groupId: 'class-1' }]).map((row) => ({
@@ -168,6 +170,7 @@ function createRepos(options?: {
       eventsThisYear: 0,
       absencesThisYear: 0,
     })),
+    getMusiciansEventHistory: vi.fn(async () => new Map()),
   };
 
   const orgRepo: OrganizationRepository = {
@@ -179,8 +182,10 @@ function createRepos(options?: {
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateTimeZone: vi.fn(),
     updateRules: vi.fn(),
     getPlanOverview: vi.fn(),
+    getBillingOverview: vi.fn(),
   };
 
   return { membershipRepo, musicianRepo, assignmentRepo, eventRepo, orgRepo, created };

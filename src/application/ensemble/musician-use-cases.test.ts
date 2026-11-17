@@ -13,6 +13,7 @@ function createRepo(overrides: Partial<MusicianRepository> = {}): MusicianReposi
     update: vi.fn(),
     merge: vi.fn(),
     delete: vi.fn(),
+    ensureClaimToken: vi.fn(),
     ...overrides,
   };
 }

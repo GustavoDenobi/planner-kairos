@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { defaultPieceFileTitle, pieceFileOrganizationDescription, pieceFileOrganizationLabel, resolvePieceFileMime } from '@/domain/repertoire';
+import { defaultPieceFileTitle, isUserGroupWriterInLinkedGroups, pieceFileOrganizationDescription, pieceFileOrganizationLabel, resolvePieceFileMime } from '@/domain/repertoire';
 import type {
   PieceCategory,
   PieceDetail,
@@ -72,7 +72,6 @@ export function PieceDetailPage() {
   const [categories, setCategories] = useState<PieceCategory[]>([]);
   const [themes, setThemes] = useState<PieceTheme[]>([]);
   const [userPartIds, setUserPartIds] = useState<string[]>([]);
-  const [isConductor, setIsConductor] = useState(false);
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
   const [userMusicianId, setUserMusicianId] = useState<string | null>(null);
   const [allowFileDownload, setAllowFileDownload] = useState(true);
@@ -124,6 +123,15 @@ export function PieceDetailPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const isGroupWriter = useMemo(() => {
+    if (!piece) {
+      return false;
+    }
+    return isUserGroupWriterInLinkedGroups(
+      piece.groups.map((group) => group.id),
+      assignments,
+    );
+  }, [assignments, piece]);
 
   const hasCollapsibleContent = useMemo(() => {
     if (!piece) {
@@ -137,6 +145,7 @@ export function PieceDetailPage() {
         piece.aliases.length > 0 ||
         piece.groups.length > 0 ||
         piece.musicians.length > 0 ||
+        piece.partLinks.length > 0 ||
         isAdmin,
     );
   }, [piece, isAdmin]);
@@ -157,7 +166,6 @@ export function PieceDetailPage() {
   async function loadMemberParts() {
     if (!org || !userId) {
       setUserPartIds([]);
-      setIsConductor(false);
       setAssignments([]);
       setUserMusicianId(null);
       setAllowFileDownload(true);
@@ -167,7 +175,6 @@ export function PieceDetailPage() {
     const musicianResult = await ensemble.getMyMusician(org.id, userId);
     if (!musicianResult.ok) {
       setUserPartIds([]);
-      setIsConductor(false);
       setAssignments([]);
       setUserMusicianId(null);
       setAllowFileDownload(true);
@@ -183,7 +190,6 @@ export function PieceDetailPage() {
 
     const nextAssignments = assignmentsResult.ok ? assignmentsResult.value : [];
     setAssignments(nextAssignments);
-    setIsConductor(nextAssignments.some((assignment) => assignment.ensembleRole === 'conductor'));
 
     if (isAdmin) {
       setUserPartIds([]);
@@ -373,6 +379,7 @@ export function PieceDetailPage() {
   async function handleSavePermissions(input: {
     groupIds: string[];
     musicianIds: string[];
+    partLinks: PieceDetail['partLinks'];
     fileAccessScope: PieceFileAccessScope | null;
     allowFileDownload: boolean | null;
     audioAccessScope: PieceFileAccessScope | null;
@@ -835,6 +842,15 @@ export function PieceDetailPage() {
                   </div>
                 )}
 
+                {piece.partLinks.length > 0 && (
+                  <div>
+                    <h2 className="text-sm font-medium text-text">Partes desta obra</h2>
+                    <p className="mt-1 text-sm text-muted">
+                      {formatPartLinks(piece.partLinks, parts)}
+                    </p>
+                  </div>
+                )}
+
                 {isAdmin && (
                   <div className="flex flex-wrap justify-center gap-2">
                     <button
@@ -843,7 +859,7 @@ export function PieceDetailPage() {
                       className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm"
                     >
                       <IconPencil className="h-4 w-4" />
-                      Editar peça
+                      Editar obra
                     </button>
                     <button
                       type="button"
@@ -899,7 +915,8 @@ export function PieceDetailPage() {
                 fileOrganization={piece.fileOrganization}
                 isAdmin={isAdmin}
                 userPartIds={userPartIds}
-                isConductor={isConductor}
+                isGroupWriter={isGroupWriter}
+                piecePartLinks={piece.partLinks}
                 allowDownload={allowFileDownload}
                 onOpen={handleOpen}
                 onShare={(file) => void handlePdfOutput(file, 'share')}
@@ -952,7 +969,7 @@ export function PieceDetailPage() {
       <Modal
         open={editOpen}
         onClose={() => !isSaving && !isDeleting && setEditOpen(false)}
-        title="Editar peça"
+        title="Editar obra"
       >
         <form onSubmit={handleSave} className="space-y-4">
           <label className="block space-y-1">
@@ -1055,7 +1072,7 @@ export function PieceDetailPage() {
               className="inline-flex items-center gap-1 text-sm text-red-600 hover:underline disabled:opacity-60"
             >
               <IconTrash className="h-4 w-4" />
-              {isDeleting ? 'Arquivando…' : 'Arquivar peça'}
+              {isDeleting ? 'Arquivando…' : 'Arquivar obra'}
             </button>
             <div className="flex gap-2">
               <button
@@ -1248,6 +1265,7 @@ export function PieceDetailPage() {
         <PiecePermissionsModal
           open={permissionsOpen}
           piece={piece}
+          parts={parts}
           groups={audienceGroups}
           musicians={audienceMusicians}
           onClose={() => !isSavingPermissions && setPermissionsOpen(false)}

@@ -7,6 +7,13 @@ import type {
   PlatformUserLookup,
   PlatformUserSummary,
 } from '@/domain/platform/plan';
+import type {
+  BillingEntry,
+  OrganizationBilling,
+  OrganizationBillingInput,
+  PlatformBillingSettings,
+  RecordPaymentInput,
+} from '@/domain/platform/billing';
 import type { AccessRole } from '@/domain/identity';
 
 export type PlatformRepository = {
@@ -18,7 +25,19 @@ export type PlatformRepository = {
     ownerUserId: string;
     planId: string;
   }): Promise<string>;
-  assignOrganizationPlan(organizationId: string, planId: string): Promise<void>;
+  assignOrganizationPlan(
+    organizationId: string,
+    planId: string,
+    options?: { note?: string | null; stopBilling?: boolean },
+  ): Promise<void>;
+  getOrganizationBilling(organizationId: string): Promise<OrganizationBilling | null>;
+  upsertOrganizationBilling(organizationId: string, input: OrganizationBillingInput): Promise<void>;
+  listOrganizationBillingEntries(organizationId: string): Promise<BillingEntry[]>;
+  recordOrganizationPayment(organizationId: string, input: RecordPaymentInput): Promise<string>;
+  addOrganizationBillingNote(organizationId: string, note: string): Promise<string>;
+  deleteOrganizationBillingEntry(entryId: string): Promise<void>;
+  getBillingSettings(): Promise<PlatformBillingSettings>;
+  updateBillingSettings(settings: PlatformBillingSettings): Promise<void>;
   listUsers(search: string | null, limit: number, offset: number): Promise<PlatformUserSummary[]>;
   getUser(userId: string): Promise<PlatformUserDetail | null>;
   findUserByEmail(email: string): Promise<PlatformUserLookup[]>;

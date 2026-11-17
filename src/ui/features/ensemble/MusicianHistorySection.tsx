@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { MusicianEventHistoryItem } from '@/domain/agenda';
-import { eventDisplayTitle, isEventCancelled } from '@/domain/agenda';
+import type { MusicianEventHistoryItem, MusicianHistoryPeriod } from '@/domain/agenda';
+import {
+  eventDisplayTitle,
+  isEventCancelled,
+  musicianEventStartsInPeriod,
+} from '@/domain/agenda';
 import { useAgenda } from '@/ui/app/AppServicesContext';
 import {
   agendaErrorMessage,
@@ -10,6 +14,15 @@ import {
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatEventScheduleLabel } from '@/ui/features/agenda/agenda-date';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
+import { EventHistoryFilters } from '@/ui/features/ensemble/EventHistoryFilters';
+import {
+  absenceRateLabel as formatAbsenceRate,
+  activeHistoryTypeIds,
+  historyPeriodStatLabels,
+  historyTypeOptions,
+  type HistoryTypeOption,
+} from '@/ui/features/ensemble/event-history-filters';
+import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 const PAGE_SIZE = 20;
 
@@ -18,6 +31,11 @@ type MusicianHistorySectionProps = {
   orgSlug: string;
   musicianId: string;
   isOfflineReadOnly: boolean;
+  /** Filtros aplicados ao abrir (ex.: vindos do histórico do grupo). */
+  initialPeriod?: MusicianHistoryPeriod;
+  initialTypeIds?: string[];
+  /** Tipos sempre exibidos no filtro, mesmo sem eventos do músico (mantém a seleção vinda do grupo). */
+  pinnedTypeOptions?: HistoryTypeOption[];
 };
 
 export function MusicianHistorySection({
@@ -25,23 +43,29 @@ export function MusicianHistorySection({
   orgSlug,
   musicianId,
   isOfflineReadOnly,
+  initialPeriod = 'year',
+  initialTypeIds,
+  pinnedTypeOptions,
 }: MusicianHistorySectionProps) {
   const agenda = useAgenda();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const [allEvents, setAllEvents] = useState<MusicianEventHistoryItem[]>([]);
-  const [eventsThisYear, setEventsThisYear] = useState(0);
-  const [absencesThisYear, setAbsencesThisYear] = useState(0);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const initialFiltersRef = useRef({ period: initialPeriod, typeIds: initialTypeIds ?? [] });
+  const [period, setPeriod] = useState<MusicianHistoryPeriod>(initialPeriod);
+  const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>(initialFiltersRef.current.typeIds);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setPeriod(initialFiltersRef.current.period);
+  }, [musicianId]);
+
+  useEffect(() => {
     if (isOfflineReadOnly) {
       setAllEvents([]);
-      setEventsThisYear(0);
-      setAbsencesThisYear(0);
       setIsLoading(false);
       setError(null);
       return;
@@ -59,15 +83,12 @@ export function MusicianHistorySection({
       setIsLoading(false);
       if (!result.ok) {
         setAllEvents([]);
-        setEventsThisYear(0);
-        setAbsencesThisYear(0);
         setError(agendaErrorMessage(result.error));
         return;
       }
       setAllEvents(result.value.events);
-      setEventsThisYear(result.value.eventsThisYear);
-      setAbsencesThisYear(result.value.absencesThisYear);
       setVisibleCount(PAGE_SIZE);
+      setSelectedTypeIds(initialFiltersRef.current.typeIds);
     }
 
     void load();
@@ -77,15 +98,54 @@ export function MusicianHistorySection({
     };
   }, [agenda, isOfflineReadOnly, organizationId, musicianId]);
 
-  const visibleEvents = allEvents.slice(0, visibleCount);
-  const hasMore = visibleCount < allEvents.length;
+  const periodEvents = useMemo(
+    () => allEvents.filter((event) => musicianEventStartsInPeriod(event.startsAt, period)),
+    [allEvents, period],
+  );
+
+  const typeOptions = useMemo(() => {
+    const options = historyTypeOptions(periodEvents);
+    const missingPinned = (pinnedTypeOptions ?? []).filter(
+      (pinned) => !options.some((option) => option.id === pinned.id),
+    );
+    if (missingPinned.length === 0) {
+      return options;
+    }
+    return [...options, ...missingPinned].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [periodEvents, pinnedTypeOptions]);
+
+  const filteredEvents = useMemo(() => {
+    const selected = activeHistoryTypeIds(selectedTypeIds, typeOptions);
+    if (selected.length === 0) {
+      return periodEvents;
+    }
+    const selectedSet = new Set(selected);
+    return periodEvents.filter((event) => selectedSet.has(event.typeId));
+  }, [periodEvents, selectedTypeIds, typeOptions]);
+
+  const eventCount = filteredEvents.length;
+  const absenceCount = filteredEvents.filter((event) => event.wasAbsent).length;
+  const statLabels = historyPeriodStatLabels(period);
+
+  const toggleType = useCallback((typeId: string) => {
+    setSelectedTypeIds((current) =>
+      current.includes(typeId)
+        ? current.filter((id) => id !== typeId)
+        : [...current, typeId],
+    );
+    setVisibleCount(PAGE_SIZE);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, []);
+
+  const visibleEvents = filteredEvents.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredEvents.length;
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoading) {
       return;
     }
-    setVisibleCount((current) => Math.min(current + PAGE_SIZE, allEvents.length));
-  }, [allEvents.length, hasMore, isLoading]);
+    setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredEvents.length));
+  }, [filteredEvents.length, hasMore, isLoading]);
 
   useEffect(() => {
     if (!hasMore || isLoading) {
@@ -111,12 +171,13 @@ export function MusicianHistorySection({
     return () => observer.disconnect();
   }, [hasMore, isLoading, loadMore, visibleEvents.length]);
 
-  const absenceRateLabel =
-    !isLoading && eventsThisYear > 0
-      ? `${((absencesThisYear / eventsThisYear) * 100).toLocaleString('pt-BR', {
-          maximumFractionDigits: 1,
-        })}%`
-      : null;
+  const absenceRateLabel = isLoading ? null : formatAbsenceRate(absenceCount, eventCount);
+
+  function handlePeriodChange(next: MusicianHistoryPeriod) {
+    setPeriod(next);
+    setVisibleCount(PAGE_SIZE);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }
 
   if (isOfflineReadOnly) {
     return (
@@ -130,18 +191,18 @@ export function MusicianHistorySection({
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="grid shrink-0 gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
-          <p className="text-sm font-medium text-text">Eventos neste ano</p>
+          <p className="text-sm font-medium text-text">{statLabels.events}</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-text">
-            {isLoading ? '…' : eventsThisYear}
+            {isLoading ? '…' : eventCount}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
-          <p className="text-sm font-medium text-text">Faltas neste ano</p>
+          <p className="text-sm font-medium text-text">{statLabels.absences}</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
             <p
               className={`text-2xl font-semibold tabular-nums ${isLoading ? 'text-text' : 'text-red-600 dark:text-red-400'}`}
             >
-              {isLoading ? '…' : absencesThisYear}
+              {isLoading ? '…' : absenceCount}
             </p>
             {absenceRateLabel && (
               <span className="text-sm font-medium tabular-nums text-red-800/80 dark:text-red-400/80">
@@ -152,11 +213,23 @@ export function MusicianHistorySection({
         </div>
       </div>
 
-      <hr className="my-4 shrink-0 border-border" />
+      <div className="my-4 shrink-0">
+        <EventHistoryFilters
+          period={period}
+          onPeriodChange={handlePeriodChange}
+          typeOptions={typeOptions}
+          selectedTypeIds={selectedTypeIds}
+          onToggleType={toggleType}
+          onClearTypes={() => {
+            setSelectedTypeIds([]);
+            setVisibleCount(PAGE_SIZE);
+          }}
+        />
+      </div>
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3"
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3 ${scrollContentEndPaddingClass}`}
       >
         {isLoading && <p className="text-sm text-muted">Carregando histórico…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -164,6 +237,14 @@ export function MusicianHistorySection({
           <p className="text-sm text-muted">
             Este músico ainda não participou de nenhum evento.
           </p>
+        )}
+
+        {!isLoading && !error && allEvents.length > 0 && periodEvents.length === 0 && (
+          <p className="text-sm text-muted">Nenhum evento neste período.</p>
+        )}
+
+        {!isLoading && !error && periodEvents.length > 0 && filteredEvents.length === 0 && (
+          <p className="text-sm text-muted">Nenhum evento dos tipos selecionados.</p>
         )}
 
         <ul className="space-y-2">

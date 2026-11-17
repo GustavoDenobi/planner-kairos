@@ -8,6 +8,7 @@ import { spacing } from '@/ui/theme/tokens';
 
 const adminNavItems = [
   { to: '/admin/organizacoes', label: 'Organizações' },
+  { to: '/admin/cobranca', label: 'Cobrança' },
   { to: '/admin/usuarios', label: 'Usuários' },
   { to: '/admin/planos', label: 'Planos' },
 ];

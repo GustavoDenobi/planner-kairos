@@ -85,7 +85,7 @@ export function PlatformPlansPage() {
                 <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                   <span>Grupos: {formatLimit(plan.maxGroups)}</span>
                   <span>Músicos: {formatLimit(plan.maxMusicians)}</span>
-                  <span>Peças: {formatLimit(plan.maxPieces)}</span>
+                  <span>Obras: {formatLimit(plan.maxPieces)}</span>
                   <span>
                     Storage:{' '}
                     {plan.maxStorageBytes === null

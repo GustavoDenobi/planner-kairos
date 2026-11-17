@@ -20,7 +20,7 @@ function createInviteRepo(overrides: Partial<GroupInviteRepository> = {}): Group
 
 function createClaimRepo(overrides: Partial<MusicianClaimRepository> = {}): MusicianClaimRepository {
   return {
-    previewByMusicianId: vi.fn(),
+    previewByToken: vi.fn(),
     claim: vi.fn().mockResolvedValue('minha-org'),
     ...overrides,
   };
@@ -122,11 +122,11 @@ describe('resumeOAuthPendingAction', () => {
       },
       {
         kind: 'musician_signup',
-        musicianId: 'musician-1',
+        claimToken: 'claim-token',
         displayName: 'João Souza',
         phone: '(11) 91234-5678',
         birthDate: '10/03/1988',
-        fallbackPath: '/musico/musician-1',
+        fallbackPath: '/reivindicar/claim-token',
       },
       'user-1',
     );
@@ -134,7 +134,7 @@ describe('resumeOAuthPendingAction', () => {
     expect(result).toEqual({ ok: true, redirectTo: '/minha-org/agenda' });
     expect(legalRepo.recordAcceptance).toHaveBeenCalledTimes(2);
     expect(profileRepo.updateDisplayName).toHaveBeenCalledWith('user-1', 'João Souza');
-    expect(claimRepo.claim).toHaveBeenCalledWith('musician-1', {
+    expect(claimRepo.claim).toHaveBeenCalledWith('claim-token', {
       displayName: 'João Souza',
       phone: '11912345678',
       birthDate: '1988-03-10',

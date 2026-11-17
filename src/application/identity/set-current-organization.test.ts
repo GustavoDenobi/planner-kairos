@@ -12,8 +12,10 @@ function createOrgRepo(orgs: import('@/application/ports/organization-repository
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateTimeZone: vi.fn(),
     updateRules: vi.fn(),
     getPlanOverview: vi.fn(),
+    getBillingOverview: vi.fn(),
   };
 }
 
@@ -24,6 +26,7 @@ describe('setCurrentOrganization', () => {
       name: 'Kairós',
       slug: 'kairos',
       imageStorageKey: null,
+      timeZone: 'America/Sao_Paulo',
       rules: null,
       accessRole: 'member' as const,
     },
@@ -54,6 +57,7 @@ describe('setCurrentOrganization', () => {
       name: 'Other',
       slug: 'other',
       imageStorageKey: null,
+      timeZone: 'America/Sao_Paulo',
       rules: null,
     });
 

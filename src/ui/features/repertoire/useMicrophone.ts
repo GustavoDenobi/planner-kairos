@@ -14,8 +14,11 @@ export function useMicrophone(): UseMicrophoneReturn {
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  /** Incrementa a cada start/stop para descartar pedidos de permissão que ficaram para trás. */
+  const generationRef = useRef(0);
 
   const stop = useCallback(() => {
+    generationRef.current += 1;
     for (const track of streamRef.current?.getTracks() ?? []) {
       track.stop();
     }
@@ -33,6 +36,9 @@ export function useMicrophone(): UseMicrophoneReturn {
       return;
     }
 
+    generationRef.current += 1;
+    const generation = generationRef.current;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -42,9 +48,25 @@ export function useMicrophone(): UseMicrophoneReturn {
         },
       });
 
+      if (generation !== generationRef.current) {
+        // stop() foi chamado enquanto o navegador pedia permissão.
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        return;
+      }
+
       const ctx = new AudioContext();
       if (ctx.state === 'suspended') {
         await ctx.resume();
+      }
+
+      if (generation !== generationRef.current) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        void ctx.close();
+        return;
       }
 
       for (const track of streamRef.current?.getTracks() ?? []) {

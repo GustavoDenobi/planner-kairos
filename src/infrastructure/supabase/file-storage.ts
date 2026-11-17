@@ -38,6 +38,19 @@ export function createFileStorage(): FileStorage {
       return path;
     },
 
+    async uploadPracticeRecording(path, blob, contentType) {
+      // O bucket valida o tipo sem parâmetros: "audio/webm;codecs=opus" → "audio/webm".
+      const baseContentType = contentType.split(';')[0]?.trim() || contentType;
+      const { error } = await supabase.storage.from(BRANDING_BUCKET).upload(path, blob, {
+        upsert: false,
+        contentType: baseContentType,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    },
+
     async remove(path) {
       const { error } = await supabase.storage.from(BRANDING_BUCKET).remove([path]);
       if (error) {

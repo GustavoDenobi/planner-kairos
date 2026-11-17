@@ -386,6 +386,15 @@ verify_jwt = false
 [functions.musician-claim-signup]
 verify_jwt = false
 
+[functions.sign-preview-asset]
+verify_jwt = false
+
+[functions.request-password-recovery]
+verify_jwt = false
+
+[functions.confirm-password-recovery]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

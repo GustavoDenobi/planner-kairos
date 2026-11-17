@@ -97,7 +97,7 @@ function UploadEntryCard({
           className="mt-2 rounded-lg border border-border bg-bg px-3 py-2"
         >
           <p className="text-sm text-muted text-center">
-            <IconAlertTriangle className="h-4 w-4 inline-block mr-1" /> Este arquivo já existe nesta peça com o título <br/>
+            <IconAlertTriangle className="h-4 w-4 inline-block mr-1" /> Este arquivo já existe nesta obra com o título <br/>
           </p>
           <p className="text-sm text-muted text-center font-bold">{entry.duplicateOfTitle}</p>
         </div>

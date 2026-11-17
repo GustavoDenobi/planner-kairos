@@ -2,6 +2,7 @@ import type { OrganizationWithRole } from '@/application/ports';
 import {
   IconCalendar,
   IconGauge,
+  IconClipboardCheck,
   IconMusic,
   IconPlay,
   IconTrumpet,
@@ -15,6 +16,8 @@ export type NavItem = {
   label: string;
   icon: ReactNode;
   adminOnly?: boolean;
+  /** No mobile, fica no painel "Mais" em vez da barra inferior. */
+  mobileOverflow?: boolean;
 };
 
 export const baseNavItems: NavItem[] = [
@@ -25,6 +28,12 @@ export const baseNavItems: NavItem[] = [
     to: 'ferramentas',
     label: 'Ferramentas',
     icon: <IconGauge className="h-5 w-5 shrink-0" />,
+    mobileOverflow: true,
+  },
+  {
+    to: 'tarefas',
+    label: 'Tarefas',
+    icon: <IconClipboardCheck className="h-5 w-5 shrink-0" />,
   },
 ];
 

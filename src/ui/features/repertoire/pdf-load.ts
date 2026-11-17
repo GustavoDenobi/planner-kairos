@@ -182,7 +182,10 @@ export function shouldWarnDownloadSize(bytes: number): boolean {
 }
 
 export async function printPdfDocument(pdf: pdfjs.PDFDocumentProxy): Promise<void> {
-  const data = await pdf.getData();
+  await printPdfBytes(await pdf.getData());
+}
+
+export async function printPdfBytes(data: Uint8Array): Promise<void> {
   const blobUrl = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
 
   await new Promise<void>((resolve, reject) => {

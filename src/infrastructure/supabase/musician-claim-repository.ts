@@ -20,9 +20,9 @@ function mapAssignmentPreview(row: {
 
 export function createMusicianClaimRepository(): MusicianClaimRepository {
   return {
-    async previewByMusicianId(musicianId) {
+    async previewByToken(claimToken) {
       const { data, error } = await supabase.rpc('get_musician_claim_preview', {
-        p_musician_id: musicianId,
+        p_token: claimToken,
       });
 
       if (error || !data || data.length === 0) {
@@ -61,9 +61,9 @@ export function createMusicianClaimRepository(): MusicianClaimRepository {
       } satisfies MusicianClaimPreview;
     },
 
-    async claim(musicianId, contact) {
+    async claim(claimToken, contact) {
       const { data, error } = await supabase.rpc('claim_musician', {
-        p_musician_id: musicianId,
+        p_token: claimToken,
         p_display_name: contact.displayName,
         p_phone: contact.phone ?? null,
         p_birth_date: contact.birthDate ?? null,

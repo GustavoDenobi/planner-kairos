@@ -10,7 +10,11 @@ export async function confirmPasswordRecovery(
   try {
     await gateway.confirm(email, code, newPassword);
     return Result.ok(undefined);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('rate_limited')) {
+      return Result.fail('rate_limited');
+    }
     return Result.fail('invalid_code');
   }
 }

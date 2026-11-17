@@ -33,7 +33,7 @@ export function EventProgramPiecePicker({
   }, [open, query, onSearch]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Selecionar peça">
+    <Modal open={open} onClose={onClose} title="Selecionar obra">
       <div className="space-y-3">
         <input
           type="search"

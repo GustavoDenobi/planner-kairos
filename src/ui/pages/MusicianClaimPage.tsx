@@ -23,7 +23,7 @@ import {
   musicianClaimFieldErrorMessage,
   musicianClaimSubmitErrorMessage,
 } from '@/ui/utils/musicianClaimValidation';
-import { publicOrgImageUrl } from '@/ui/utils/publicOrgImageUrl';
+import { usePreviewBrandingUrl } from '@/ui/hooks/usePreviewBrandingUrl';
 
 function isInviteSignupFieldErrors(error: unknown): error is InviteSignupFieldErrors {
   return typeof error === 'object' && error !== null && !Array.isArray(error);
@@ -45,8 +45,22 @@ function ClaimFormField({ label, error, children }: ClaimFormFieldProps) {
   );
 }
 
+export function RetiredMusicianClaimLinkPage() {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-6 text-center">
+      <h1 className="text-xl font-semibold text-text">Link de cadastro inválido</h1>
+      <p className="mt-2 text-sm text-muted">
+        Este endereço não funciona mais. Peça um novo link de cadastro para a organização.
+      </p>
+      <Link to="/login" className="mt-4 inline-block text-sm text-primary hover:underline">
+        Ir para login
+      </Link>
+    </div>
+  );
+}
+
 export function MusicianClaimPage() {
-  const { musicianId } = useParams();
+  const { claimToken } = useParams();
   const identity = useIdentity();
   const { session } = useAuth();
   const { setCurrentOrgBySlug } = useOrg();
@@ -55,6 +69,11 @@ export function MusicianClaimPage() {
   const online = useOnlineStatus();
 
   const [preview, setPreview] = useState<MusicianClaimPreview | null>(null);
+  const brandingUrl = usePreviewBrandingUrl(
+    'claim',
+    claimToken,
+    preview?.organizationImageStorageKey,
+  );
   const [previewError, setPreviewError] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,12 +94,12 @@ export function MusicianClaimPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!musicianId) {
+    if (!claimToken) {
       setPreviewError(true);
       return;
     }
 
-    identity.previewMusicianClaim(musicianId).then((result) => {
+    identity.previewMusicianClaim(claimToken).then((result) => {
       if (result.ok) {
         setPreview(result.value);
         setDisplayName(result.value.musicianFullName);
@@ -88,7 +107,7 @@ export function MusicianClaimPage() {
         setPreviewError(true);
       }
     });
-  }, [identity, musicianId]);
+  }, [identity, claimToken]);
 
   const requiresOrgRules = organizationRulesRequireAcceptance(preview?.organizationRules);
 
@@ -123,7 +142,7 @@ export function MusicianClaimPage() {
 
   function buildClaimInput(isNewUser: boolean) {
     return {
-      musicianId: musicianId!,
+      claimToken: claimToken!,
       email: isNewUser ? email : (session?.user.email ?? ''),
       password: isNewUser ? password : '',
       displayName,
@@ -139,7 +158,7 @@ export function MusicianClaimPage() {
   }
 
   async function handleClaimExistingUser() {
-    if (!musicianId || !session || !preview) {
+    if (!claimToken || !session || !preview) {
       return;
     }
 
@@ -176,7 +195,7 @@ export function MusicianClaimPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!musicianId || !preview) {
+    if (!claimToken || !preview) {
       return;
     }
 
@@ -223,7 +242,7 @@ export function MusicianClaimPage() {
   }
 
   async function handleGoogleSignup() {
-    if (!musicianId || !preview || !online) {
+    if (!claimToken || !preview || !online) {
       return;
     }
 
@@ -248,14 +267,14 @@ export function MusicianClaimPage() {
     setIsGoogleSubmitting(true);
     const result = await identity.signInWithGoogle({
       kind: 'musician_signup',
-      musicianId,
+      claimToken,
       displayName,
       phone,
       birthDate,
       organizationId: preview.organizationId,
       organizationRules: preview.organizationRules,
       organizationRulesAccepted,
-      fallbackPath: `/musico/${musicianId}`,
+      fallbackPath: `/reivindicar/${claimToken}`,
     });
 
     if (!result.ok) {
@@ -265,7 +284,7 @@ export function MusicianClaimPage() {
   }
 
   async function handleGoogleLogin() {
-    if (!musicianId || !online) {
+    if (!claimToken || !online) {
       return;
     }
 
@@ -274,7 +293,7 @@ export function MusicianClaimPage() {
 
     const result = await identity.signInWithGoogle({
       kind: 'musician_login',
-      returnPath: `/musico/${musicianId}`,
+      returnPath: `/reivindicar/${claimToken}`,
     });
 
     if (!result.ok) {
@@ -320,12 +339,9 @@ export function MusicianClaimPage() {
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
       <div className="mb-6 text-center">
-        {preview.organizationImageStorageKey && (
+        {brandingUrl && (
           <img
-            src={publicOrgImageUrl(
-              import.meta.env.VITE_SUPABASE_URL,
-              preview.organizationImageStorageKey,
-            )}
+            src={brandingUrl}
             alt={preview.organizationName}
             className="mx-auto mb-4 h-20 w-20 rounded-xl object-cover"
           />

@@ -33,7 +33,11 @@ export function PasswordRecoveryPage() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      setError(PASSWORD_RECOVERY_ERROR_MESSAGES.invalidCode);
+      setError(
+        result.error === 'rate_limited'
+          ? PASSWORD_RECOVERY_ERROR_MESSAGES.rateLimited
+          : PASSWORD_RECOVERY_ERROR_MESSAGES.invalidCode,
+      );
       return;
     }
 
@@ -79,7 +83,7 @@ export function PasswordRecoveryPage() {
             <input
               type="text"
               required
-              maxLength={6}
+              maxLength={8}
               value={code}
               onChange={(e) => setCode(e.target.value)}
               className="rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary"

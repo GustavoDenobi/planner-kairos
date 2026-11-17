@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { clientIp, consumeRateLimit, sha256Hex } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,14 +70,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { musicianId, email, password, displayName } = await req.json();
+    const { token, email, password, displayName } = await req.json();
 
     if (
-      !musicianId ||
+      !token ||
       !email ||
       !password ||
       !displayName ||
-      typeof musicianId !== 'string' ||
+      typeof token !== 'string' ||
       typeof email !== 'string' ||
       typeof password !== 'string' ||
       typeof displayName !== 'string' ||
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: preview, error: previewError } = await supabase.rpc('get_musician_claim_preview', {
-      p_musician_id: musicianId,
+      p_token: token,
     });
 
     if (previewError || !preview || preview.length === 0) {
@@ -104,6 +105,11 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const rateBucket = `${await sha256Hex(clientIp(req))}:${await sha256Hex(normalizedEmail)}`;
+    const allowed = await consumeRateLimit(supabase, 'signup_claim', rateBucket, 8, 15 * 60);
+    if (!allowed) {
+      return jsonResponse({ error: 'signup_failed' }, 429);
+    }
     const trimmedDisplayName = displayName.trim();
 
     const { data: created, error: createError } = await supabase.auth.admin.createUser({

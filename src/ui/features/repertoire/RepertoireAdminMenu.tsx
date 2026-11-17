@@ -15,7 +15,7 @@ const MENU_ITEMS: {
 }[] = [
   {
     id: 'pieces',
-    label: 'Peças',
+    label: 'Obras',
     description: 'Catálogo de partituras',
     icon: <IconFileText className="h-7 w-7 text-primary" />,
   },

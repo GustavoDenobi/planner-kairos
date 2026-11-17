@@ -41,4 +41,5 @@ export type MusicianRepository = {
   update(organizationId: string, musicianId: string, input: MusicianInput): Promise<Musician>;
   merge(organizationId: string, sourceId: string, targetId: string): Promise<void>;
   delete(organizationId: string, musicianId: string): Promise<void>;
+  ensureClaimToken(musicianId: string): Promise<string>;
 };

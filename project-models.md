@@ -490,6 +490,25 @@ Regras:
 - Busca por tema usa os links, não `description`.
 - Busca textual no catálogo considera `title`, `composer` e `aliases` (substring, case-insensitive). Apelidos não substituem o título oficial.
 
+Associação da obra inteira com partes (N:N), no mesmo espírito de `piece_file_part_links`. Vazio = a obra não restringe por parte.
+
+| Atributo | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `pieceId` | UUID | sim | |
+| `partId` | UUID | sim | |
+| `partDivisionId` | UUID | não | Null = a parte inteira, sem cadeira |
+
+**Tabela:** `piece_part_links`  
+**Unique:** `(pieceId, partId, partDivisionId)` — tratamento de NULL na migration  
+**Índice:** `(pieceId)`, `(partId)`
+
+Regras:
+
+- Quem está na audiência da obra, mas não tem uma dessas partes no assignment, deixa de ver a obra no catálogo.
+- Professor e regente de um grupo ligado à obra continuam vendo a obra e os arquivos sem parte própria.
+- Arquivo sem `piece_file_part_links` herda as partes da obra. Arquivo com links próprios continua mais específico.
+- Disponível em qualquer `fileOrganization`; o uso típico é método (`sequential`).
+
 ### 3.4 PieceFile
 
 Arquivo de uma obra: partitura (PDF) ou áudio (mp3/wav). Não tem `partId`. Cobre zero ou mais partes/divisões via links — nunca aponta para `Section`.
@@ -811,6 +830,7 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 28. `PieceFile.title` é obrigatório e distinto de `originalName` — nome de exibição editável; default sem extensão do arquivo enviado.
 29. `PieceFile.contentHash` é SHA-256 hex do conteúdo; indexado por obra para detectar duplicata na UI, sem constraint de unicidade.
 30. `piece_file_part_links` só se aplicam a arquivos `score`; áudio não tem links de parte.
+31. `piece_part_links` restringe a obra inteira. Sem links, o acesso continua só pela audiência e pelos arquivos. Com links, membro fora da parte some do catálogo; professor e regente dos grupos ligados ainda veem a obra. Arquivo sem link de parte herda essa restrição.
 
 ---
 
@@ -836,6 +856,7 @@ Não modelar agora. Quando existirem, contexto novo — sem misturar em Repertoi
 | `piece_theme_links` | Piece ↔ PieceTheme | `(piece_id, theme_id)`; índice em `theme_id` |
 | `piece_files` | PieceFile | `title`; `content_hash` nullable; índice `(piece_id, content_hash)` |
 | `piece_file_part_links` | PieceFile ↔ Part / PartDivision | `(piece_file_id, part_id, part_division_id)` com cuidado a NULL; índices em `part_id` |
+| `piece_part_links` | Piece ↔ Part / PartDivision | `(piece_id, part_id, part_division_id)` com cuidado a NULL; índices em `piece_id` e `part_id` |
 | `event_types` | EventType | |
 | `events` | Event | `(organization_id, starts_at)`; `created_by` nullable |
 | `event_groups` | EventGroup | `(event_id, group_id)` |

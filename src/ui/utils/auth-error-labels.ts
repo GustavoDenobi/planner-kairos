@@ -9,5 +9,6 @@ export const LOGIN_ERROR_MESSAGES = {
 
 export const PASSWORD_RECOVERY_ERROR_MESSAGES = {
   invalidCode:
-    'Código inválido ou expirado. Solicite um novo código ou confira se digitou os 6 números corretamente.',
+    'Código inválido ou expirado. Solicite um novo código ou confira se digitou os 8 números corretamente.',
+  rateLimited: 'Muitas tentativas. Aguarde alguns minutos e solicite um novo código.',
 } as const;

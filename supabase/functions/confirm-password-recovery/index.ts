@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { consumeRateLimit, sha256Hex } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +43,17 @@ Deno.serve(async (req) => {
     );
 
     const normalizedEmail = email.toLowerCase().trim();
+    const allowed = await consumeRateLimit(
+      supabase,
+      'recovery_confirm',
+      await sha256Hex(normalizedEmail),
+      10,
+      15 * 60,
+    );
+    if (!allowed) {
+      return jsonResponse({ error: 'rate_limited' });
+    }
+
     const codeHash = await hashCode(String(code).trim());
 
     const { data: profile } = await supabase

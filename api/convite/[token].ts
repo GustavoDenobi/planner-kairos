@@ -3,6 +3,7 @@ import {
   fetchInvitePreviewRow,
   injectInviteOgIntoHtml,
 } from '../../src/og/inviteOg.js';
+import { signOrgBrandingUrl } from '../../src/og/signOrgBrandingUrl.js';
 import { normalizeEnvUrl } from '../../src/domain/shared/normalizeEnvUrl.js';
 
 type VercelRequest = {
@@ -97,9 +98,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const signedImageUrl =
+      preview.organization_image_storage_key && serviceRoleKey
+        ? await signOrgBrandingUrl({
+            supabaseUrl,
+            serviceRoleKey,
+            organizationId: preview.organization_id,
+            storageKey: preview.organization_image_storage_key,
+          })
+        : null;
+
     const html = injectInviteOgIntoHtml(
       indexHtml,
-      buildInviteOgMeta(preview, { token, siteOrigin, supabaseUrl }),
+      buildInviteOgMeta(preview, { token, siteOrigin }, signedImageUrl),
     );
 
     res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8');

@@ -78,7 +78,7 @@ export function AgendaEventCard({ orgSlug, event, variant = 'list' }: AgendaEven
         </p>
         {event.programCount > 0 && (
           <p className="mt-1 text-xs text-muted">
-            {event.programCount} {event.programCount === 1 ? 'peça' : 'peças'} na programação
+            {event.programCount} {event.programCount === 1 ? 'obra' : 'obras'} na programação
           </p>
         )}
         <EventAudienceChips groups={event.groups} musicians={event.musicians} singleLine />

@@ -27,6 +27,7 @@ import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconExternalLink, IconPencil, IconUsers, IconWhatsApp } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { GROUP_KIND_OPTIONS } from '@/ui/features/ensemble/group-labels';
+import { GroupHistorySection } from '@/ui/features/ensemble/GroupHistorySection';
 import { GroupFileAccessSettingsForm } from '@/ui/features/repertoire/PieceAccessSettingsFields';
 import type { PieceFileAccessScope } from '@/domain/repertoire';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -1200,6 +1201,18 @@ export function GroupDetailPage() {
                     )}
                   </ul>
                 </>
+              ),
+            },
+            {
+              id: 'historico',
+              label: 'Histórico',
+              content: (
+                <GroupHistorySection
+                  organizationId={org.id}
+                  orgSlug={orgSlug!}
+                  assignments={assignments}
+                  isOfflineReadOnly={isOfflineReadOnly}
+                />
               ),
             },
           ]}

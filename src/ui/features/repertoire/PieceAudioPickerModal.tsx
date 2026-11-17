@@ -19,7 +19,7 @@ export function PieceAudioPickerModal({
   onSelect,
 }: PieceAudioPickerModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="Áudios da peça">
+    <Modal open={open} onClose={onClose} title="Áudios da obra">
       {files.length === 0 ? (
         <p className="text-sm text-muted">Nenhum áudio disponível.</p>
       ) : (

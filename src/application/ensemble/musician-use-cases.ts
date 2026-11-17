@@ -124,3 +124,16 @@ export async function mergeMusicians(
     return Result.fail(message);
   }
 }
+
+export async function ensureMusicianClaimToken(
+  musicianRepo: MusicianRepository,
+  musicianId: string,
+) {
+  try {
+    const token = await musicianRepo.ensureClaimToken(musicianId);
+    return Result.ok(token);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'claim_token_failed';
+    return Result.fail(message);
+  }
+}

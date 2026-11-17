@@ -2,6 +2,7 @@ import type {
   PieceAccessInput,
   PieceAudienceGroup,
   PieceAudienceMusician,
+  PiecePartLink,
 } from '@/domain/repertoire';
 
 export type PieceAccessRepository = {
@@ -22,6 +23,12 @@ export type PieceAccessRepository = {
     pieceId: string,
     groupIds: string[],
     musicianIds: string[],
+  ): Promise<void>;
+  loadPartLinks(organizationId: string, pieceIds: string[]): Promise<Map<string, PiecePartLink[]>>;
+  replacePartLinks(
+    organizationId: string,
+    pieceId: string,
+    partLinks: PiecePartLink[],
   ): Promise<void>;
   updateAccessSettings(
     organizationId: string,

@@ -34,6 +34,7 @@ import {
 import {
   orgListPageHeightClass,
   orgPageContentClass,
+  scrollContentEndPaddingClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import {
   DEFAULT_CATEGORY_HUE,
@@ -119,7 +120,7 @@ export function RepertoirePage() {
   useLoadingBar('repertoire', isPageLoading);
 
   const adminSectionTitles: Record<RepertoireAdminSection, string> = {
-    pieces: 'Peças',
+    pieces: 'Obras',
     categories: 'Categorias',
     themes: 'Temas',
   };
@@ -527,7 +528,7 @@ export function RepertoirePage() {
             className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
           >
             <IconPlus className="h-4 w-4" />
-            Peça
+            Obra
           </button>
         )}
         {isAdmin && adminSection === 'categories' && (
@@ -590,7 +591,9 @@ export function RepertoirePage() {
       )}
 
       {isAdmin && adminSection === 'categories' && (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+        >
           {isTaxonomyLoading ? (
             <OrgListRowsSkeleton count={5} />
           ) : (
@@ -606,7 +609,9 @@ export function RepertoirePage() {
       )}
 
       {isAdmin && adminSection === 'themes' && (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+        >
           {isTaxonomyLoading ? (
             <OrgListRowsSkeleton count={5} />
           ) : (

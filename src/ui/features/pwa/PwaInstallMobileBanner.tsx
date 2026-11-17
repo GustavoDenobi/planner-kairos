@@ -6,7 +6,7 @@ import {
 import { usePwaInstallContext } from '@/ui/features/pwa/PwaInstallContext';
 
 export function PwaInstallMobileBanner() {
-  const { kind, visible, openModal, dismissSession } = usePwaInstallContext();
+  const { kind, visible, openModal, dismissBanner } = usePwaInstallContext();
   const hint = getPwaInstallBannerHint(kind);
 
   if (!visible) {
@@ -37,7 +37,7 @@ export function PwaInstallMobileBanner() {
       </button>
       <button
         type="button"
-        onClick={dismissSession}
+        onClick={dismissBanner}
         className="shrink-0 rounded-lg p-2 text-muted hover:bg-bg hover:text-text"
         aria-label="Fechar"
       >

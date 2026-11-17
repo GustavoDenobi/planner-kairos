@@ -30,6 +30,7 @@ import {
 import {
   orgListPageHeightClass,
   orgPageContentClass,
+  scrollContentEndPaddingClass,
 } from '@/ui/layouts/OrgListPageLayout';
 
 type ProgramRowState = {
@@ -192,7 +193,11 @@ export function PrepareReadingPlaylistPage() {
           continue;
         }
 
-        const candidates = filterScoreCandidatesForUser(pieceResult.value.files, partIds);
+        const candidates = filterScoreCandidatesForUser(
+          pieceResult.value.files,
+          partIds,
+          pieceResult.value.partLinks,
+        );
         const defaultFile = resolveDefaultScoreFile(candidates);
 
         nextRows.push({
@@ -317,7 +322,9 @@ export function PrepareReadingPlaylistPage() {
   const eventTitle = eventDisplayTitle(event, { name: event.type.name });
 
   return (
-    <div className={`${orgPageContentClass} ${orgListPageHeightClass} overflow-y-auto`}>
+    <div
+      className={`flex min-h-0 flex-col overflow-y-auto ${scrollContentEndPaddingClass} ${orgPageContentClass} ${orgListPageHeightClass}`}
+    >
       <section className="mb-6 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo={backTo} />

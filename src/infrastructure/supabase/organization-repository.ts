@@ -1,6 +1,13 @@
 import type { OrganizationRepository, OrganizationWithRole } from '@/application/ports';
 import type { Organization } from '@/domain/identity';
-import type { OrganizationPlanOverview } from '@/domain/platform/plan';
+import {
+  normalizeStorageBreakdown,
+  type OrganizationPlanOverview,
+} from '@/domain/platform/plan';
+import {
+  isBillingCycleMonths,
+  type OrganizationBillingOverview,
+} from '@/domain/platform/billing';
 import { mapOrganizationRules } from './map-organization-rules';
 import { supabase } from './client';
 
@@ -9,6 +16,7 @@ function mapOrganization(row: {
   name: string;
   slug: string;
   image_storage_key: string | null;
+  time_zone?: string | null;
   rules_title?: string | null;
   rules_markdown?: string | null;
   rules_version?: number | null;
@@ -19,6 +27,7 @@ function mapOrganization(row: {
     name: row.name,
     slug: row.slug,
     imageStorageKey: row.image_storage_key,
+    timeZone: row.time_zone ?? 'America/Sao_Paulo',
     rules: mapOrganizationRules({
       rules_title: row.rules_title ?? null,
       rules_markdown: row.rules_markdown ?? null,
@@ -29,7 +38,7 @@ function mapOrganization(row: {
 }
 
 const ORG_SELECT =
-  'id, name, slug, image_storage_key, rules_title, rules_markdown, rules_version, requires_rules_acceptance';
+  'id, name, slug, image_storage_key, time_zone, rules_title, rules_markdown, rules_version, requires_rules_acceptance';
 
 export function createOrganizationRepository(): OrganizationRepository {
   return {
@@ -201,6 +210,21 @@ export function createOrganizationRepository(): OrganizationRepository {
       return mapOrganization(data);
     },
 
+    async updateTimeZone(organizationId, timeZone) {
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({ time_zone: timeZone })
+        .eq('id', organizationId)
+        .select(ORG_SELECT)
+        .single();
+
+      if (error || !data) {
+        throw new Error(error?.message ?? 'org_update_failed');
+      }
+
+      return mapOrganization(data);
+    },
+
     async updateRules(organizationId, input) {
       const current = await this.getById(organizationId);
       if (!current) {
@@ -289,6 +313,15 @@ export function createOrganizationRepository(): OrganizationRepository {
         return null;
       }
 
+      const { data: breakdownRows, error: breakdownError } = await supabase.rpc(
+        'get_org_storage_breakdown',
+        { p_org_id: organizationId },
+      );
+
+      if (breakdownError) {
+        throw new Error(breakdownError.message);
+      }
+
       return {
         planId: plan.id,
         planName: plan.name,
@@ -303,7 +336,45 @@ export function createOrganizationRepository(): OrganizationRepository {
         piecesCount: usage.pieces_count,
         eventsCount: usage.events_count,
         storageBytes: Number(usage.storage_bytes),
+        storageBreakdown: normalizeStorageBreakdown(
+          ((breakdownRows ?? []) as { category: string; bytes: number; file_count: number }[]).map((row) => ({
+            category: row.category,
+            bytes: Number(row.bytes),
+            fileCount: row.file_count,
+          })),
+        ),
       } satisfies OrganizationPlanOverview;
+    },
+
+    async getBillingOverview(organizationId) {
+      const { data, error } = await supabase.rpc('get_org_billing_overview', {
+        p_org_id: organizationId,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const row = data?.[0];
+      if (!row) {
+        return null;
+      }
+
+      const payments = Array.isArray(row.recent_payments) ? row.recent_payments : [];
+
+      return {
+        amountCents: row.amount_cents,
+        cycleMonths: isBillingCycleMonths(row.cycle_months) ? row.cycle_months : 1,
+        nextDueDate: row.next_due_date,
+        graceDays: row.grace_days,
+        pixKey: row.pix_key,
+        pixRecipientName: row.pix_recipient_name,
+        instructions: row.instructions,
+        recentPayments: payments.map((item: unknown) => {
+          const payment = item as { paidOn: string; amountCents: number };
+          return { paidOn: String(payment.paidOn), amountCents: Number(payment.amountCents) };
+        }),
+      } satisfies OrganizationBillingOverview;
     },
   };
 }

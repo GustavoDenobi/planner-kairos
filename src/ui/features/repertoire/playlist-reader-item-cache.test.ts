@@ -38,6 +38,26 @@ describe('PlaylistItemCache', () => {
     expect(cache.get(0)).toEqual(fakeItem(2));
   });
 
+  it('starts a fresh load when the in-flight request was aborted', async () => {
+    const cache = new PlaylistItemCache();
+    const aborted = new AbortController();
+    let finishAborted: (value: CachedPlaylistItem | null) => void = () => {};
+    const abortedLoader = () =>
+      new Promise<CachedPlaylistItem | null>((resolve) => {
+        finishAborted = resolve;
+      });
+
+    const abortedLoad = cache.load(0, abortedLoader, aborted.signal);
+    aborted.abort();
+
+    const replacement = await cache.load(0, async () => fakeItem(4), new AbortController().signal);
+    finishAborted(fakeItem(9));
+    await abortedLoad;
+
+    expect(replacement).toEqual(fakeItem(4));
+    expect(cache.get(0)).toEqual(fakeItem(4));
+  });
+
   it('reuses an in-flight load for the same index', async () => {
     const cache = new PlaylistItemCache();
     let calls = 0;

@@ -1122,5 +1122,137 @@ export function createEventRepository(): EventRepository {
 
       return buildMusicianEventHistory([...byEventId.values()]);
     },
+
+    async getMusiciansEventHistory(
+      organizationId,
+      groupIdsByMusician,
+    ): Promise<Map<string, MusicianEventHistory>> {
+      const musicianIds = [...groupIdsByMusician.keys()];
+      const result = new Map<string, MusicianEventHistory>();
+      if (musicianIds.length === 0) {
+        return result;
+      }
+
+      const allGroupIds = uniqueIds([...groupIdsByMusician.values()].flat());
+      const eventSelect =
+        'id, title, starts_at, ends_at, cancelled_at, type_id, event_types (name, kind, color)';
+
+      type DirectRow = { musician_id: string; events: unknown };
+      type GroupRow = { group_id: string; events: unknown };
+      type AbsenceRow = { musician_id: string; event_id: string };
+
+      const [directRows, groupRows, absenceRows] = await Promise.all([
+        fetchAllPages<DirectRow>((from, to) =>
+          supabase
+            .from('event_musicians')
+            .select(`musician_id, events!inner (${eventSelect})`)
+            .eq('organization_id', organizationId)
+            .in('musician_id', musicianIds)
+            .order('event_id')
+            .order('musician_id')
+            .range(from, to),
+        ),
+        allGroupIds.length > 0
+          ? fetchAllPages<GroupRow>((from, to) =>
+              supabase
+                .from('event_groups')
+                .select(`group_id, events!inner (${eventSelect})`)
+                .eq('organization_id', organizationId)
+                .in('group_id', allGroupIds)
+                .order('event_id')
+                .order('group_id')
+                .range(from, to),
+            )
+          : Promise.resolve([] as GroupRow[]),
+        fetchAllPages<AbsenceRow>((from, to) =>
+          supabase
+            .from('event_absences')
+            .select('musician_id, event_id')
+            .eq('organization_id', organizationId)
+            .in('musician_id', musicianIds)
+            .order('event_id')
+            .order('musician_id')
+            .range(from, to),
+        ),
+      ]);
+
+      if (!directRows || !groupRows || !absenceRows) {
+        for (const musicianId of musicianIds) {
+          result.set(musicianId, buildMusicianEventHistory([]));
+        }
+        return result;
+      }
+
+      const absentKeys = new Set(absenceRows.map((row) => `${row.musician_id}:${row.event_id}`));
+
+      const eventsByGroup = new Map<string, HistoryEventJoinRow[]>();
+      for (const row of groupRows) {
+        const event = row.events as HistoryEventJoinRow | null;
+        if (!event) {
+          continue;
+        }
+        const list = eventsByGroup.get(row.group_id) ?? [];
+        list.push(event);
+        eventsByGroup.set(row.group_id, list);
+      }
+
+      const directByMusician = new Map<string, HistoryEventJoinRow[]>();
+      for (const row of directRows) {
+        const event = row.events as HistoryEventJoinRow | null;
+        if (!event) {
+          continue;
+        }
+        const list = directByMusician.get(row.musician_id) ?? [];
+        list.push(event);
+        directByMusician.set(row.musician_id, list);
+      }
+
+      for (const musicianId of musicianIds) {
+        const byEventId = new Map<string, MusicianEventHistorySourceRow>();
+        const ingest = (event: HistoryEventJoinRow) => {
+          const mapped = mapMusicianHistorySourceRow(
+            event,
+            absentKeys.has(`${musicianId}:${event.id}`),
+          );
+          if (mapped) {
+            byEventId.set(mapped.eventId, mapped);
+          }
+        };
+        for (const event of directByMusician.get(musicianId) ?? []) {
+          ingest(event);
+        }
+        for (const groupId of groupIdsByMusician.get(musicianId) ?? []) {
+          for (const event of eventsByGroup.get(groupId) ?? []) {
+            ingest(event);
+          }
+        }
+        result.set(musicianId, buildMusicianEventHistory([...byEventId.values()]));
+      }
+
+      return result;
+    },
   };
+}
+
+const HISTORY_PAGE_SIZE = 1000;
+
+/** Busca todas as páginas de uma consulta (o PostgREST limita a 1000 linhas por resposta). Retorna null em erro. */
+async function fetchAllPages<T>(
+  query: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[] | null> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += HISTORY_PAGE_SIZE) {
+    const { data, error } = await query(from, from + HISTORY_PAGE_SIZE - 1);
+    if (error) {
+      return null;
+    }
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < HISTORY_PAGE_SIZE) {
+      return rows;
+    }
+  }
 }

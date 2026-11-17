@@ -4,6 +4,8 @@ import { IconPlus } from '@/ui/components/icons';
 import { AgendaWeekKanbanSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 import { AgendaBirthdayCard } from '@/ui/features/agenda/AgendaBirthdayCard';
 import { AgendaEventCard } from '@/ui/features/agenda/AgendaEventCard';
+import { AgendaPracticeTaskCard } from '@/ui/features/agenda/AgendaPracticeTaskCard';
+import type { AgendaPracticeTaskItem } from '@/ui/features/agenda/agenda-practice-tasks';
 import {
   buildWeekDayColumns,
   formatKanbanDayHeader,
@@ -11,12 +13,14 @@ import {
   isSameDay,
   startOfDay,
 } from '@/ui/features/agenda/agenda-date';
+import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 type AgendaWeekKanbanProps = {
   orgSlug: string;
   anchor: Date;
   events: EventListItem[];
   birthdays?: MusicianBirthdayItem[];
+  tasks?: AgendaPracticeTaskItem[];
   isLoading: boolean;
   canCreateEvents: boolean;
   onAddEvent: (day: Date) => void;
@@ -138,6 +142,7 @@ export function AgendaWeekKanban({
   anchor,
   events,
   birthdays = [],
+  tasks = [],
   isLoading,
   canCreateEvents,
   onAddEvent,
@@ -147,7 +152,7 @@ export function AgendaWeekKanban({
   const today = startOfDay(new Date());
   const weekDays = getWeekDays(anchor);
   const weekContainsToday = weekDays.some((day) => isSameDay(day, today));
-  const columns = buildWeekDayColumns(anchor, events, birthdays);
+  const columns = buildWeekDayColumns(anchor, events, birthdays, tasks);
 
   useKanbanScroll(scrollRef);
 
@@ -201,7 +206,7 @@ export function AgendaWeekKanban({
         className="absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
       >
         <div className="flex h-full">
-          {columns.map(({ date, birthdays: dayBirthdays, events: dayEvents }) => {
+          {columns.map(({ date, birthdays: dayBirthdays, tasks: dayTasks, events: dayEvents }) => {
             const isToday = isSameDay(date, today);
 
             return (
@@ -229,12 +234,17 @@ export function AgendaWeekKanban({
 
                 <div
                   data-agenda-column-scroll
-                  className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+                  className={`min-h-0 flex-1 overflow-y-auto overscroll-y-contain ${scrollContentEndPaddingClass}`}
                 >
                   <ul className="space-y-2 p-2">
                     {dayBirthdays.map((birthday) => (
                       <li key={`birthday-${birthday.musicianId}-${birthday.date}`}>
                         <AgendaBirthdayCard orgSlug={orgSlug} birthday={birthday} />
+                      </li>
+                    ))}
+                    {dayTasks.map((task) => (
+                      <li key={`task-${task.key}`}>
+                        <AgendaPracticeTaskCard orgSlug={orgSlug} item={task} />
                       </li>
                     ))}
                     {dayEvents.map((event) => (

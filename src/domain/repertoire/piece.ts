@@ -1,7 +1,7 @@
 import type { GroupKind } from '@/domain/ensemble';
 import type { PieceFileOrganization } from './piece-file-organization';
 import type { PieceCategory } from './piece-category';
-import type { PieceFileWithLinks } from './piece-file';
+import type { PieceFilePartLink, PieceFileWithLinks } from './piece-file';
 import type { PieceTheme } from './piece-theme';
 
 export type PieceFileAccessScope = 'own_parts' | 'all_files';
@@ -61,9 +61,12 @@ export type PieceFileAccessSettingsInput = {
   audioAllowDownload: boolean | null;
 };
 
+export type PiecePartLink = PieceFilePartLink;
+
 export type PieceAccessInput = PieceFileAccessSettingsInput & {
   groupIds?: string[];
   musicianIds?: string[];
+  partLinks?: PiecePartLink[];
 };
 
 export type PieceDetail = Piece & {
@@ -76,4 +79,5 @@ export type PieceDetail = Piece & {
   audioAllowDownload: boolean | null;
   groups: PieceAudienceGroup[];
   musicians: PieceAudienceMusician[];
+  partLinks: PiecePartLink[];
 };

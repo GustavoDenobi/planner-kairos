@@ -3,9 +3,13 @@ import type { PieceFileWithLinks } from '@/domain/repertoire';
 import type { GroupFileAccessSettings } from '@/domain/ensemble';
 import {
   buildAccessPathsForUser,
+  canSeePiece,
   filterAccessibleAudioFiles,
   filterPieceFilesForAccess,
   mergeResolvedAccess,
+  musiciansWithoutPieceAccess,
+  musiciansWithoutPieceFileAccess,
+  type MusicianFileAccessSubject,
   pieceHasNoAudience,
   resolvePieceAudioAccess,
   resolvePieceFileAccess,
@@ -33,9 +37,10 @@ function baseContext(overrides: Partial<PieceAccessContext> = {}): PieceAccessCo
   return {
     isAdmin: false,
     userPartIds: ['part-sax'],
-    isConductor: false,
+    isGroupWriter: false,
     hasAudience: true,
     isInAudience: true,
+    piecePartLinks: [],
     pieceSettings: {
       fileAccessScope: null,
       allowFileDownload: null,
@@ -292,6 +297,307 @@ describe('buildAccessPathsForUser', () => {
     });
 
     expect(paths).toHaveLength(2);
+  });
+});
+
+describe('musiciansWithoutPieceFileAccess', () => {
+  const pieceSettings = {
+    fileAccessScope: null,
+    allowFileDownload: null,
+    audioAccessScope: null,
+    audioAllowDownload: null,
+  };
+
+  const generalScore: PieceFileWithLinks = {
+    id: 'general',
+    organizationId: 'org',
+    pieceId: 'piece',
+    kind: 'score',
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Geral',
+    sortOrder: 0,
+    originalName: 'geral.pdf',
+    byteSize: 1,
+    contentHash: null,
+    partLinks: [],
+  };
+
+  const violaScore: PieceFileWithLinks = {
+    ...generalScore,
+    id: 'viola',
+    title: 'Viola',
+    partLinks: [{ partId: 'part-viola', partDivisionId: null }],
+  };
+
+  const member: MusicianFileAccessSubject = {
+    musicianId: 'gesi',
+    musicianName: 'Gesi Telma',
+    assignments: [
+      { groupId: 'alunos', ensembleRole: 'member', partId: 'part-viola' },
+    ],
+  };
+
+  function blockedNames(
+    file: PieceFileWithLinks,
+    musicians: MusicianFileAccessSubject[],
+    groups: Map<string, GroupFileAccessSettings> = new Map([['alunos', ownPartsGroup]]),
+  ) {
+    return musiciansWithoutPieceFileAccess({
+      file,
+      pieceGroupIds: ['alunos'],
+      pieceMusicianIds: [],
+      pieceSettings,
+      groupSettingsById: groups,
+      musicians,
+    }).map((musician) => musician.musicianName);
+  }
+
+  it('lists a member who cannot open a general score under own parts', () => {
+    expect(blockedNames(generalScore, [member])).toEqual(['Gesi Telma']);
+  });
+
+  it('opens a general score when the piece itself is linked to the member part', () => {
+    expect(
+      musiciansWithoutPieceFileAccess({
+        file: generalScore,
+        pieceGroupIds: ['alunos'],
+        pieceMusicianIds: [],
+        pieceSettings,
+        piecePartLinks: [{ partId: 'part-viola', partDivisionId: null }],
+        groupSettingsById: new Map([['alunos', ownPartsGroup]]),
+        musicians: [member],
+      }),
+    ).toEqual([]);
+  });
+
+  it('lets a teacher of a linked group open a method restricted to another part', () => {
+    expect(
+      musiciansWithoutPieceFileAccess({
+        file: generalScore,
+        pieceGroupIds: ['alunos'],
+        pieceMusicianIds: [],
+        pieceSettings,
+        piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        groupSettingsById: new Map([['alunos', ownPartsGroup]]),
+        musicians: [
+          {
+            ...member,
+            assignments: [{ groupId: 'alunos', ensembleRole: 'teacher', partId: null }],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('omits the conductor of a linked group', () => {
+    expect(
+      blockedNames(generalScore, [
+        {
+          ...member,
+          assignments: [{ groupId: 'alunos', ensembleRole: 'conductor', partId: null }],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('omits a member whose part matches the score, even from another group', () => {
+    expect(
+      blockedNames(violaScore, [
+        {
+          ...member,
+          assignments: [
+            { groupId: 'alunos', ensembleRole: 'member', partId: null },
+            { groupId: 'kairos', ensembleRole: 'section_lead', partId: 'part-viola' },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('lists a member assigned to a different part', () => {
+    expect(
+      blockedNames(violaScore, [
+        {
+          ...member,
+          musicianName: 'Luiz',
+          assignments: [{ groupId: 'alunos', ensembleRole: 'member', partId: 'part-violin' }],
+        },
+      ]),
+    ).toEqual(['Luiz']);
+  });
+
+  it('omits everyone when the group allows all files', () => {
+    expect(
+      blockedNames(generalScore, [member], new Map([['alunos', allFilesGroup]])),
+    ).toEqual([]);
+  });
+
+  it('lists a musician outside the piece audience', () => {
+    expect(
+      blockedNames(violaScore, [
+        {
+          ...member,
+          assignments: [{ groupId: 'vocal', ensembleRole: 'member', partId: 'part-viola' }],
+        },
+      ]),
+    ).toEqual(['Gesi Telma']);
+  });
+});
+
+describe('canSeePiece', () => {
+  it('hides a restricted piece from a musician on another part', () => {
+    expect(
+      canSeePiece(
+        baseContext({
+          userPartIds: ['part-cello'],
+          piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('shows a restricted piece when the assignment matches', () => {
+    expect(
+      canSeePiece(
+        baseContext({
+          userPartIds: ['part-violin'],
+          piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('shows a restricted piece to a teacher or conductor of a linked group', () => {
+    expect(
+      canSeePiece(
+        baseContext({
+          userPartIds: [],
+          isGroupWriter: true,
+          piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps unrestricted pieces visible to the audience', () => {
+    expect(canSeePiece(baseContext({ userPartIds: [] }))).toBe(true);
+  });
+});
+
+describe('filterPieceFilesForAccess piece inheritance', () => {
+  const lesson: PieceFileWithLinks = {
+    id: 'lesson',
+    organizationId: 'org',
+    pieceId: 'piece',
+    kind: 'score',
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Lição 1',
+    sortOrder: 0,
+    originalName: 'licao.pdf',
+    byteSize: 1,
+    contentHash: null,
+    partLinks: [],
+  };
+
+  const violinLinks = [{ partId: 'part-violin', partDivisionId: null }];
+
+  it('opens lesson files for the part linked on the piece', () => {
+    expect(
+      filterPieceFilesForAccess(
+        [lesson],
+        { scope: 'own_parts', allowDownload: true },
+        ['part-violin'],
+        false,
+        violinLinks,
+      ),
+    ).toEqual([lesson]);
+  });
+
+  it('hides lesson files from other parts', () => {
+    expect(
+      filterPieceFilesForAccess(
+        [lesson],
+        { scope: 'own_parts', allowDownload: true },
+        ['part-cello'],
+        false,
+        violinLinks,
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('musiciansWithoutPieceAccess', () => {
+  const pieceSettings = {
+    fileAccessScope: null,
+    allowFileDownload: null,
+    audioAccessScope: null,
+    audioAllowDownload: null,
+  };
+
+  const lesson: PieceFileWithLinks = {
+    id: 'lesson',
+    organizationId: 'org',
+    pieceId: 'piece',
+    kind: 'score',
+    storageKey: 'k',
+    mimeType: 'application/pdf',
+    title: 'Lição 1',
+    sortOrder: 0,
+    originalName: 'licao.pdf',
+    byteSize: 1,
+    contentHash: null,
+    partLinks: [],
+  };
+
+  const violinist: MusicianFileAccessSubject = {
+    musicianId: 'ana',
+    musicianName: 'Ana',
+    assignments: [{ groupId: 'alunos', ensembleRole: 'member', partId: 'part-violin' }],
+  };
+
+  const cellist: MusicianFileAccessSubject = {
+    musicianId: 'bia',
+    musicianName: 'Bia',
+    assignments: [{ groupId: 'alunos', ensembleRole: 'member', partId: 'part-cello' }],
+  };
+
+  it('lists event musicians whose part does not match the piece', () => {
+    expect(
+      musiciansWithoutPieceAccess({
+        pieceGroupIds: ['alunos'],
+        pieceMusicianIds: [],
+        piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        pieceSettings,
+        groupSettingsById: new Map([['alunos', ownPartsGroup]]),
+        files: [lesson],
+        unitFileIds: [],
+        musicians: [violinist, cellist],
+      }).map((musician) => musician.musicianName),
+    ).toEqual(['Bia']);
+  });
+
+  it('lists a matching musician who cannot open the programmed file', () => {
+    const celloScore: PieceFileWithLinks = {
+      ...lesson,
+      id: 'cello',
+      title: 'Cello',
+      partLinks: [{ partId: 'part-cello', partDivisionId: null }],
+    };
+
+    expect(
+      musiciansWithoutPieceAccess({
+        pieceGroupIds: ['alunos'],
+        pieceMusicianIds: [],
+        piecePartLinks: [{ partId: 'part-violin', partDivisionId: null }],
+        pieceSettings,
+        groupSettingsById: new Map([['alunos', ownPartsGroup]]),
+        files: [lesson, celloScore],
+        unitFileIds: ['cello'],
+        musicians: [violinist],
+      }).map((musician) => musician.musicianName),
+    ).toEqual(['Ana']);
   });
 });
 

@@ -46,11 +46,13 @@ export type {
   MusicianEventHistory,
   MusicianEventHistoryItem,
   MusicianEventHistorySourceRow,
+  MusicianHistoryPeriod,
 } from './musician-event-history';
 export {
   buildMusicianEventHistory,
   countMusicianAbsencesInLocalYear,
   countMusicianEventsInLocalYear,
+  musicianEventStartsInPeriod,
 } from './musician-event-history';
 export type {
   EventRecurrence,

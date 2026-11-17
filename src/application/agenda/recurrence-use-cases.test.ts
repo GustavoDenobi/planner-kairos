@@ -80,10 +80,12 @@ function createRepos() {
     delete: vi.fn(),
     create: vi.fn(),
     merge: vi.fn(),
+    ensureClaimToken: vi.fn(),
   };
 
   const assignmentRepo: AssignmentRepository = {
     listForMusician: async () => [],
+    listForMusicians: async () => [],
     listForGroups: async () => [],
     listForGroup: async () => [],
     listPartNamesByMusicianIds: async () => new Map(),
@@ -118,6 +120,7 @@ function createRepos() {
       eventsThisYear: 0,
       absencesThisYear: 0,
     })),
+    getMusiciansEventHistory: vi.fn(async () => new Map()),
   };
 
   const orgRepo: OrganizationRepository = {
@@ -129,8 +132,10 @@ function createRepos() {
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateTimeZone: vi.fn(),
     updateRules: vi.fn(),
     getPlanOverview: vi.fn(),
+    getBillingOverview: vi.fn(),
   };
 
   const recurrenceRepo: EventRecurrenceRepository = {

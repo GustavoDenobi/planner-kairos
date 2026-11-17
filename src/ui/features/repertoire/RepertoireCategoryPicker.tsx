@@ -200,10 +200,10 @@ export function RepertoireCategoryPicker({
       {filteredCategories.length === 0 && !showCategoryUnlinkedOption && (
         <p className="mt-3 text-sm text-muted">
           {isRepertoireUnlinkedFilter(activeGroupId)
-            ? 'Nenhuma categoria com peças sem vínculo.'
+            ? 'Nenhuma categoria com obras sem vínculo.'
             : activeGroupId
-              ? 'Nenhuma categoria com peças neste grupo.'
-              : 'Nenhuma categoria com peças nos grupos disponíveis.'}
+              ? 'Nenhuma categoria com obras neste grupo.'
+              : 'Nenhuma categoria com obras nos grupos disponíveis.'}
         </p>
       )}
     </div>

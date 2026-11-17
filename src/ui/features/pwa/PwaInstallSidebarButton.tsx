@@ -6,9 +6,9 @@ import {
 import { usePwaInstallContext } from '@/ui/features/pwa/PwaInstallContext';
 
 export function PwaInstallSidebarButton() {
-  const { kind, visible, openModal } = usePwaInstallContext();
+  const { kind, installable, openModal } = usePwaInstallContext();
 
-  if (!visible) {
+  if (!installable) {
     return null;
   }
 

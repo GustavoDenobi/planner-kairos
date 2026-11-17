@@ -17,7 +17,10 @@ import { createGroupInvite } from './create-group-invite';
 import { getPendingLegalAcceptances } from './get-pending-legal-acceptances';
 import { listGroupInvites } from './list-group-invites';
 import { listMyOrganizations } from './list-my-organizations';
-import { getOrganizationPlanOverview } from './get-organization-plan-overview';
+import {
+  getOrganizationBillingOverview,
+  getOrganizationPlanOverview,
+} from './get-organization-plan-overview';
 import { getUserOrganizationRulesAcceptance } from './get-user-organization-rules-acceptance';
 import { previewGroupInvite } from './preview-group-invite';
 import { previewMusicianClaim } from './preview-musician-claim';
@@ -28,6 +31,7 @@ import { revokeGroupInvite } from './revoke-group-invite';
 import { setCurrentOrganization } from './set-current-organization';
 import { setOrganizationImage } from './set-organization-image';
 import { setOrganizationName } from './set-organization-name';
+import { setOrganizationTimeZone } from './set-organization-time-zone';
 import { getOrganizationRules, setOrganizationRules } from './set-organization-rules';
 import { setThemePreference } from './set-theme-preference';
 import { signIn } from './sign-in';
@@ -44,6 +48,10 @@ import { updateGroupInviteMaxUses } from './update-group-invite-max-uses';
 
 import type { MembershipRepository } from '@/application/ports';
 import type { MusicianClaimRepository } from '@/application/ports/musician-claim-repository';
+import type {
+  PreviewAssetGateway,
+  PreviewAssetPurpose,
+} from '@/application/ports/preview-asset-gateway';
 
 export type IdentityDeps = {
   auth: AuthGateway;
@@ -55,6 +63,7 @@ export type IdentityDeps = {
   recoveryGateway: PasswordRecoveryGateway;
   fileStorage: FileStorage;
   legalRepo: LegalAcceptanceRepository;
+  previewAssetGateway: PreviewAssetGateway;
 };
 
 export function createIdentityUseCases(deps: IdentityDeps) {
@@ -77,15 +86,21 @@ export function createIdentityUseCases(deps: IdentityDeps) {
       removeOrganizationImage(deps.orgRepo, deps.fileStorage, organizationId, currentImageKey),
     setOrganizationName: (organizationId: string, name: string) =>
       setOrganizationName(deps.orgRepo, organizationId, name),
+    setOrganizationTimeZone: (organizationId: string, timeZone: string) =>
+      setOrganizationTimeZone(deps.orgRepo, organizationId, timeZone),
     getOrganizationRules: (organizationId: string) =>
       getOrganizationRules(deps.orgRepo, organizationId),
     getOrganizationPlanOverview: (organizationId: string) =>
       getOrganizationPlanOverview(deps.orgRepo, organizationId),
+    getOrganizationBillingOverview: (organizationId: string) =>
+      getOrganizationBillingOverview(deps.orgRepo, organizationId),
     setOrganizationRules: (input: Parameters<typeof setOrganizationRules>[1]) =>
       setOrganizationRules(deps.orgRepo, input),
     previewGroupInvite: (token: string) => previewGroupInvite(deps.inviteRepo, token),
-    previewMusicianClaim: (musicianId: string) =>
-      previewMusicianClaim(deps.musicianClaimRepo, musicianId),
+    previewMusicianClaim: (claimToken: string) =>
+      previewMusicianClaim(deps.musicianClaimRepo, claimToken),
+    signPreviewBranding: (purpose: PreviewAssetPurpose, token: string, storageKey: string) =>
+      deps.previewAssetGateway.signBranding(purpose, token, storageKey),
     claimMusician: (input: Parameters<typeof claimMusician>[4]) =>
       claimMusician(deps.auth, deps.musicianClaimRepo, deps.profileRepo, deps.legalRepo, input),
     createGroupInvite: (groupId: string, expiresAt: Date, maxUses = 0) =>

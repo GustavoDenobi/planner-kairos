@@ -36,6 +36,7 @@ function createRepos(options?: {
     delete: vi.fn(),
     create: vi.fn(),
     merge: vi.fn(),
+    ensureClaimToken: vi.fn(),
   };
 
   const orgRepo: OrganizationRepository = {
@@ -47,8 +48,10 @@ function createRepos(options?: {
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateTimeZone: vi.fn(),
     updateRules: vi.fn(),
     getPlanOverview: vi.fn(),
+    getBillingOverview: vi.fn(),
   };
 
   return { membershipRepo, musicianRepo, orgRepo };

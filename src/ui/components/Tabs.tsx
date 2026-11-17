@@ -23,7 +23,7 @@ export function Tabs({ tabs, defaultTab, className = '', panelClassName = '' }: 
 
   return (
     <div className={className}>
-      <div role="tablist" className="-mb-px flex shrink-0 gap-1 border-b border-border">
+      <div role="tablist" className="-mb-px flex shrink-0 gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -33,7 +33,7 @@ export function Tabs({ tabs, defaultTab, className = '', panelClassName = '' }: 
               type="button"
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                 isActive
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted hover:text-text'

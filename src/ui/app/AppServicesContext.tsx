@@ -4,6 +4,7 @@ import type { OfflineUseCases } from '@/application/offline';
 import type { AgendaUseCases } from '@/application/agenda';
 import type { EnsembleUseCases } from '@/application/ensemble';
 import type { IdentityUseCases } from '@/application/identity';
+import type { PracticeUseCases } from '@/application/practice';
 import type { RepertoireUseCases } from '@/application/repertoire';
 
 export type AppServices = {
@@ -13,6 +14,7 @@ export type AppServices = {
   agenda: AgendaUseCases;
   offline: OfflineUseCases;
   platform: PlatformUseCases;
+  practice: PracticeUseCases;
 };
 
 const AppServicesContext = createContext<AppServices | null>(null);
@@ -59,4 +61,8 @@ export function useOffline() {
 
 export function usePlatform() {
   return useAppServices().platform;
+}
+
+export function usePractice() {
+  return useAppServices().practice;
 }

@@ -1,5 +1,5 @@
 import type { PieceAccessRepository } from '@/application/ports/piece-access-repository';
-import type { PieceAudienceGroup, PieceAudienceMusician } from '@/domain/repertoire';
+import type { PieceAudienceGroup, PieceAudienceMusician, PiecePartLink } from '@/domain/repertoire';
 import type { GroupKind } from '@/domain/ensemble';
 import { supabase } from './client';
 
@@ -108,6 +108,66 @@ export function createPieceAccessRepository(): PieceAccessRepository {
         if (insertMusiciansError) {
           throw new Error(insertMusiciansError.message);
         }
+      }
+    },
+
+    async loadPartLinks(organizationId, pieceIds) {
+      const byPiece = new Map<string, PiecePartLink[]>();
+      for (const pieceId of pieceIds) {
+        byPiece.set(pieceId, []);
+      }
+      if (pieceIds.length === 0) {
+        return byPiece;
+      }
+
+      const { data, error } = await supabase
+        .from('piece_part_links')
+        .select('piece_id, part_id, part_division_id')
+        .eq('organization_id', organizationId)
+        .in('piece_id', pieceIds);
+
+      if (error || !data) {
+        return byPiece;
+      }
+
+      for (const row of data) {
+        const list = byPiece.get(row.piece_id) ?? [];
+        list.push({
+          partId: row.part_id,
+          partDivisionId: row.part_division_id,
+        });
+        byPiece.set(row.piece_id, list);
+      }
+
+      return byPiece;
+    },
+
+    async replacePartLinks(organizationId, pieceId, partLinks) {
+      const { error: deleteError } = await supabase
+        .from('piece_part_links')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('piece_id', pieceId);
+
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+
+      if (partLinks.length === 0) {
+        return;
+      }
+
+      const { error: insertError } = await supabase.from('piece_part_links').insert(
+        partLinks.map((link) => ({
+          organization_id: organizationId,
+          piece_id: pieceId,
+          part_id: link.partId,
+          part_division_id: link.partDivisionId,
+        })),
+      );
+
+      if (insertError) {
+        throw new Error(insertError.message);
       }
     },
 

@@ -20,7 +20,7 @@ export type OAuthPendingContext =
     }
   | {
       kind: 'musician_signup';
-      musicianId: string;
+      claimToken: string;
       displayName: string;
       phone: string;
       birthDate: string;

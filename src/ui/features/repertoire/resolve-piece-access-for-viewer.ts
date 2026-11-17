@@ -3,7 +3,7 @@ import type { PieceDetail, PieceFileWithLinks } from '@/domain/repertoire';
 import {
   buildAccessPathsForUser,
   filterAccessibleAudioFiles,
-  isUserConductorInLinkedGroups,
+  isUserGroupWriterInLinkedGroups,
   resolvePieceAudioAccess,
   resolvePieceFileAccess,
   type ResolvedPieceFileAccess,
@@ -33,7 +33,7 @@ function buildPieceAccessContext(input: {
   return {
     isAdmin: input.isAdmin,
     userPartIds: input.userPartIds,
-    isConductor: isUserConductorInLinkedGroups(linkedGroupIds, input.assignments),
+    isGroupWriter: isUserGroupWriterInLinkedGroups(linkedGroupIds, input.assignments),
     hasAudience,
     isInAudience,
     pieceSettings: {
@@ -42,6 +42,7 @@ function buildPieceAccessContext(input: {
       audioAccessScope: input.piece.audioAccessScope,
       audioAllowDownload: input.piece.audioAllowDownload,
     },
+    piecePartLinks: input.piece.partLinks ?? [],
     accessPaths,
   };
 }
@@ -76,9 +77,15 @@ export function buildAccessiblePieceAudios(
   piece: PieceDetail,
   audioAccess: ResolvedPieceFileAccess,
   userPartIds: string[],
-  isConductor: boolean,
+  isGroupWriter: boolean,
 ): PieceFileWithLinks[] {
-  return filterAccessibleAudioFiles(piece.files, audioAccess, userPartIds, isConductor);
+  return filterAccessibleAudioFiles(
+    piece.files,
+    audioAccess,
+    userPartIds,
+    isGroupWriter,
+    piece.partLinks ?? [],
+  );
 }
 
 export function extractUserPartIds(assignments: AssignmentWithDetails[]): string[] {

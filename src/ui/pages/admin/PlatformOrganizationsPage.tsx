@@ -15,6 +15,7 @@ import {
   adminSecondaryButtonClass,
 } from '@/ui/features/platform/admin-page-shell';
 import { platformErrorMessage, slugify } from '@/ui/features/platform/platform-labels';
+import { BillingStatusBadge } from '@/ui/features/platform/OrganizationBillingSection';
 
 export function PlatformOrganizationsPage() {
   const platform = usePlatform();
@@ -150,13 +151,17 @@ export function PlatformOrganizationsPage() {
                       name: org.name,
                       slug: org.slug,
                       imageStorageKey: null,
+                      timeZone: 'America/Sao_Paulo',
                       rules: null,
                     }}
                     size="md"
                     variant="square"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-text">{org.name}</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="truncate font-medium text-text">{org.name}</p>
+                      {org.billing?.isActive && <BillingStatusBadge billing={org.billing} />}
+                    </div>
                     <p className="truncate text-sm text-muted">{org.slug}</p>
                     <p className="mt-1 text-xs text-muted sm:hidden">
                       {org.planName} · {org.membershipsCount} membros · {org.musiciansCount}{' '}
@@ -167,7 +172,7 @@ export function PlatformOrganizationsPage() {
                     <p>{org.planName}</p>
                     <p className="text-xs">
                       {org.membershipsCount} membros · {org.musiciansCount} músicos · {org.piecesCount}{' '}
-                      peças
+                      obras
                     </p>
                   </div>
                 </Link>

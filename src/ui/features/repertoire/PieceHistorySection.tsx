@@ -12,6 +12,7 @@ import { eventPath } from '@/ui/features/agenda/agenda-routes';
 import { formatEventDateNumeric, formatEventScheduleLabel } from '@/ui/features/agenda/agenda-date';
 import { localCalendarDaysSince } from '@/domain/agenda';
 import { eventTypeBadgeStyle } from '@/ui/features/agenda/event-type-color';
+import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 const PAGE_SIZE = 20;
 
@@ -155,12 +156,12 @@ export function PieceHistorySection({
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3"
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3 ${scrollContentEndPaddingClass}`}
       >
         {isLoading && <p className="text-sm text-muted">Carregando histórico…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!isLoading && !error && allEvents.length === 0 && (
-          <p className="text-sm text-muted">Esta peça ainda não apareceu em nenhum evento.</p>
+          <p className="text-sm text-muted">Esta obra ainda não apareceu em nenhum evento.</p>
         )}
 
         <ul className="space-y-2">

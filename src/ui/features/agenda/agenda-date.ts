@@ -1,4 +1,5 @@
 import type { EventListItem, MusicianBirthdayItem } from '@/domain/agenda';
+import type { AgendaPracticeTaskItem } from '@/ui/features/agenda/agenda-practice-tasks';
 
 export type AgendaRangeMode = 'week' | 'month';
 
@@ -138,6 +139,7 @@ export function shiftAnchor(mode: AgendaRangeMode, anchor: Date, delta: number):
 export type AgendaDayGroup = {
   date: Date;
   birthdays: MusicianBirthdayItem[];
+  tasks: AgendaPracticeTaskItem[];
   events: EventListItem[];
 };
 
@@ -174,28 +176,30 @@ export function buildWeekDayColumns(
   anchor: Date,
   events: EventListItem[],
   birthdays: MusicianBirthdayItem[] = [],
+  tasks: AgendaPracticeTaskItem[] = [],
 ): AgendaDayGroup[] {
-  const grouped = groupAgendaItemsByDay(events, birthdays);
+  const grouped = groupAgendaItemsByDay(events, birthdays, tasks);
   const byKey = new Map(
     grouped.map((group) => [startOfDay(group.date).toISOString(), group]),
   );
 
   return getWeekDays(anchor).map((date) => {
     const key = startOfDay(date).toISOString();
-    return byKey.get(key) ?? { date, birthdays: [], events: [] };
+    return byKey.get(key) ?? { date, birthdays: [], tasks: [], events: [] };
   });
 }
 
 export function groupAgendaItemsByDay(
   events: EventListItem[],
   birthdays: MusicianBirthdayItem[] = [],
+  tasks: AgendaPracticeTaskItem[] = [],
 ): AgendaDayGroup[] {
   const dayMap = new Map<string, AgendaDayGroup>();
 
   for (const event of events) {
     const day = startOfDay(new Date(event.startsAt));
     const key = day.toISOString();
-    const group = dayMap.get(key) ?? { date: day, birthdays: [], events: [] };
+    const group = dayMap.get(key) ?? { date: day, birthdays: [], tasks: [], events: [] };
     group.events.push(event);
     dayMap.set(key, group);
   }
@@ -203,8 +207,16 @@ export function groupAgendaItemsByDay(
   for (const birthday of birthdays) {
     const day = startOfDay(new Date(birthday.date));
     const key = day.toISOString();
-    const group = dayMap.get(key) ?? { date: day, birthdays: [], events: [] };
+    const group = dayMap.get(key) ?? { date: day, birthdays: [], tasks: [], events: [] };
     group.birthdays.push(birthday);
+    dayMap.set(key, group);
+  }
+
+  for (const task of tasks) {
+    const day = startOfDay(task.date);
+    const key = day.toISOString();
+    const group = dayMap.get(key) ?? { date: day, birthdays: [], tasks: [], events: [] };
+    group.tasks.push(task);
     dayMap.set(key, group);
   }
 
@@ -213,6 +225,7 @@ export function groupAgendaItemsByDay(
     .map((group) => ({
       ...group,
       birthdays: group.birthdays.sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR')),
+      tasks: group.tasks.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')),
       events: group.events.sort(
         (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
       ),

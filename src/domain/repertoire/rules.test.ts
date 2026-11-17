@@ -6,6 +6,8 @@ import {
   partitionPieceFilesForViewer,
   normalizePieceAliases,
   pieceFileMatchesUserParts,
+  pieceMatchesUserParts,
+  pieceRestrictsByPart,
   resolveDefaultScoreFile,
   resolvePieceFileMime,
   slugifyName,
@@ -208,6 +210,22 @@ describe('pieceFileMatchesUserParts', () => {
         [saxPartId],
       ),
     ).toBe(false);
+  });
+});
+
+describe('piece part links', () => {
+  const violin = [{ partId: 'part-violin', partDivisionId: null }];
+
+  it('does not restrict a piece without part links', () => {
+    expect(pieceRestrictsByPart([])).toBe(false);
+    expect(pieceMatchesUserParts([], ['part-violin'])).toBe(true);
+  });
+
+  it('matches only musicians assigned to a linked part', () => {
+    expect(pieceRestrictsByPart(violin)).toBe(true);
+    expect(pieceMatchesUserParts(violin, ['part-violin'])).toBe(true);
+    expect(pieceMatchesUserParts(violin, ['part-cello'])).toBe(false);
+    expect(pieceMatchesUserParts(violin, [])).toBe(false);
   });
 });
 
@@ -512,6 +530,30 @@ describe('partitionPieceFilesForViewer', () => {
     expect(result.generalFiles).toEqual([]);
     expect(result.audioFiles.map((file) => file.id)).toEqual(['file-audio']);
     expect(result.otherFiles.map((file) => file.id)).toEqual(['file-violin']);
+  });
+
+  it('treats unlinked scores as the piece part when the work is restricted', () => {
+    const result = partitionPieceFilesForViewer(
+      [generalFile, violinFile],
+      [saxPartId],
+      false,
+      [{ partId: saxPartId, partDivisionId: null }],
+    );
+    expect(result.userFiles.map((file) => file.id)).toEqual(['file-general']);
+    expect(result.generalFiles).toEqual([]);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-violin']);
+  });
+
+  it('hides unlinked scores when the piece is restricted to another part', () => {
+    const result = partitionPieceFilesForViewer(
+      [generalFile],
+      [violinPartId],
+      false,
+      [{ partId: saxPartId, partDivisionId: null }],
+    );
+    expect(result.userFiles).toEqual([]);
+    expect(result.generalFiles).toEqual([]);
+    expect(result.otherFiles.map((file) => file.id)).toEqual(['file-general']);
   });
 
   it('puts unlinked scores in Geral for conductors, before other files', () => {

@@ -22,6 +22,8 @@ type PdfViewerTunerBarProps = {
   transposeButtonHint: string;
   isTransposeActive: boolean;
   onOpenTranspose: () => void;
+  /** Uma gravação está usando o microfone. */
+  microphoneBlocked?: boolean;
 };
 
 export function PdfViewerTunerBar({
@@ -33,6 +35,7 @@ export function PdfViewerTunerBar({
   transposeButtonHint,
   isTransposeActive,
   onOpenTranspose,
+  microphoneBlocked = false,
 }: PdfViewerTunerBarProps) {
   const microphone = useMicrophone();
   const pitch = usePitch(microphone.analyser, {
@@ -42,9 +45,13 @@ export function PdfViewerTunerBar({
   });
 
   useEffect(() => {
+    if (microphoneBlocked) {
+      microphone.stop();
+      return;
+    }
     void microphone.start();
     return () => microphone.stop();
-  }, [microphone.start, microphone.stop]);
+  }, [microphone.start, microphone.stop, microphoneBlocked]);
 
   const referenceLabel = formatTunerReferenceA4Label(referenceA4Hz);
   const referenceCycleHint = TUNER_REFERENCE_A4_OPTIONS.map((hz) => `${hz}`).join(' → ');
@@ -87,7 +94,11 @@ export function PdfViewerTunerBar({
         </button>
       </div>
 
-      {microphone.error ? (
+      {microphoneBlocked ? (
+        <p className="min-w-0 flex-1 py-0.5 text-center text-xs text-muted sm:text-left">
+          Encerre a gravação para usar o afinador.
+        </p>
+      ) : microphone.error ? (
         <p className="min-w-0 flex-1 py-0.5 text-center text-xs text-muted sm:text-left">
           {microphone.error}
         </p>

@@ -1,6 +1,12 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { EventKind, EventType } from '@/domain/agenda';
-import { IconCake, IconColumns, IconFilter, IconList } from '@/ui/components/icons';
+import {
+  IconCake,
+  IconClipboardCheck,
+  IconColumns,
+  IconFilter,
+  IconList,
+} from '@/ui/components/icons';
 import { eventKindLabel } from '@/ui/features/agenda/agenda-labels';
 import type { AgendaViewMode } from '@/ui/features/agenda/agenda-view-storage';
 
@@ -29,6 +35,9 @@ type AgendaFiltersBarProps = {
   showBirthdaysToggle?: boolean;
   showBirthdays?: boolean;
   onShowBirthdaysChange?: (show: boolean) => void;
+  showTasksToggle?: boolean;
+  showTasks?: boolean;
+  onShowTasksChange?: (show: boolean) => void;
 };
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
@@ -54,11 +63,18 @@ export function AgendaFiltersBar({
   showBirthdaysToggle = false,
   showBirthdays = true,
   onShowBirthdaysChange,
+  showTasksToggle = false,
+  showTasks = true,
+  onShowTasksChange,
 }: AgendaFiltersBarProps) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const visibleTypes = kind ? types.filter((type) => type.kind === kind) : types;
-  const extraFiltersActive = Boolean(kind || typeId || groupId);
+  const typeValue =
+    types.length > 0 && typeId && !visibleTypes.some((type) => type.id === typeId) ? '' : typeId;
+  const groupValue =
+    groups.length > 0 && groupId && !groups.some((group) => group.id === groupId) ? '' : groupId;
+  const extraFiltersActive = Boolean(kind || typeValue || groupValue);
 
   return (
     <div className="flex min-w-0 w-full max-w-full flex-col gap-3">
@@ -104,6 +120,21 @@ export function AgendaFiltersBar({
               aria-pressed={showBirthdays}
             >
               <IconCake className="h-4 w-4" />
+            </button>
+          )}
+          {showTasksToggle && onShowTasksChange && (
+            <button
+              type="button"
+              onClick={() => onShowTasksChange(!showTasks)}
+              className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors ${
+                showTasks
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-surface text-muted hover:bg-bg hover:text-text'
+              }`}
+              aria-label={showTasks ? 'Ocultar tarefas' : 'Mostrar tarefas'}
+              aria-pressed={showTasks}
+            >
+              <IconClipboardCheck className="h-4 w-4" />
             </button>
           )}
           <button
@@ -152,7 +183,7 @@ export function AgendaFiltersBar({
           <label className="block min-w-0">
             <span className="sr-only">Tipo</span>
             <select
-              value={typeId}
+              value={typeValue}
               onChange={(event) => onTypeIdChange(event.target.value)}
               className={`w-full ${selectClass}`}
             >
@@ -167,7 +198,7 @@ export function AgendaFiltersBar({
           <label className="block min-w-0">
             <span className="sr-only">Grupo</span>
             <select
-              value={groupId}
+              value={groupValue}
               onChange={(event) => onGroupIdChange(event.target.value)}
               className={`w-full ${selectClass}`}
             >

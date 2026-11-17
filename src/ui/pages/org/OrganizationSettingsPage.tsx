@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import type { OrganizationPlanOverview } from '@/domain/platform/plan';
+import type { OrganizationBillingOverview } from '@/domain/platform/billing';
 import { useIdentity, useOffline } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { BackButton } from '@/ui/components/BackButton';
 import { MarkdownContent } from '@/ui/components/MarkdownContent';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { Tabs } from '@/ui/components/Tabs';
+import { OrganizationBillingCard } from '@/ui/features/org/OrganizationBillingCard';
 import { OrganizationPlanOverviewSection } from '@/ui/features/org/OrganizationPlanOverviewSection';
+import { timeZoneOptions } from '@/ui/features/org/time-zone-options';
+import { DEFAULT_ORGANIZATION_TIME_ZONE } from '@/domain/practice';
 import { useIsOrgAdmin } from '@/ui/hooks/useIsOrgAdmin';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 import { organizationImageErrorMessage } from '@/ui/utils/organizationImageValidation';
@@ -26,12 +30,16 @@ export function OrganizationSettingsPage() {
   const [showRulesPreview, setShowRulesPreview] = useState(false);
   const [planOverview, setPlanOverview] = useState<OrganizationPlanOverview | null>(null);
   const [isPlanLoading, setIsPlanLoading] = useState(true);
+  const [billingOverview, setBillingOverview] = useState<OrganizationBillingOverview | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rulesSaved, setRulesSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = useIsOrgAdmin(organization);
+  // Organizações em cache offline (de antes do fuso existir) podem vir sem ele.
+  const currentTimeZone = organization?.timeZone ?? DEFAULT_ORGANIZATION_TIME_ZONE;
+  const zoneOptions = useMemo(() => timeZoneOptions(currentTimeZone), [currentTimeZone]);
 
   useEffect(() => {
     if (!organization) {
@@ -54,6 +62,12 @@ export function OrganizationSettingsPage() {
 
     let cancelled = false;
     setIsPlanLoading(true);
+
+    void identity.getOrganizationBillingOverview(organization.id).then((result) => {
+      if (!cancelled) {
+        setBillingOverview(result.ok ? result.value : null);
+      }
+    });
 
     void identity.getOrganizationPlanOverview(organization.id).then((result) => {
       if (cancelled) {
@@ -97,6 +111,24 @@ export function OrganizationSettingsPage() {
 
     if (!result.ok) {
       setError('Informe um nome válido com pelo menos 2 caracteres.');
+      return;
+    }
+
+    await refreshOrganizations();
+  }
+
+  async function handleSaveTimeZone(timeZone: string) {
+    if (timeZone === currentTimeZone) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    const result = await identity.setOrganizationTimeZone(organization!.id, timeZone);
+    setIsBusy(false);
+
+    if (!result.ok) {
+      setError('Não foi possível salvar o fuso horário. Tente de novo.');
       return;
     }
 
@@ -241,6 +273,31 @@ export function OrganizationSettingsPage() {
                         </button>
                       )}
                     </div>
+
+                    <label className="flex min-w-0 flex-col gap-1 text-sm">
+                      <span className="font-medium text-text">Fuso horário</span>
+                      <span className="text-xs text-muted">
+                        Define o que é &quot;hoje&quot; nas tarefas diárias.
+                      </span>
+                      <select
+                        value={currentTimeZone}
+                        disabled={isBusy}
+                        onChange={(e) => void handleSaveTimeZone(e.target.value)}
+                        className="w-full min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-primary sm:max-w-md"
+                      >
+                        {zoneOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {billingOverview && (
+                      <div className="min-w-0 border-t border-border pt-6">
+                        <OrganizationBillingCard overview={billingOverview} />
+                      </div>
+                    )}
 
                     <div className="min-w-0 border-t border-border pt-6">
                       <OrganizationPlanOverviewSection

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { EventDetail, EventKind, EventListItem, EventType, MusicianBirthdayItem } from '@/domain/agenda';
 import { eventHasNoAudience, extraAudienceMusicianIds, listMusicianBirthdaysInRange } from '@/domain/agenda';
 import type { AssociableAudience } from '@/application/agenda';
+import type { AssignedPracticeTaskItem } from '@/application/practice';
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
-import { useAgenda, useOffline } from '@/ui/app/AppServicesContext';
+import { useAgenda, useOffline, usePractice } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
@@ -17,6 +18,11 @@ import { IconChevronLeft, IconPlus, IconSettings } from '@/ui/components/icons';
 import { AgendaEventTypesSection } from '@/ui/features/agenda/AgendaEventTypesSection';
 import { AgendaEventsSection } from '@/ui/features/agenda/AgendaEventsSection';
 import { AgendaWeekKanban } from '@/ui/features/agenda/AgendaWeekKanban';
+import { buildAgendaPracticeTaskItems } from '@/ui/features/agenda/agenda-practice-tasks';
+import {
+  loadAgendaPracticeTasksVisibility,
+  saveAgendaPracticeTasksVisibility,
+} from '@/ui/features/agenda/agenda-practice-tasks-storage';
 import { AgendaFiltersBar, type AgendaFilterScope } from '@/ui/features/agenda/AgendaFiltersBar';
 import { AgendaRangeControls } from '@/ui/features/agenda/AgendaRangeControls';
 import {
@@ -27,7 +33,11 @@ import {
   toDatetimeLocalValue,
   toIsoRange,
 } from '@/ui/features/agenda/agenda-date';
-import { loadAgendaFilters, saveAgendaFilters } from '@/ui/features/agenda/agenda-filters-storage';
+import {
+  loadAgendaFilters,
+  resolveAgendaFilters,
+  saveAgendaFilters,
+} from '@/ui/features/agenda/agenda-filters-storage';
 import {
   loadAgendaBirthdaysVisibility,
   saveAgendaBirthdaysVisibility,
@@ -60,6 +70,7 @@ import {
 import {
   orgListPageHeightClass,
   orgPageContentClass,
+  scrollContentEndPaddingClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
@@ -88,6 +99,7 @@ export function AgendaPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const agenda = useAgenda();
+  const practice = usePractice();
   const offline = useOffline();
   const online = useOnlineStatus();
   const { userId } = useAuth();
@@ -116,10 +128,14 @@ export function AgendaPage() {
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [birthdays, setBirthdays] = useState<MusicianBirthdayItem[]>([]);
+  const [assignedTasks, setAssignedTasks] = useState<AssignedPracticeTaskItem[]>([]);
+  const [showTasks, setShowTasks] = useState(true);
+  const [showTasksReady, setShowTasksReady] = useState(false);
   const [audience, setAudience] = useState<AssociableAudience | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
   const [offlineRangeError, setOfflineRangeError] = useState(false);
+  const loadGenerationRef = useRef(0);
   useLoadingBar('agenda', isLoading);
 
   const isOfflineReadOnly = !online;
@@ -228,7 +244,7 @@ export function AgendaPage() {
   }, [userId, birthdaysReady, showBirthdays]);
 
   const loadBirthdays = useCallback(
-    async (range: { from: string; to: string }) => {
+    async (range: { from: string; to: string }, groupId = filterGroupId) => {
       if (!org || !userId || !isAdmin || !showBirthdays) {
         setBirthdays([]);
         return;
@@ -236,7 +252,7 @@ export function AgendaPage() {
 
       if (!isBrowserOnline()) {
         const cached = await offline.listCachedMusicians(org.id, userId, {
-          groupId: filterGroupId || undefined,
+          groupId: groupId || undefined,
           limit: 10000,
           offset: 0,
         });
@@ -260,7 +276,7 @@ export function AgendaPage() {
         );
         setBirthdays(
           listMusicianBirthdaysInRange(sources, range.from, range.to, {
-            groupId: filterGroupId || null,
+            groupId: groupId || null,
           }),
         );
         return;
@@ -268,7 +284,7 @@ export function AgendaPage() {
 
       const birthdaysResult = await agenda.listMusicianBirthdaysInRange(org.id, userId, {
         ...range,
-        groupId: filterGroupId || null,
+        groupId: groupId || null,
       });
       if (birthdaysResult.ok) {
         setBirthdays(birthdaysResult.value);
@@ -284,6 +300,18 @@ export function AgendaPage() {
       return;
     }
 
+    const generation = ++loadGenerationRef.current;
+    const isCurrent = () => generation === loadGenerationRef.current;
+
+    function dropMissingFilters(resolved: { typeId: string; groupId: string }) {
+      if (resolved.typeId !== filterTypeId) {
+        setFilterTypeId(resolved.typeId);
+      }
+      if (resolved.groupId !== filterGroupId) {
+        setFilterGroupId(resolved.groupId);
+      }
+    }
+
     if (showEventTypesView) {
       if (!isBrowserOnline()) {
         setIsLoading(false);
@@ -291,6 +319,9 @@ export function AgendaPage() {
       }
       setIsLoading(true);
       await loadEventTypes();
+      if (!isCurrent()) {
+        return;
+      }
       setIsLoading(false);
       return;
     }
@@ -300,13 +331,33 @@ export function AgendaPage() {
       setOfflineRangeError(false);
       const { from, to } = getWeekRange(anchor);
       const range = toIsoRange(from, to);
+      const [cachedTypes, cachedAudience] = await Promise.all([
+        offline.getCachedEventTypes(org.id, userId),
+        offline.getCachedAssociableAudience(org.id, userId),
+      ]);
+      if (!isCurrent()) {
+        return;
+      }
+
+      const resolved = resolveAgendaFilters(
+        { typeId: filterTypeId, groupId: filterGroupId, kind: filterKind },
+        {
+          types: cachedAudience ? cachedTypes : null,
+          groups: cachedAudience ? cachedAudience.filterGroups : null,
+        },
+      );
+      dropMissingFilters(resolved);
+
       const cached = await offline.listCachedEventsInRange(org.id, userId, {
         ...range,
         mineOnly: isAdmin && scope === 'mine',
-        typeId: filterTypeId || null,
+        typeId: resolved.typeId || null,
         kind: filterKind || null,
-        groupId: filterGroupId || null,
+        groupId: resolved.groupId || null,
       });
+      if (!isCurrent()) {
+        return;
+      }
 
       if (!cached.withinCachedRange) {
         setOfflineRangeError(true);
@@ -315,12 +366,14 @@ export function AgendaPage() {
       } else {
         setOfflineRangeError(false);
         setEvents(cached.events);
-        await loadBirthdays(range);
+        await loadBirthdays(range, resolved.groupId);
+      }
+      if (!isCurrent()) {
+        return;
       }
 
       setOfflineCachedAt(cached.cachedAt);
-      setEventTypes(await offline.getCachedEventTypes(org.id, userId));
-      const cachedAudience = await offline.getCachedAssociableAudience(org.id, userId);
+      setEventTypes(cachedTypes);
       if (cachedAudience) {
         setAudience(cachedAudience);
       }
@@ -335,32 +388,47 @@ export function AgendaPage() {
     const { from, to } = getWeekRange(anchor);
     const range = toIsoRange(from, to);
 
-    const [typesResult, eventsResult, audienceResult] = await Promise.all([
+    const [typesResult, audienceResult] = await Promise.all([
       agenda.listEventTypes(org.id),
-      agenda.listEventsInRange(org.id, userId, {
-        ...range,
-        mineOnly: isAdmin && scope === 'mine',
-        typeId: filterTypeId || null,
-        kind: filterKind || null,
-        groupId: filterGroupId || null,
-      }),
       agenda.listAssociableAudience(org.id, userId),
     ]);
-
-    await loadBirthdays(range);
+    if (!isCurrent()) {
+      return;
+    }
 
     if (typesResult.ok) {
       setEventTypes(typesResult.value);
+    }
+    if (audienceResult.ok) {
+      setAudience(audienceResult.value);
+    }
+
+    const resolved = resolveAgendaFilters(
+      { typeId: filterTypeId, groupId: filterGroupId, kind: filterKind },
+      {
+        types: typesResult.ok ? typesResult.value : null,
+        groups: audienceResult.ok ? audienceResult.value.filterGroups : null,
+      },
+    );
+    dropMissingFilters(resolved);
+
+    const eventsResult = await agenda.listEventsInRange(org.id, userId, {
+      ...range,
+      mineOnly: isAdmin && scope === 'mine',
+      typeId: resolved.typeId || null,
+      kind: filterKind || null,
+      groupId: resolved.groupId || null,
+    });
+
+    await loadBirthdays(range, resolved.groupId);
+    if (!isCurrent()) {
+      return;
     }
 
     if (eventsResult.ok) {
       setEvents(eventsResult.value);
     } else {
       setEvents([]);
-    }
-
-    if (audienceResult.ok) {
-      setAudience(audienceResult.value);
     }
 
     setIsLoading(false);
@@ -380,6 +448,43 @@ export function AgendaPage() {
     loadBirthdays,
     showBirthdays,
   ]);
+
+  // Tarefas de que o usuário é destinatário: o prazo e cada dia das diárias entram na agenda.
+  const orgId = org?.id ?? null;
+  useEffect(() => {
+    if (!orgId || !userId || !online) {
+      setAssignedTasks([]);
+      return;
+    }
+    let cancelled = false;
+    void practice.listAssignedTasks(orgId, userId).then((result) => {
+      if (!cancelled) {
+        setAssignedTasks(result.ok ? result.value : []);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [practice, orgId, userId, online]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    setShowTasks(loadAgendaPracticeTasksVisibility(userId));
+    setShowTasksReady(true);
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId && showTasksReady) {
+      saveAgendaPracticeTasksVisibility(userId, showTasks);
+    }
+  }, [userId, showTasksReady, showTasks]);
+
+  const taskItems = useMemo(
+    () => (showTasks ? buildAgendaPracticeTaskItems(assignedTasks, getWeekRange(anchor)) : []),
+    [showTasks, assignedTasks, anchor],
+  );
 
   useEffect(() => {
     if (eventTypes.length > 0 && !typeId) {
@@ -470,6 +575,9 @@ export function AgendaPage() {
       return;
     }
 
+    if (filterTypeId === typeModal.id) {
+      setFilterTypeId('');
+    }
     setTypeModal(null);
     await loadEventTypes();
     if (!showEventTypesView) {
@@ -647,6 +755,9 @@ export function AgendaPage() {
                 showBirthdaysToggle={isAdmin}
                 showBirthdays={showBirthdays}
                 onShowBirthdaysChange={setShowBirthdays}
+                showTasksToggle={assignedTasks.length > 0}
+                showTasks={showTasks}
+                onShowTasksChange={setShowTasks}
                 rangeControls={
                   <AgendaRangeControls
                     anchor={anchor}
@@ -666,7 +777,7 @@ export function AgendaPage() {
           className={`min-h-0 min-w-0 flex-1 ${
             viewMode === 'columns'
               ? 'relative flex min-h-0 flex-col overflow-hidden'
-              : 'overflow-x-hidden overflow-y-auto overscroll-contain'
+              : `overflow-x-hidden overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`
           }`}
         >
           {showEventTypesView && isOfflineReadOnly ? (
@@ -694,6 +805,7 @@ export function AgendaPage() {
               anchor={anchor}
               events={events}
               birthdays={birthdays}
+              tasks={taskItems}
               isLoading={isLoading}
               canCreateEvents={canCreateEvents}
               onAddEvent={openCreateForDay}
@@ -703,6 +815,7 @@ export function AgendaPage() {
               orgSlug={orgSlug ?? ''}
               events={events}
               birthdays={birthdays}
+              tasks={taskItems}
               isLoading={isLoading}
             />
           )}

@@ -16,3 +16,14 @@ export async function getOrganizationPlanOverview(
     return Result.fail('load_failed');
   }
 }
+
+export async function getOrganizationBillingOverview(
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+) {
+  try {
+    return Result.ok(await orgRepo.getBillingOverview(organizationId));
+  } catch {
+    return Result.fail('load_failed');
+  }
+}

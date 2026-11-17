@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { useEnsemble } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { StudyMetronomeCard } from '@/ui/features/study-tools/StudyMetronomeCard';
+import { useStudyRecordingSession } from '@/ui/features/study-tools/recording-session/recording-session-context';
 import { StudyRecorderCard } from '@/ui/features/study-tools/StudyRecorderCard';
 import { StudyTimerCard } from '@/ui/features/study-tools/StudyTimerCard';
 import { StudyTunerCard } from '@/ui/features/study-tools/StudyTunerCard';
@@ -19,8 +20,7 @@ export function StudyToolsPage() {
   const org = orgSlug ? resolveOrgBySlug(orgSlug) : null;
 
   const [parts, setParts] = useState<PartWithDivisions[]>([]);
-  const [recorderMicActive, setRecorderMicActive] = useState(false);
-  const stopTunerMicRef = useRef<(() => void) | null>(null);
+  const { isMicrophoneClaimed } = useStudyRecordingSession();
 
   useEffect(() => {
     if (!org) {
@@ -44,16 +44,8 @@ export function StudyToolsPage() {
 
   const partOptions = useMemo(() => mapTransposePartOptions(parts), [parts]);
 
-  const handleBeforeRecording = useCallback(() => {
-    stopTunerMicRef.current?.();
-  }, []);
-
-  const registerTunerMicStop = useCallback((stop: (() => void) | null) => {
-    stopTunerMicRef.current = stop;
-  }, []);
-
   return (
-    <div className={`mx-auto flex w-full flex-col gap-6 ${orgPageContentClass}`}>
+    <div className={`${orgPageContentClass} space-y-6`}>
       <header>
         <h1 className="text-2xl font-semibold text-text">Ferramentas</h1>
       </header>
@@ -62,20 +54,14 @@ export function StudyToolsPage() {
         <StudyTunerCard
           userId={userId}
           partOptions={partOptions}
-          onRegisterMicStop={registerTunerMicStop}
-          microphoneBlocked={recorderMicActive}
+          microphoneBlocked={isMicrophoneClaimed}
         />
         <StudyMetronomeCard userId={userId} />
         <div className="lg:col-span-2">
           <StudyTimerCard />
         </div>
         <div className="lg:col-span-2">
-          <StudyRecorderCard
-            organizationId={org?.id ?? null}
-            userId={userId}
-            onBeforeStart={handleBeforeRecording}
-            onSessionActiveChange={setRecorderMicActive}
-          />
+          <StudyRecorderCard organizationId={org?.id ?? null} userId={userId} />
         </div>
       </div>
     </div>

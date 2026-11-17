@@ -41,6 +41,9 @@ export async function updatePieceAccess(
 
   try {
     await accessRepo.replaceAudience(organizationId, pieceId, groupIds, musicianIds);
+    if (input.partLinks !== undefined) {
+      await accessRepo.replacePartLinks(organizationId, pieceId, input.partLinks);
+    }
     await accessRepo.updateAccessSettings(organizationId, pieceId, {
       fileAccessScope: input.fileAccessScope,
       allowFileDownload: input.allowFileDownload,

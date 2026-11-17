@@ -22,12 +22,24 @@ export function isPlaylistItemAvailable(item: ReadingPlaylistItemDetail): boolea
   return Boolean(item.pieceId) && !item.pieceDeleted;
 }
 
+function readViewer(
+  viewer?: AnnotationViewerContext | (() => AnnotationViewerContext | undefined),
+): AnnotationViewerContext | undefined {
+  return typeof viewer === 'function' ? viewer() : viewer;
+}
+
+function readReadingOptions(
+  readingOptions?: AnnotationReadingOptions | (() => AnnotationReadingOptions | undefined),
+): AnnotationReadingOptions | undefined {
+  return typeof readingOptions === 'function' ? readingOptions() : readingOptions;
+}
+
 export async function loadPlaylistItemData(
   offline: OfflineUseCases,
   organizationId: string,
   item: ReadingPlaylistItemDetail,
-  viewer?: AnnotationViewerContext,
-  readingOptions?: AnnotationReadingOptions,
+  viewer?: AnnotationViewerContext | (() => AnnotationViewerContext | undefined),
+  readingOptions?: AnnotationReadingOptions | (() => AnnotationReadingOptions | undefined),
   onDownloadProgress?: PdfDownloadProgressHandler,
   abortSignal?: AbortSignal,
 ): Promise<CachedPlaylistItem | null> {
@@ -52,6 +64,9 @@ export async function loadPlaylistItemData(
     return null;
   }
 
+  const resolvedViewer = readViewer(viewer);
+  const resolvedOptions = readReadingOptions(readingOptions);
+
   let annotations: PdfAnnotation[] = [];
   let navigationShortcuts: PdfNavigationShortcut[] = [];
   let tocEntries: PieceFileTocEntry[] = [];
@@ -59,8 +74,8 @@ export async function loadPlaylistItemData(
     const annotationsResult = await offline.listAnnotationsForReading(
       organizationId,
       item.pieceFileId,
-      viewer,
-      readingOptions,
+      resolvedViewer,
+      resolvedOptions,
     );
     if (annotationsResult.ok) {
       annotations = annotationsResult.value;
@@ -96,9 +111,15 @@ export async function loadPlaylistItemData(
   };
 }
 
+type InflightPlaylistLoad = {
+  promise: Promise<CachedPlaylistItem | null>;
+  signal?: AbortSignal;
+  generation: number;
+};
+
 export class PlaylistItemCache {
   private readonly entries = new Map<number, CachedPlaylistItem>();
-  private readonly inflight = new Map<number, Promise<CachedPlaylistItem | null>>();
+  private readonly inflight = new Map<number, InflightPlaylistLoad>();
 
   get(index: number): CachedPlaylistItem | undefined {
     return this.entries.get(index);
@@ -125,6 +146,7 @@ export class PlaylistItemCache {
   async load(
     index: number,
     loader: () => Promise<CachedPlaylistItem | null>,
+    abortSignal?: AbortSignal,
   ): Promise<CachedPlaylistItem | null> {
     const cached = this.entries.get(index);
     if (cached) {
@@ -132,12 +154,16 @@ export class PlaylistItemCache {
     }
 
     const pending = this.inflight.get(index);
-    if (pending) {
-      return pending;
+    if (pending && !pending.signal?.aborted) {
+      return pending.promise;
     }
 
+    const generation = (pending?.generation ?? 0) + 1;
     const promise = loader()
       .then((result) => {
+        if (this.inflight.get(index)?.generation !== generation) {
+          return result;
+        }
         this.inflight.delete(index);
         if (result) {
           this.entries.set(index, result);
@@ -145,15 +171,18 @@ export class PlaylistItemCache {
         return result;
       })
       .catch(() => {
-        this.inflight.delete(index);
+        if (this.inflight.get(index)?.generation === generation) {
+          this.inflight.delete(index);
+        }
         return null;
       });
-    this.inflight.set(index, promise);
+    this.inflight.set(index, { promise, signal: abortSignal, generation });
     return promise;
   }
 
   prefetch(index: number, loader: () => Promise<CachedPlaylistItem | null>): void {
-    if (this.entries.has(index) || this.inflight.has(index)) {
+    const pending = this.inflight.get(index);
+    if (this.entries.has(index) || (pending && !pending.signal?.aborted)) {
       return;
     }
     void this.load(index, loader);

@@ -92,26 +92,31 @@ function isDirectedLayerVisible(
   return visibleLayers.directed[annotation.annotationSetId] ?? false;
 }
 
+export function isAnnotationLayerVisible(
+  annotation: PdfAnnotation,
+  visibleLayers: VisibleLayers,
+): boolean {
+  if (annotation.layer === 'personal') {
+    return visibleLayers.personal;
+  }
+  if (annotation.layer === 'section') {
+    return visibleLayers.section;
+  }
+  if (annotation.layer === 'directed') {
+    return isDirectedLayerVisible(annotation, visibleLayers);
+  }
+  return false;
+}
+
 export function filterPageAnnotations(
   annotations: PdfAnnotation[],
   pageNumber: number,
   visibleLayers: VisibleLayers,
 ) {
-  return annotations.filter((annotation) => {
-    if (annotation.pageNumber !== pageNumber) {
-      return false;
-    }
-    if (annotation.layer === 'personal') {
-      return visibleLayers.personal;
-    }
-    if (annotation.layer === 'section') {
-      return visibleLayers.section;
-    }
-    if (annotation.layer === 'directed') {
-      return isDirectedLayerVisible(annotation, visibleLayers);
-    }
-    return false;
-  });
+  return annotations.filter(
+    (annotation) =>
+      annotation.pageNumber === pageNumber && isAnnotationLayerVisible(annotation, visibleLayers),
+  );
 }
 
 type SharedProps = {

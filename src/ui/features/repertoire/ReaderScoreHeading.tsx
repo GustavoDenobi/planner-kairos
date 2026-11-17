@@ -1,4 +1,5 @@
 import { IconChevronLeft, IconChevronRight } from '@/ui/components/icons';
+import { distinctTitleParts } from '@/ui/features/repertoire/title-parts';
 
 export type ReaderScorePlaylistNav = {
   canGoPrevious: boolean;
@@ -18,15 +19,7 @@ type ReaderScoreHeadingProps = {
 };
 
 function joinDistinct(parts: Array<string | null | undefined>): string {
-  const values: string[] = [];
-  for (const part of parts) {
-    const value = part?.trim();
-    if (!value || values[values.length - 1] === value) {
-      continue;
-    }
-    values.push(value);
-  }
-  return values.join(' · ');
+  return distinctTitleParts(parts).join(' · ');
 }
 
 const navButtonClass =

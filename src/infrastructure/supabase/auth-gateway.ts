@@ -124,13 +124,13 @@ export function createAuthGateway(): AuthGateway {
     },
 
     async signUpForMusicianClaim({
-      musicianId,
+      claimToken,
       email,
       password,
       displayName,
     }: MusicianClaimSignUpInput) {
       const { data, error } = await supabase.functions.invoke('musician-claim-signup', {
-        body: { musicianId, email, password, displayName },
+        body: { token: claimToken, email, password, displayName },
       });
 
       if (error || !data || typeof data !== 'object' || !('ok' in data) || !(data as { ok: boolean }).ok) {

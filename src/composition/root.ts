@@ -4,6 +4,7 @@ import { createRepertoireUseCases } from '@/application/repertoire';
 import { createEnsembleUseCases } from '@/application/ensemble';
 import { createIdentityUseCases } from '@/application/identity';
 import { createPlatformUseCases } from '@/application/platform';
+import { createPracticeUseCases } from '@/application/practice';
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway';
 import { createFileStorage } from '@/infrastructure/supabase/file-storage';
 import { createPlatformAdminGateway } from '@/infrastructure/supabase/platform-admin-gateway';
@@ -32,8 +33,11 @@ import { createPieceRepository } from '@/infrastructure/supabase/piece-repositor
 import { createPieceThemeRepository } from '@/infrastructure/supabase/piece-theme-repository';
 import { createSectionRepository } from '@/infrastructure/supabase/section-repository';
 import { createPasswordRecoveryGateway } from '@/infrastructure/supabase/password-recovery-gateway';
+import { createPreviewAssetGateway } from '@/infrastructure/supabase/preview-asset-gateway';
 import { createProfileRepository } from '@/infrastructure/supabase/profile-repository';
 import { createReadingPlaylistRepository } from '@/infrastructure/supabase/reading-playlist-repository';
+import { createPracticeSubmissionRepository } from '@/infrastructure/supabase/practice-submission-repository';
+import { createPracticeTaskRepository } from '@/infrastructure/supabase/practice-task-repository';
 import { createOfflineStorage } from '@/infrastructure/pwa';
 
 export function createAppServices() {
@@ -76,6 +80,7 @@ export function createAppServices() {
     recoveryGateway,
     fileStorage,
     legalRepo,
+    previewAssetGateway: createPreviewAssetGateway(),
   });
 
   const ensemble = createEnsembleUseCases({
@@ -149,5 +154,18 @@ export function createAppServices() {
     platformAdminGateway,
   });
 
-  return { identity, ensemble, repertoire, agenda, offline, platform };
+  const practice = createPracticeUseCases({
+    taskRepo: createPracticeTaskRepository(),
+    submissionRepo: createPracticeSubmissionRepository(),
+    assignmentRepo,
+    membershipRepo,
+    musicianRepo,
+    orgRepo,
+    pieceRepo,
+    pieceFileRepo,
+    tocRepo: tocEntryRepo,
+    fileStorage,
+  });
+
+  return { identity, ensemble, repertoire, agenda, offline, platform, practice };
 }

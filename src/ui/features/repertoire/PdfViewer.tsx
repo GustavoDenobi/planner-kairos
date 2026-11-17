@@ -9,8 +9,16 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import * as pdfjs from 'pdfjs-dist';
-import { isShareCancellation, sharePdfDocument } from '@/ui/features/repertoire/pdf-delivery';
-import { openPdfDocument, printPdfDocument, wirePdfDownloadProgress } from '@/ui/features/repertoire/pdf-load';
+import {
+  downloadPdfBytes,
+  isShareCancellation,
+  sharePdfBytes,
+} from '@/ui/features/repertoire/pdf-delivery';
+import { openPdfDocument, printPdfBytes, wirePdfDownloadProgress } from '@/ui/features/repertoire/pdf-load';
+import {
+  buildAnnotatedPdf,
+  selectVisibleAnnotations,
+} from '@/ui/features/repertoire/pdf-annotation-export';
 import { ReaderLoadProgress } from '@/ui/features/repertoire/ReaderLoadProgress';
 import { useHybridLoadProgress } from '@/ui/features/repertoire/useHybridLoadProgress';
 import { useScreenWakeLock } from '@/ui/features/repertoire/useScreenWakeLock';
@@ -61,6 +69,8 @@ import {
   IconMaximize,
   IconGauge,
   IconMetronome,
+  IconMic,
+  IconMoreVertical,
   IconMinimize,
   IconMoon,
   IconPlaylist,
@@ -151,7 +161,13 @@ import {
   type PdfViewerTransposePartOption,
 } from '@/ui/features/repertoire/PdfViewerTranspositionModal';
 import { inferDefaultTunerTransposeFromFilePartLinks } from '@/ui/features/repertoire/transpose-part-options';
+import {
+  PdfViewerRecorderBar,
+  type PdfViewerRecordingContext,
+} from '@/ui/features/repertoire/PdfViewerRecorderBar';
 import { PdfViewerTunerBar } from '@/ui/features/repertoire/PdfViewerTunerBar';
+import { PdfViewerChromeContext } from '@/ui/features/repertoire/pdf-viewer-chrome-context';
+import { useStudyRecordingSession } from '@/ui/features/study-tools/recording-session/recording-session-context';
 import {
   clampPartTransposeSemitones,
   formatTransposeKeyWithSemitones,
@@ -267,6 +283,8 @@ export type DirectedSetOption = {
   label: string;
   authorLabel?: string;
   canEdit: boolean;
+  /** Camada compatível com a audiência da aula (playlist de evento). */
+  matchesLessonAudience?: boolean;
 };
 
 export type PdfViewerPlaylistContext = {
@@ -333,6 +351,10 @@ type PdfViewerProps = {
   directedSetSelectRequest?: { id: string; nonce: number } | null;
   /** Conjuntos dirigidos que devem começar visíveis (ex.: audiência da aula). */
   directedLayerAutoVisibleSetIds?: readonly string[];
+  /** Mantém conjuntos da aula antes dos demais no menu de camadas. */
+  directedSetOptionsPreserveOrder?: boolean;
+  onActiveDirectedSetChange?: (setId: string | null) => void;
+  onAnnotatingChange?: (isAnnotating: boolean) => void;
   onManageDirectedSet?: (context?: { activeDirectedSetId?: string | null }) => void;
   playlist?: PdfViewerPlaylistContext;
   initialPage?: number;
@@ -386,6 +408,21 @@ type PdfViewerProps = {
   };
   transposePartOptions?: PdfViewerTransposePartOption[];
   filePartLinks?: PieceFilePartLink[];
+  /** Habilita o gravador no leitor (gravações locais ligadas a este arquivo). */
+  recordingContext?: PdfViewerRecordingContext | null;
+  /** Faixa extra dentro da barra de controles (some junto com ela em tela cheia). */
+  controlsBarExtra?: ReactNode;
+  /** Botões extras na barra de ferramentas, junto de metrônomo/afinador/gravador. */
+  toolbarExtraActions?: ReactNode;
+  /** Pede ao leitor que vá para uma página (mude o nonce para repetir o pedido). */
+  pageRequest?: { page: number; nonce: number } | null;
+  /** Avisa a página exibida (para listas que dependem de onde o leitor está). */
+  onPageChange?: (page: number) => void;
+  /**
+   * Os controles de gravação estão em outra faixa (ex.: a da tarefa):
+   * esconde a barra e o botão de gravador próprios.
+   */
+  recorderEmbedded?: boolean;
 };
 
 export type { PdfViewerTransposePartOption };
@@ -1029,6 +1066,9 @@ export function PdfViewer({
   isLoadingThirdPartyDirectedLayers = false,
   directedSetSelectRequest = null,
   directedLayerAutoVisibleSetIds,
+  directedSetOptionsPreserveOrder = false,
+  onActiveDirectedSetChange,
+  onAnnotatingChange,
   onManageDirectedSet,
   playlist,
   initialPage = 1,
@@ -1056,6 +1096,12 @@ export function PdfViewer({
   readerInfo,
   transposePartOptions = [],
   filePartLinks = [],
+  recordingContext = null,
+  controlsBarExtra,
+  toolbarExtraActions,
+  pageRequest = null,
+  onPageChange,
+  recorderEmbedded = false,
 }: PdfViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1189,9 +1235,11 @@ export function PdfViewer({
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
-  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | null>(null);
+  const [mobileToolbarPanel, setMobileToolbarPanel] = useState<'zoom' | 'more' | null>(null);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
   const [tunerOpen, setTunerOpen] = useState(false);
+  const [recorderOpen, setRecorderOpen] = useState(false);
+  const recordingSession = useStudyRecordingSession();
   const [transposeModalOpen, setTransposeModalOpen] = useState(false);
   const [tunerTransposeSemitones, setTunerTransposeSemitones] = useState(0);
   const [tunerTransposePartId, setTunerTransposePartId] = useState<string | null>(null);
@@ -1340,6 +1388,14 @@ export function PdfViewer({
     setActiveLayer('directed');
   }, [directedSetSelectRequest, directedSetOptions]);
 
+  useEffect(() => {
+    onActiveDirectedSetChange?.(activeLayer === 'directed' ? activeDirectedSetId : null);
+  }, [activeDirectedSetId, activeLayer, onActiveDirectedSetChange]);
+
+  useEffect(() => {
+    onAnnotatingChange?.(isAnnotating);
+  }, [isAnnotating, onAnnotatingChange]);
+
   const layerMenuOptions = useMemo((): LayerVisibilityOption[] => {
     const options: LayerVisibilityOption[] = [];
 
@@ -1371,6 +1427,7 @@ export function PdfViewer({
           id: option.id,
           label: option.label,
           authorLabel: option.authorLabel,
+          badge: option.matchesLessonAudience ? 'Aula' : undefined,
           visible: visibleLayers.directed[option.id] ?? false,
           canEdit: option.canEdit,
           editValue: option.canEdit ? `directed:${option.id}` : undefined,
@@ -1678,23 +1735,95 @@ export function PdfViewer({
     });
   }, []);
 
-  const handleShare = useCallback(() => {
-    if (!pdf || !allowDownload) {
+  const toggleRecorder = useCallback(() => {
+    setRecorderOpen((current) => {
+      const next = !current;
+      if (next) {
+        setMobileToolbarPanel(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const canRecord = Boolean(recordingContext && userId) && !recorderEmbedded;
+  // Com uma gravação em andamento a barra fica sempre visível, mesmo que tenha começado em outra tela.
+  const recorderBarVisible =
+    canRecord && (recorderOpen || recordingSession.isMicrophoneClaimed);
+  const getCurrentRecordingPage = useCallback(() => currentPageRef.current, []);
+  const { isSessionActive: isRecordingActive, notePage: noteRecordingPage } = recordingSession;
+  const recordingPieceFileId = recordingContext?.pieceFileId ?? null;
+
+  useEffect(() => {
+    if (!isRecordingActive || !recordingPieceFileId || !pdf) {
       return;
     }
-    void sharePdfDocument(pdf, readerInfo?.downloadName).catch((error) => {
-      if (isShareCancellation(error)) {
-        return;
+    noteRecordingPage(recordingPieceFileId, currentPage);
+  }, [currentPage, isRecordingActive, noteRecordingPage, pdf, recordingPieceFileId]);
+
+  /** Visible-layer annotations, kept current below once display annotations are known. */
+  const deliveryAnnotationsRef = useRef<PdfAnnotation[]>([]);
+  const deliveryCacheRef = useRef<{
+    pdf: pdfjs.PDFDocumentProxy;
+    annotations: PdfAnnotation[];
+    bytes: Promise<Uint8Array>;
+  } | null>(null);
+
+  /** PDF bytes for share, download and print: active annotation layers are drawn in. */
+  const resolveDeliveryBytes = useCallback((): Promise<Uint8Array> | null => {
+    if (!pdf) {
+      return null;
+    }
+    const annotations = deliveryAnnotationsRef.current;
+    const cached = deliveryCacheRef.current;
+    if (cached && cached.pdf === pdf && cached.annotations === annotations) {
+      return cached.bytes;
+    }
+
+    const bytes = (async () => {
+      const original = await pdf.getData();
+      if (annotations.length === 0) {
+        return original;
       }
-    });
-  }, [pdf, allowDownload, readerInfo?.downloadName]);
+      try {
+        return await buildAnnotatedPdf(original, annotations);
+      } catch (error) {
+        console.error('[pdf-export] Não foi possível incluir as anotações no PDF.', error);
+        return original;
+      }
+    })();
+    deliveryCacheRef.current = { pdf, annotations, bytes };
+    return bytes;
+  }, [pdf]);
+
+  const handleShare = useCallback(() => {
+    const bytes = allowDownload ? resolveDeliveryBytes() : null;
+    if (!bytes) {
+      return;
+    }
+    void bytes
+      .then((data) => sharePdfBytes(data, readerInfo?.downloadName))
+      .catch((error) => {
+        if (isShareCancellation(error)) {
+          return;
+        }
+      });
+  }, [allowDownload, resolveDeliveryBytes, readerInfo?.downloadName]);
+
+  const handleDownload = useCallback(async () => {
+    const bytes = allowDownload ? resolveDeliveryBytes() : null;
+    if (!bytes) {
+      return;
+    }
+    downloadPdfBytes(await bytes, readerInfo?.downloadName);
+  }, [allowDownload, resolveDeliveryBytes, readerInfo?.downloadName]);
 
   const handlePrint = useCallback(() => {
-    if (!pdf || !allowDownload) {
+    const bytes = allowDownload ? resolveDeliveryBytes() : null;
+    if (!bytes) {
       return;
     }
-    void printPdfDocument(pdf).catch(() => {});
-  }, [pdf, allowDownload]);
+    void bytes.then(printPdfBytes).catch(() => {});
+  }, [allowDownload, resolveDeliveryBytes]);
 
   const clearLaserStrokes = useCallback(() => {
     laserTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
@@ -2409,6 +2538,24 @@ export function PdfViewer({
     ],
   );
 
+  const goToPageRef = useRef(goToPage);
+  goToPageRef.current = goToPage;
+  const handledPageRequestRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (pdf) {
+      onPageChange?.(currentPage);
+    }
+  }, [currentPage, onPageChange, pdf]);
+
+  useEffect(() => {
+    if (!pageRequest || !pdf || handledPageRequestRef.current === pageRequest.nonce) {
+      return;
+    }
+    handledPageRequestRef.current = pageRequest.nonce;
+    goToPageRef.current(pageRequest.page);
+  }, [pageRequest, pdf]);
+
   const goToFirstPage = useCallback(() => {
     goToPage(1);
   }, [goToPage]);
@@ -2928,6 +3075,20 @@ export function PdfViewer({
       ...draftAnnotations,
     ];
   }, [annotations, draftAnnotations, pendingDeletionIds, pendingUpdates]);
+
+  const deliveryAnnotations = useMemo(
+    () => selectVisibleAnnotations(displayAnnotations, visibleLayers),
+    [displayAnnotations, visibleLayers],
+  );
+  deliveryAnnotationsRef.current = deliveryAnnotations;
+
+  // Build the annotated file while the info modal is open, so share keeps its user activation.
+  const readerInfoOpen = readerInfo?.open ?? false;
+  useEffect(() => {
+    if (readerInfoOpen && allowDownload) {
+      void resolveDeliveryBytes()?.catch(() => {});
+    }
+  }, [readerInfoOpen, allowDownload, deliveryAnnotations, resolveDeliveryBytes]);
 
   const pageSliceCacheRef = useRef<Map<number, PdfAnnotation[]>>(new Map());
   const annotationsByPage = useMemo(() => {
@@ -4059,6 +4220,7 @@ export function PdfViewer({
   const renderAnnotationLayerMenu = () => (
     <AnnotationLayerVisibilityDropdown
       options={layerMenuOptions}
+      preserveOptionOrder={directedSetOptionsPreserveOrder}
       onToggle={toggleLayerVisibility}
       showHideAllLayers={directedSetOptions.length > 3}
       onHideAllLayers={hideAllLayers}
@@ -4243,6 +4405,61 @@ export function PdfViewer({
     );
   };
 
+  const chromeValue = { controlsVisible: showFullscreenControls };
+
+  const moreOptionButtonClass =
+    'inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm text-text';
+  /** Opções que no celular saem da barra principal (ajustadas raramente). */
+  const renderMoreOptions = () => (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          setMobileToolbarPanel(null);
+          toggleFullscreen();
+        }}
+        className={moreOptionButtonClass}
+      >
+        {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
+        {isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setMobileToolbarPanel('zoom')}
+        className={moreOptionButtonClass}
+      >
+        <IconZoomIn className="h-4 w-4" />
+        Zoom
+      </button>
+      <button
+        type="button"
+        onClick={toggleInvert}
+        aria-pressed={inverted}
+        className={moreOptionButtonClass}
+      >
+        {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
+        {inverted ? 'Cores normais' : 'Inverter cores'}
+      </button>
+      <button type="button" onClick={toggleNavigation} className={moreOptionButtonClass}>
+        <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
+        {navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
+      </button>
+      {audioPicker?.visible ? (
+        <button
+          type="button"
+          onClick={() => {
+            setMobileToolbarPanel(null);
+            audioPicker.onOpenPicker();
+          }}
+          className={moreOptionButtonClass}
+        >
+          <IconMusic className="h-4 w-4" />
+          Áudios da obra
+        </button>
+      ) : null}
+    </div>
+  );
+
   const controlsBar = (
     <div
       className={controlsBarClass}
@@ -4299,7 +4516,7 @@ export function PdfViewer({
                 aria-pressed={isFullscreen}
                 aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
                 title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                className={toolbarIconButtonClass(isFullscreen)}
+                className={`${toolbarIconButtonClass(isFullscreen)} max-sm:hidden`}
               >
                 {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
               </button>
@@ -4312,7 +4529,7 @@ export function PdfViewer({
                 aria-expanded={mobileToolbarPanel === 'zoom'}
                 aria-pressed={mobileToolbarPanel === 'zoom'}
                 title="Zoom"
-                className={toolbarIconButtonClass(mobileToolbarPanel === 'zoom')}
+                className={`${toolbarIconButtonClass(mobileToolbarPanel === 'zoom')} max-sm:hidden`}
               >
                 <IconZoomIn className="h-4 w-4" />
               </button>
@@ -4323,7 +4540,7 @@ export function PdfViewer({
                 aria-pressed={inverted}
                 aria-label={inverted ? 'Desativar inversão de cores' : 'Inverter cores da partitura'}
                 title={inverted ? 'Cores normais' : 'Inverter cores'}
-                className={toolbarIconButtonClass(inverted)}
+                className={`${toolbarIconButtonClass(inverted)} max-sm:hidden`}
               >
                 {inverted ? <IconSun className="h-4 w-4" /> : <IconMoon className="h-4 w-4" />}
               </button>
@@ -4336,7 +4553,7 @@ export function PdfViewer({
                     : 'Usar navegação lateral'
                 }
                 title={navigation === 'horizontal' ? 'Navegação vertical' : 'Navegação lateral'}
-                className={`${toolbarIconButtonClass()} lg:h-auto lg:w-auto lg:gap-1 lg:px-2 lg:py-2 `}
+                className={`${toolbarIconButtonClass()} max-sm:hidden lg:h-auto lg:w-auto lg:gap-1 lg:px-2 lg:py-2`}
               >
                 <IconArrowUpDown className={`h-4 w-4 ${navigation === 'horizontal' ? 'rotate-90' : ''}`} />
                 <span className="hidden lg:inline">
@@ -4347,13 +4564,29 @@ export function PdfViewer({
                 <button
                   type="button"
                   onClick={audioPicker.onOpenPicker}
-                  aria-label="Áudios da peça"
-                  title="Áudios da peça"
-                  className={toolbarIconButtonClass()}
+                  aria-label="Áudios da obra"
+                  title="Áudios da obra"
+                  className={`${toolbarIconButtonClass()} max-sm:hidden`}
                 >
                   <IconMusic className="h-4 w-4" />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileToolbarPanel((current) =>
+                    current === 'more' || current === 'zoom' ? null : 'more',
+                  )
+                }
+                aria-label="Mais opções do leitor"
+                aria-expanded={mobileToolbarPanel === 'more' || mobileToolbarPanel === 'zoom'}
+                title="Mais opções"
+                className={`${toolbarIconButtonClass(
+                  mobileToolbarPanel === 'more' || mobileToolbarPanel === 'zoom',
+                )} sm:hidden`}
+              >
+                <IconMoreVertical className="h-4 w-4" />
+              </button>
             </div>
             <div className="flex shrink-0 items-center justify-center gap-1.5 lg:gap-2">
               <button
@@ -4376,6 +4609,25 @@ export function PdfViewer({
               >
                 <IconGauge className="h-4 w-4" />
               </button>
+              {canRecord ? (
+                <button
+                  type="button"
+                  onClick={toggleRecorder}
+                  aria-label={recorderOpen ? 'Fechar gravador' : 'Abrir gravador'}
+                  aria-pressed={recorderBarVisible}
+                  title={recorderOpen ? 'Fechar gravador' : 'Gravador'}
+                  className={`${toolbarIconButtonClass(recorderBarVisible)} relative`}
+                >
+                  <IconMic className="h-4 w-4" />
+                  {recordingSession.isSessionActive ? (
+                    <span
+                      aria-hidden
+                      className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-600"
+                    />
+                  ) : null}
+                </button>
+              ) : null}
+              {toolbarExtraActions}
               {renderAnnotationLayerMenu()}
               {canManageNavigationShortcuts && onNavigationShortcutCreate ? (
                 <button
@@ -4390,11 +4642,22 @@ export function PdfViewer({
               ) : null}
             </div>
           </div>
+          {mobileToolbarPanel === 'more' && (
+            <div className={`${annotationPanelRowClass} sm:hidden`}>{renderMoreOptions()}</div>
+          )}
           {mobileToolbarPanel === 'zoom' && (
             <div className={annotationPanelRowClass}>{renderZoomControls()}</div>
           )}
         </>
       )}
+      {recorderBarVisible && recordingContext && userId ? (
+        <PdfViewerRecorderBar
+          context={recordingContext}
+          userId={userId}
+          getCurrentPage={getCurrentRecordingPage}
+        />
+      ) : null}
+      {controlsBarExtra}
     </div>
   );
 
@@ -4407,7 +4670,7 @@ export function PdfViewer({
           : undefined
       }
     >
-      {controlsBar}
+      <PdfViewerChromeContext.Provider value={chromeValue}>{controlsBar}</PdfViewerChromeContext.Provider>
       {metronomeOpen ? (
         <PdfViewerMetronomeBar userId={userId} onClose={closeMetronome} />
       ) : null}
@@ -4421,6 +4684,7 @@ export function PdfViewer({
           transposeButtonHint={transposeButtonHint}
           isTransposeActive={isTransposeActive}
           onOpenTranspose={() => setTransposeModalOpen(true)}
+          microphoneBlocked={recordingSession.isMicrophoneClaimed}
         />
       ) : null}
       {inlineAudioBar}
@@ -4634,6 +4898,7 @@ export function PdfViewer({
           allowDownload={allowDownload}
           downloadUrl={readerInfo.downloadUrl}
           downloadName={readerInfo.downloadName}
+          onDownload={pdf && allowDownload ? handleDownload : undefined}
           onShare={pdf && allowDownload ? handleShare : undefined}
           onPrint={pdf && allowDownload ? handlePrint : undefined}
         />

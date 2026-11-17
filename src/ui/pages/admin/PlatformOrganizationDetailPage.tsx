@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { PlatformOrganizationDetail } from '@/domain/platform/plan';
 import type { Plan } from '@/domain/platform/plan';
+import type { BillingEntry, OrganizationBilling } from '@/domain/platform/billing';
 import { usePlatform } from '@/ui/app/AppServicesContext';
 import { BackButton } from '@/ui/components/BackButton';
 import {
   adminEmptyStateClass,
+  adminFieldClass,
   adminPrimaryButtonClass,
   adminSectionClass,
   adminSelectClass,
@@ -16,6 +18,7 @@ import {
   platformErrorMessage,
   usagePercent,
 } from '@/ui/features/platform/platform-labels';
+import { OrganizationBillingSection } from '@/ui/features/platform/OrganizationBillingSection';
 import { orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
 
 function StatCard({
@@ -52,6 +55,10 @@ export function PlatformOrganizationDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
+  const [planNote, setPlanNote] = useState('');
+  const [stopBilling, setStopBilling] = useState(false);
+  const [billing, setBilling] = useState<OrganizationBilling | null>(null);
+  const [billingEntries, setBillingEntries] = useState<BillingEntry[]>([]);
 
   useEffect(() => {
     void loadData();
@@ -61,9 +68,11 @@ export function PlatformOrganizationDetailPage() {
     setIsLoading(true);
     setError(null);
 
-    const [orgResult, plansResult] = await Promise.all([
+    const [orgResult, plansResult, billingResult, entriesResult] = await Promise.all([
       platform.getOrganization(orgId),
       platform.listPlans(),
+      platform.getOrganizationBilling(orgId),
+      platform.listOrganizationBillingEntries(orgId),
     ]);
 
     if (!orgResult.ok) {
@@ -87,6 +96,18 @@ export function PlatformOrganizationDetailPage() {
     setOrganization(orgResult.value);
     setSelectedPlanId(orgResult.value.planId);
     setPlans(plansResult.value);
+    setPlanNote('');
+    setStopBilling(false);
+    if (billingResult.ok && entriesResult.ok) {
+      setBilling(billingResult.value);
+      setBillingEntries(entriesResult.value);
+    } else {
+      setError(
+        platformErrorMessage(
+          !billingResult.ok ? billingResult.error : !entriesResult.ok ? entriesResult.error : '',
+        ),
+      );
+    }
     setIsLoading(false);
   }
 
@@ -96,7 +117,10 @@ export function PlatformOrganizationDetailPage() {
     }
 
     setIsSavingPlan(true);
-    const result = await platform.assignOrganizationPlan(organization.id, selectedPlanId);
+    const result = await platform.assignOrganizationPlan(organization.id, selectedPlanId, {
+      note: planNote.trim() || null,
+      stopBilling,
+    });
     setIsSavingPlan(false);
 
     if (!result.ok) {
@@ -146,7 +170,7 @@ export function PlatformOrganizationDetailPage() {
           current={organization.musiciansCount}
           limit={organization.maxMusicians}
         />
-        <StatCard label="Peças" current={organization.piecesCount} limit={organization.maxPieces} />
+        <StatCard label="Obras" current={organization.piecesCount} limit={organization.maxPieces} />
         <StatCard label="Eventos" current={organization.eventsCount} limit={null} />
         <StatCard label="Membros" current={organization.membershipsCount} limit={null} />
         <div className="rounded-xl border border-border bg-surface p-4">
@@ -172,6 +196,13 @@ export function PlatformOrganizationDetailPage() {
           )}
         </div>
       </div>
+
+      <OrganizationBillingSection
+        organizationId={organization.id}
+        billing={billing}
+        entries={billingEntries}
+        onChanged={loadData}
+      />
 
       <section className={`mt-8 ${adminSectionClass}`}>
         <h2 className="font-semibold text-text">Plano ativo</h2>
@@ -204,6 +235,34 @@ export function PlatformOrganizationDetailPage() {
             Salvar plano
           </button>
         </div>
+
+        {selectedPlanId !== organization.planId && (
+          <div className="mt-4 flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-muted">Motivo (vai para o histórico de cobrança)</span>
+              <input
+                value={planNote}
+                onChange={(event) => setPlanNote(event.target.value)}
+                placeholder="Ex.: rebaixado por atraso; upgrade pago via Pix"
+                className={adminFieldClass}
+              />
+            </label>
+            {billing?.isActive && (
+              <label className="flex items-center gap-2 text-sm text-text">
+                <input
+                  type="checkbox"
+                  checked={stopBilling}
+                  onChange={(event) => setStopBilling(event.target.checked)}
+                />
+                Encerrar a cobrança (a organização deixa de ver avisos de pagamento)
+              </label>
+            )}
+            <p className="text-xs text-muted">
+              Rebaixar não apaga nada: se a organização passar dos limites do novo plano, só não
+              conseguirá cadastrar itens novos.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );

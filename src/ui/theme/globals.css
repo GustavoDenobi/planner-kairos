@@ -82,10 +82,17 @@
     --app-bottom-nav-height: 4rem;
     --app-header-offset: calc(var(--app-header-height) + var(--safe-area-top));
     --app-bottom-nav-offset: calc(var(--app-bottom-nav-height) + var(--safe-area-bottom));
+    --scroll-content-end-padding: calc(var(--app-vh, 100dvh) / 3);
   }
 
   html[data-keyboard-open] {
     --app-bottom-nav-offset: 0px;
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --app-bottom-nav-offset: 0px;
+    }
   }
 
   body {
@@ -111,6 +118,10 @@
   .dark input[type='time'] {
     color-scheme: dark;
   }
+}
+
+.scroll-content-end-padding {
+  padding-bottom: var(--scroll-content-end-padding);
 }
 
 /* Unlayered so 1rem wins over Tailwind text-sm (iOS zooms inputs below 16px). */
@@ -434,4 +445,21 @@ html[data-keyboard-open] [data-modal-overlay] {
   .navigation-shortcut-target-dot {
     animation: navigation-shortcut-target-dot-static 1.4s ease-in-out 1;
   }
+}
+
+/* Armazenamento por tipo (mostrador do plano). Paleta categórica validada (CVD) em claro e escuro. */
+:root {
+  --storage-piece-score: #2a78d6;
+  --storage-piece-audio: #eb6834;
+  --storage-practice-audio: #1baf7a;
+  --storage-branding: #eda100;
+  --storage-other: #e87ba4;
+}
+
+.dark {
+  --storage-piece-score: #3987e5;
+  --storage-piece-audio: #d95926;
+  --storage-practice-audio: #199e70;
+  --storage-branding: #c98500;
+  --storage-other: #d55181;
 }

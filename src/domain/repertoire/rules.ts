@@ -685,6 +685,25 @@ export function pieceFileMatchesUserParts(
   return file.partLinks.some((link) => userPartIds.includes(link.partId));
 }
 
+export function pieceRestrictsByPart(
+  links: readonly Pick<PieceFilePartLink, 'partId'>[],
+): boolean {
+  return links.length > 0;
+}
+
+export function pieceMatchesUserParts(
+  links: readonly Pick<PieceFilePartLink, 'partId'>[],
+  userPartIds: string[],
+): boolean {
+  if (!pieceRestrictsByPart(links)) {
+    return true;
+  }
+  if (userPartIds.length === 0) {
+    return false;
+  }
+  return links.some((link) => userPartIds.includes(link.partId));
+}
+
 export function isGeneralPieceFile(
   file: Pick<PieceFileWithLinks, 'partLinks'>,
 ): boolean {
@@ -700,23 +719,31 @@ export function isGeneralScoreFile(
 export function partitionPieceFilesForViewer(
   files: PieceFileWithLinks[],
   userPartIds: string[],
-  isConductor: boolean,
+  isGroupWriter: boolean,
+  piecePartLinks: PieceFilePartLink[] = [],
 ): {
   userFiles: PieceFileWithLinks[];
   generalFiles: PieceFileWithLinks[];
   audioFiles: PieceFileWithLinks[];
   otherFiles: PieceFileWithLinks[];
 } {
-  const generalFiles = isConductor ? files.filter((file) => isGeneralScoreFile(file)) : [];
+  const inheritsPieceParts = pieceRestrictsByPart(piecePartLinks);
+  const userMatchesPiece =
+    inheritsPieceParts &&
+    (isGroupWriter || pieceMatchesUserParts(piecePartLinks, userPartIds));
+  const generalFiles =
+    !inheritsPieceParts && isGroupWriter ? files.filter((file) => isGeneralScoreFile(file)) : [];
   const generalIds = new Set(generalFiles.map((file) => file.id));
 
   const userFiles =
-    userPartIds.length > 0
+    userPartIds.length > 0 || userMatchesPiece
       ? files.filter(
           (file) =>
             file.kind === 'score' &&
             !generalIds.has(file.id) &&
-            pieceFileMatchesUserParts(file, userPartIds),
+            ((file.partLinks.length > 0 && pieceFileMatchesUserParts(file, userPartIds)) ||
+              (file.partLinks.length === 0 &&
+                (userMatchesPiece || (!inheritsPieceParts && userPartIds.length > 0)))),
         )
       : [];
   const userIds = new Set(userFiles.map((file) => file.id));
@@ -735,10 +762,15 @@ export function partitionPieceFilesForViewer(
 export function filterScoreCandidatesForUser(
   files: PieceFileWithLinks[],
   userPartIds: string[],
+  piecePartLinks: PieceFilePartLink[] = [],
 ): PieceFileWithLinks[] {
   const scores = files.filter((file) => file.kind === 'score');
+  const inheritsPieceParts = pieceRestrictsByPart(piecePartLinks);
 
   if (userPartIds.length === 0) {
+    if (inheritsPieceParts) {
+      return [];
+    }
     return scores;
   }
 
@@ -746,7 +778,11 @@ export function filterScoreCandidatesForUser(
     (file) =>
       file.partLinks.length > 0 && pieceFileMatchesUserParts(file, userPartIds),
   );
-  const general = scores.filter((file) => isGeneralScoreFile(file));
+  const general = inheritsPieceParts
+    ? pieceMatchesUserParts(piecePartLinks, userPartIds)
+      ? scores.filter((file) => isGeneralScoreFile(file))
+      : []
+    : scores.filter((file) => isGeneralScoreFile(file));
 
   const seen = new Set<string>();
   const result: PieceFileWithLinks[] = [];

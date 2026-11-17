@@ -10,6 +10,7 @@ import { UiScaleProvider } from '@/ui/app/UiScaleProvider';
 import { VisualViewportSync } from '@/ui/app/VisualViewportSync';
 import { PwaInstallProvider } from '@/ui/features/pwa/PwaInstallProvider';
 import { PwaUpdateProvider } from '@/ui/features/pwa/PwaUpdateProvider';
+import { StudyRecordingSessionProvider } from '@/ui/features/study-tools/recording-session/StudyRecordingSessionProvider';
 
 type ProvidersProps = {
   children: ReactNode;
@@ -28,7 +29,9 @@ export function Providers({ children, services }: ProvidersProps) {
               <UiScaleProvider>
                 <VisualViewportSync />
                 <PwaUpdateProvider>
-                  <PwaInstallProvider>{children}</PwaInstallProvider>
+                  <PwaInstallProvider>
+                    <StudyRecordingSessionProvider>{children}</StudyRecordingSessionProvider>
+                  </PwaInstallProvider>
                 </PwaUpdateProvider>
               </UiScaleProvider>
             </ThemeProvider>

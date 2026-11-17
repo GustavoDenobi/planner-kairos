@@ -38,6 +38,7 @@ import { locationPath } from '@/ui/navigation/return-to';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
+  orgListScrollAreaClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import { OfflinePlaylistDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -865,7 +866,7 @@ function PlaylistEditorShell({
 
   return (
     <div className={`flex flex-col ${orgPageContentClass} ${orgListPageHeightClass}`}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className={orgListScrollAreaClass}>
         <section className="mb-6 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <BackButton fallbackTo={backTo} />
@@ -1198,7 +1199,11 @@ function AddScoreFileModal({
     setPieceTitle(title);
     const result = await repertoire.getPiece(orgId, pieceId);
     if (result.ok) {
-      const candidates = filterScoreCandidatesForUser(result.value.files, userPartIds);
+      const candidates = filterScoreCandidatesForUser(
+        result.value.files,
+        userPartIds,
+        result.value.partLinks,
+      );
       setScoreFiles(
         candidates.filter(
           (file) =>

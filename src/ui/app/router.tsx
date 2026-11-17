@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, useNavigation } from 'react-router-dom';
 import { AuthGuard } from '@/ui/app/auth/AuthGuard';
 import { PlatformAdminGuard } from '@/ui/app/auth/PlatformAdminGuard';import { AdminLayout } from '@/ui/layouts/AdminLayout';
+import { PlatformBillingPage } from '@/ui/pages/admin/PlatformBillingPage';
 import { PlatformOrganizationDetailPage } from '@/ui/pages/admin/PlatformOrganizationDetailPage';
 import { PlatformOrganizationsPage } from '@/ui/pages/admin/PlatformOrganizationsPage';
 import { PlatformPlanFormPage } from '@/ui/pages/admin/PlatformPlanFormPage';
@@ -12,7 +13,7 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { AppLayout } from '@/ui/layouts/AppLayout';
 import { PublicLayout } from '@/ui/layouts/PublicLayout';
 import { InvitePage } from '@/ui/pages/InvitePage';
-import { MusicianClaimPage } from '@/ui/pages/MusicianClaimPage';
+import { MusicianClaimPage, RetiredMusicianClaimLinkPage } from '@/ui/pages/MusicianClaimPage';
 import { LoginPage } from '@/ui/pages/LoginPage';
 import { AuthCallbackPage } from '@/ui/pages/AuthCallbackPage';
 import { OrgSelectorPage } from '@/ui/pages/OrgSelectorPage';
@@ -28,6 +29,7 @@ import { MusicianDetailPage } from '@/ui/pages/org/MusicianDetailPage';
 import { MusiciansPage } from '@/ui/pages/org/MusiciansPage';
 import { PartsPage } from '@/ui/pages/org/PartsPage';
 import { PieceDetailPage } from '@/ui/pages/org/PieceDetailPage';
+import { PieceDownloadPage } from '@/ui/pages/org/PieceDownloadPage';
 import { PiecePdfViewerPage } from '@/ui/pages/org/PiecePdfViewerPage';
 import { PrepareReadingPlaylistPage } from '@/ui/pages/org/PrepareReadingPlaylistPage';
 import { ReadingPlaylistEditPage } from '@/ui/pages/org/ReadingPlaylistEditPage';
@@ -37,6 +39,9 @@ import { OrganizationSettingsPage } from '@/ui/pages/org/OrganizationSettingsPag
 import { ReadingPlaylistsPage } from '@/ui/pages/org/ReadingPlaylistsPage';
 import { RepertoirePage } from '@/ui/pages/org/RepertoirePage';
 import { StudyToolsPage } from '@/ui/pages/org/StudyToolsPage';
+import { PracticeTasksPage } from '@/ui/pages/org/PracticeTasksPage';
+import { PracticeTaskFormPage } from '@/ui/pages/org/PracticeTaskFormPage';
+import { PracticeTaskDetailPage } from '@/ui/pages/org/PracticeTaskDetailPage';
 
 function RootLayout() {
   const navigation = useNavigation();
@@ -57,7 +62,8 @@ export const router = createBrowserRouter([
           { path: '/privacidade', element: <PrivacyPolicyPage /> },
           { path: '/termos', element: <TermsOfUsePage /> },
           { path: '/convite/:token', element: <InvitePage /> },
-          { path: '/musico/:musicianId', element: <MusicianClaimPage /> },
+          { path: '/reivindicar/:claimToken', element: <MusicianClaimPage /> },
+          { path: '/musico/:musicianId', element: <RetiredMusicianClaimLinkPage /> },
         ],
       },
       {
@@ -75,6 +81,7 @@ export const router = createBrowserRouter([
                   { index: true, element: <Navigate to="organizacoes" replace /> },
                   { path: 'organizacoes', element: <PlatformOrganizationsPage /> },
                   { path: 'organizacoes/:orgId', element: <PlatformOrganizationDetailPage /> },
+                  { path: 'cobranca', element: <PlatformBillingPage /> },
                   { path: 'usuarios', element: <PlatformUsersPage /> },
                   { path: 'usuarios/:userId', element: <PlatformUserDetailPage /> },
                   { path: 'planos', element: <PlatformPlansPage /> },
@@ -87,6 +94,10 @@ export const router = createBrowserRouter([
           {
             path: '/:orgSlug/repertorio/:pieceId/arquivo/:fileId',
             element: <PiecePdfViewerPage />,
+          },
+          {
+            path: '/:orgSlug/repertorio/:pieceId/download',
+            element: <PieceDownloadPage />,
           },
           {
             path: '/:orgSlug/leitura/:playlistId/:itemIndex',
@@ -102,6 +113,10 @@ export const router = createBrowserRouter([
               { path: 'repertorio/:pieceId', element: <PieceDetailPage /> },
               { path: 'leitura', element: <ReadingPlaylistsPage /> },
               { path: 'ferramentas', element: <StudyToolsPage /> },
+              { path: 'tarefas', element: <PracticeTasksPage /> },
+              { path: 'tarefas/nova', element: <PracticeTaskFormPage /> },
+              { path: 'tarefas/:taskId', element: <PracticeTaskDetailPage /> },
+              { path: 'tarefas/:taskId/editar', element: <PracticeTaskFormPage /> },
               { path: 'leitura/novo', element: <ReadingPlaylistNewPage /> },
               { path: 'leitura/:playlistId', element: <ReadingPlaylistEditPage /> },
               { path: 'eventos/:eventId/preparar-partituras', element: <PrepareReadingPlaylistPage /> },

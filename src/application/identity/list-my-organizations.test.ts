@@ -14,8 +14,10 @@ function createOrgRepo(
     updateImageKey: vi.fn(),
     clearImage: vi.fn(),
     updateName: vi.fn(),
+    updateTimeZone: vi.fn(),
     updateRules: vi.fn(),
     getPlanOverview: vi.fn(),
+    getBillingOverview: vi.fn(),
   };
 }
 
@@ -26,6 +28,7 @@ describe('listMyOrganizations', () => {
       name: 'Kairós',
       slug: 'kairos',
       imageStorageKey: null,
+      timeZone: 'America/Sao_Paulo',
       rules: null,
       accessRole: 'member' as const,
     },

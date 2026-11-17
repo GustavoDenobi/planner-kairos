@@ -36,9 +36,11 @@ import {
 import { EditRecurrenceSeriesModal } from '@/ui/features/agenda/EditRecurrenceSeriesModal';
 import { EventProgramSection } from '@/ui/features/agenda/EventProgramSection';
 import { EventAbsencesSection } from '@/ui/features/agenda/EventAbsencesSection';
+import { EventPracticeTasksSection } from '@/ui/features/practice/PracticeStudentTasks';
 import {
   orgListPageHeightClass,
   orgPageContentClass,
+  scrollContentEndPaddingClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
@@ -545,7 +547,9 @@ export function EventDetailPage() {
   );
 
   return (
-    <div className={`${orgPageContentClass}  ${orgListPageHeightClass} overflow-y-auto`}>
+    <div
+      className={`flex min-h-0 flex-col overflow-y-auto ${scrollContentEndPaddingClass} ${orgPageContentClass} ${orgListPageHeightClass}`}
+    >
       <section className="mb-6 space-y-2">
         <div className="flex items-start gap-2">
           <BackButton fallbackTo={agendaPath(orgSlug ?? '')} />
@@ -591,6 +595,12 @@ export function EventDetailPage() {
 
       {canWrite ? (
         <Tabs
+          // No dia do encontro, quem abre o evento está dando aula: tarefas primeiro.
+          defaultTab={
+            new Date(event.startsAt).toDateString() === new Date().toDateString()
+              ? 'tarefas'
+              : undefined
+          }
           tabs={[
             {
               id: 'detalhes',
@@ -608,6 +618,8 @@ export function EventDetailPage() {
                     eventId={eventId}
                     program={event.program}
                     canEditProgram={canWrite}
+                    eventGroups={event.groups}
+                    eventMusicians={event.musicians}
                     hideHeading
                     recurrenceId={event.recurrenceId}
                     occurrenceIndex={event.occurrenceIndex}
@@ -633,6 +645,25 @@ export function EventDetailPage() {
                   />
                 ) : null,
             },
+            {
+              id: 'tarefas',
+              label: 'Tarefas',
+              content:
+                org && eventId && userId && orgSlug ? (
+                  <EventPracticeTasksSection
+                    orgSlug={orgSlug}
+                    organizationId={org.id}
+                    userId={userId}
+                    eventId={eventId}
+                    startsAt={event.startsAt}
+                    groupIds={event.groups.map((group) => group.id)}
+                    musicians={event.musicians.map((musician) => ({
+                      id: musician.id,
+                      name: musician.fullName,
+                    }))}
+                  />
+                ) : null,
+            },
           ]}
         />
       ) : (
@@ -650,6 +681,8 @@ export function EventDetailPage() {
               eventId={eventId}
               program={event.program}
               canEditProgram={false}
+              eventGroups={event.groups}
+              eventMusicians={event.musicians}
               recurrenceId={event.recurrenceId}
               occurrenceIndex={event.occurrenceIndex}
               onProgramSaved={(program) =>

@@ -35,3 +35,11 @@ export type {
 export type { CachedPlaylistSnapshot, OfflinePlaylistCache } from './offline-playlist-cache';
 export type { IdentitySnapshot, OfflineIdentityStore } from './offline-identity-store';
 export type { PlatformRepository, PlatformAdminGateway } from './platform-repository';
+export type {
+  PracticeTaskRecordInput,
+  PracticeTaskRepository,
+} from './practice-task-repository';
+export type {
+  CreatePracticeSubmissionInput,
+  PracticeSubmissionRepository,
+} from './practice-submission-repository';

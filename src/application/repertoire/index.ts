@@ -52,7 +52,14 @@ import {
   updatePieceFileTocEntry,
 } from './toc-entry-use-cases';
 import type { AttachPieceFileInput, UpdatePieceFileInput } from './file-use-cases';
-import { attachPieceFile, getPieceFileDownloadUrl, removePieceFile, reorderPieceScoreFiles, updatePieceFile } from './file-use-cases';
+import {
+  attachPieceFile,
+  getPieceFileDownloadUrl,
+  preparePieceAdminDownload,
+  removePieceFile,
+  reorderPieceScoreFiles,
+  updatePieceFile,
+} from './file-use-cases';
 import {
   createReadingPlaylist,
   deleteReadingPlaylist,
@@ -174,6 +181,20 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
         organizationId,
         pieceId,
         fileId,
+      ),
+    preparePieceAdminDownload: (
+      organizationId: string,
+      pieceId: string,
+      userId: string,
+    ) =>
+      preparePieceAdminDownload(
+        deps.pieceRepo,
+        deps.fileStorage,
+        deps.membershipRepo,
+        deps.orgRepo,
+        organizationId,
+        pieceId,
+        userId,
       ),
     reorderPieceScoreFiles: (
       organizationId: string,

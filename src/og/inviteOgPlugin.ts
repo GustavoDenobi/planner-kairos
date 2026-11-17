@@ -18,6 +18,7 @@ export function inviteOgPlugin(env: Record<string, string>): Plugin {
         createInviteOgMiddleware({
           supabaseUrl,
           supabaseAnonKey,
+          serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           appUrl,
           mode: 'development',
           indexHtmlPath: path.resolve('index.html'),
@@ -34,6 +35,7 @@ export function inviteOgPlugin(env: Record<string, string>): Plugin {
         createInviteOgMiddleware({
           supabaseUrl,
           supabaseAnonKey,
+          serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           appUrl,
           mode: 'production',
           distDir: path.resolve('dist'),

@@ -1,11 +1,17 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { partitionPieceFilesForViewer } from '@/domain/repertoire';
-import type { PieceFileKind, PieceFileOrganization, PieceFileWithLinks } from '@/domain/repertoire';
+import type {
+  PieceFileKind,
+  PieceFileOrganization,
+  PieceFilePartLink,
+  PieceFileWithLinks,
+} from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import { IconFilter, IconGripVertical, IconPencil, IconPlus, IconPrint, IconScoreSheet, IconPlay, IconShare } from '@/ui/components/icons';
 import { SortableList } from '@/ui/components/SortableList';
 import { OfflineDownloadButton } from '@/ui/features/pwa/OfflineDownloadButton';
 import { formatPartLinks, pieceFileKindLabel } from '@/ui/features/repertoire/repertoire-labels';
+import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 type PartFilterOption = {
   partId: string;
@@ -24,7 +30,8 @@ type PieceFilesSectionProps = {
   fileOrganization?: PieceFileOrganization;
   isAdmin: boolean;
   userPartIds: string[];
-  isConductor?: boolean;
+  isGroupWriter?: boolean;
+  piecePartLinks?: PieceFilePartLink[];
   allowDownload?: boolean;
   onOpen: (file: PieceFileWithLinks) => void;
   onShare?: (file: PieceFileWithLinks) => void;
@@ -236,7 +243,8 @@ export function PieceFilesSection({
   fileOrganization = 'single',
   isAdmin,
   userPartIds,
-  isConductor = false,
+  isGroupWriter = false,
+  piecePartLinks = [],
   allowDownload = true,
   onOpen,
   onShare,
@@ -353,7 +361,8 @@ export function PieceFilesSection({
   const { userFiles, generalFiles, audioFiles, otherFiles } = partitionPieceFilesForViewer(
     filteredFiles,
     userPartIds,
-    isConductor,
+    isGroupWriter,
+    piecePartLinks,
   );
   const showOtherHeading =
     userFiles.length > 0 || generalFiles.length > 0 || audioFiles.length > 0;
@@ -496,7 +505,9 @@ export function PieceFilesSection({
         )}
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3">
+      <div
+        className={`mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3 ${scrollContentEndPaddingClass}`}
+      >
         {filteredFiles.length === 0 ? (
           <p className="text-sm text-muted">Nenhum arquivo.</p>
         ) : fileOrganization === 'sequential' ? (

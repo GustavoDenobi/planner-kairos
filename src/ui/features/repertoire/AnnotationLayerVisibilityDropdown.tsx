@@ -34,6 +34,8 @@ export type LayerVisibilityOption = {
   label: string;
   /** Nome do autor exibido após o título (estilo muted). */
   authorLabel?: string;
+  /** Destaque curto, ex.: audiência da aula. */
+  badge?: string;
   visible: boolean;
   canEdit?: boolean;
   editValue?: string;
@@ -54,6 +56,8 @@ type AnnotationLayerVisibilityDropdownProps = {
   pointerActive?: boolean;
   onTogglePointer?: () => void;
   buttonClassName?: string;
+  /** Mantém a ordem enviada em `options` em vez de ordenar por título. */
+  preserveOptionOrder?: boolean;
 };
 
 export function AnnotationLayerVisibilityDropdown({
@@ -71,6 +75,7 @@ export function AnnotationLayerVisibilityDropdown({
   pointerActive = false,
   onTogglePointer,
   buttonClassName,
+  preserveOptionOrder = false,
 }: AnnotationLayerVisibilityDropdownProps) {
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
@@ -151,9 +156,11 @@ export function AnnotationLayerVisibilityDropdown({
         : `Camadas visíveis (${visibleCount}/${options.length})`;
   const hasMenuBelowPointer =
     options.length > 0 || showThirdPartyLayersButton || Boolean(onCreateLayer) || canHideAllLayers;
-  const sortedOptions = [...options].sort((left, right) =>
-    left.label.localeCompare(right.label, 'pt-BR', { sensitivity: 'base' }),
-  );
+  const sortedOptions = preserveOptionOrder
+    ? options
+    : [...options].sort((left, right) =>
+        left.label.localeCompare(right.label, 'pt-BR', { sensitivity: 'base' }),
+      );
 
   function handleEditLayer(editValue: string) {
     onEditLayer?.(editValue);
@@ -278,6 +285,11 @@ export function AnnotationLayerVisibilityDropdown({
                   </span>
                   <span className="min-w-0 truncate">
                     {option.label}
+                    {option.badge ? (
+                      <span className="ml-1.5 rounded bg-primary/10 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        {option.badge}
+                      </span>
+                    ) : null}
                     {option.authorLabel ? (
                       <span className="text-muted"> · {option.authorLabel}</span>
                     ) : null}

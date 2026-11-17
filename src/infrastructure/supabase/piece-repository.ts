@@ -63,18 +63,47 @@ async function loadPieceIdsAccessibleForPart(
   organizationId: string,
   partId: string,
 ): Promise<string[]> {
-  const { data: files, error } = await supabase
-    .from('piece_files')
-    .select('piece_id, piece_file_part_links(part_id)')
-    .eq('organization_id', organizationId);
+  const [{ data: piecePartRows, error: piecePartError }, { data: files, error }] =
+    await Promise.all([
+      supabase
+        .from('piece_part_links')
+        .select('piece_id, part_id')
+        .eq('organization_id', organizationId),
+      supabase
+        .from('piece_files')
+        .select('piece_id, piece_file_part_links(part_id)')
+        .eq('organization_id', organizationId),
+    ]);
 
-  if (error || !files) {
+  if (piecePartError || error || !files) {
     return [];
+  }
+
+  const restrictedPartIdsByPiece = new Map<string, Set<string>>();
+  for (const row of piecePartRows ?? []) {
+    const parts = restrictedPartIdsByPiece.get(row.piece_id) ?? new Set<string>();
+    parts.add(row.part_id);
+    restrictedPartIdsByPiece.set(row.piece_id, parts);
   }
 
   const accessiblePieceIds = new Set<string>();
 
+  for (const [pieceId, parts] of restrictedPartIdsByPiece) {
+    if (parts.has(partId)) {
+      accessiblePieceIds.add(pieceId);
+    }
+  }
+
   for (const file of files) {
+    const pieceParts = restrictedPartIdsByPiece.get(file.piece_id);
+    if (pieceParts && !pieceParts.has(partId)) {
+      continue;
+    }
+    if (pieceParts?.has(partId)) {
+      accessiblePieceIds.add(file.piece_id);
+      continue;
+    }
+
     const links = file.piece_file_part_links as { part_id: string }[] | null;
     if (!links || links.length === 0) {
       accessiblePieceIds.add(file.piece_id);
@@ -213,7 +242,10 @@ async function buildPieceDetail(
   const accessRepo = createPieceAccessRepository();
   const themes = await loadThemesForPiece(organizationId, pieceRow.id);
   const files = await fileRepo.listForPiece(organizationId, pieceRow.id);
-  const audience = await accessRepo.loadAudience(organizationId, [pieceRow.id]);
+  const [audience, partLinksByPiece] = await Promise.all([
+    accessRepo.loadAudience(organizationId, [pieceRow.id]),
+    accessRepo.loadPartLinks(organizationId, [pieceRow.id]),
+  ]);
   const pieceAudience = audience.get(pieceRow.id) ?? { groups: [], musicians: [] };
 
   return {
@@ -236,6 +268,7 @@ async function buildPieceDetail(
     files,
     groups: pieceAudience.groups,
     musicians: pieceAudience.musicians,
+    partLinks: partLinksByPiece.get(pieceRow.id) ?? [],
   };
 }
 

@@ -3,7 +3,7 @@ import { formatAssignmentSummaryLabel } from '@/ui/features/ensemble/ensemble-la
 
 export const EVENT_KIND_LABELS: Record<EventKind, string> = {
   rehearsal: 'Ensaio',
-  service: 'Culto',
+  service: 'Apresentação',
   class: 'Aula',
   special: 'Especial',
 };
@@ -57,6 +57,9 @@ export const AGENDA_ERROR_MESSAGES: Record<string, string> = {
   already_cancelled: 'Este evento já está cancelado.',
   not_cancelled: 'Este evento não está cancelado.',
 };
+
+export const PROGRAM_PIECE_ACCESS_WARNING =
+  'Estes músicos do evento não têm acesso a esta obra';
 
 export const RECURRENCE_SCOPE_SAVE_LABELS: Record<
   'this' | 'following' | 'all_future',

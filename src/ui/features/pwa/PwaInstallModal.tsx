@@ -3,7 +3,7 @@ import { getPwaInstallCopy } from '@/ui/features/pwa/pwa-install-labels';
 import { usePwaInstallContext } from '@/ui/features/pwa/PwaInstallContext';
 
 export function PwaInstallModal() {
-  const { kind, modalOpen, closeModal, dismissSession, promptNativeInstall } = usePwaInstallContext();
+  const { kind, modalOpen, closeModal, dismissBanner, promptNativeInstall } = usePwaInstallContext();
   const copy = getPwaInstallCopy(kind);
 
   if (!copy) {
@@ -38,7 +38,7 @@ export function PwaInstallModal() {
         </button>
         <button
           type="button"
-          onClick={dismissSession}
+          onClick={dismissBanner}
           className="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-muted hover:bg-bg hover:text-text sm:w-auto"
         >
           {copy.secondaryCta}

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import nodemailer from 'npm:nodemailer@6.9.16';
+import { consumeRateLimit, sha256Hex } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,9 @@ async function hashCode(code: string): Promise<string> {
 }
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return String(10000000 + (bytes[0] % 90000000));
 }
 
 async function sendEmail(to: string, subject: string, text: string) {
@@ -68,6 +71,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (profile) {
+      const allowed = await consumeRateLimit(
+        supabase,
+        'recovery_request',
+        await sha256Hex(normalizedEmail),
+        3,
+        15 * 60,
+      );
+      if (!allowed) {
+        return jsonResponse({ ok: true });
+      }
+
       await supabase
         .from('password_recovery_codes')
         .update({ used_at: new Date().toISOString() })

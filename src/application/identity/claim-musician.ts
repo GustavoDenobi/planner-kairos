@@ -19,7 +19,7 @@ import { recordOrganizationRulesAcceptance } from './record-organization-rules-a
 import { recordPlatformLegalAcceptances } from './record-platform-legal-acceptances';
 
 export type ClaimMusicianInput = {
-  musicianId: string;
+  claimToken: string;
   displayName: string;
   email: string;
   password: string;
@@ -109,7 +109,7 @@ export async function claimMusician(
     }
 
     const signup = await auth.signUpForMusicianClaim({
-      musicianId: input.musicianId,
+      claimToken: input.claimToken,
       email: input.email,
       password: input.password,
       displayName: input.displayName,
@@ -136,7 +136,7 @@ export async function claimMusician(
 
     try {
       const normalizedBirthDate = normalizeInviteBirthDate(input.birthDate ?? '');
-      const orgSlug = await claimRepo.claim(input.musicianId, {
+      const orgSlug = await claimRepo.claim(input.claimToken, {
         displayName: input.displayName.trim(),
         phone: normalizePhone(input.phone ?? ''),
         birthDate: normalizedBirthDate ?? undefined,
@@ -190,7 +190,7 @@ export async function claimMusician(
     const normalizedBirthDate = input.birthDate
       ? normalizeInviteBirthDate(input.birthDate)
       : undefined;
-    const orgSlug = await claimRepo.claim(input.musicianId, {
+    const orgSlug = await claimRepo.claim(input.claimToken, {
       displayName: input.displayName.trim(),
       phone: input.phone ? normalizePhone(input.phone) : undefined,
       birthDate: normalizedBirthDate ?? undefined,

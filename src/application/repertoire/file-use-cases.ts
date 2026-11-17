@@ -1,4 +1,6 @@
 import type { FileStorage } from '@/application/ports/file-storage';
+import type { MembershipRepository } from '@/application/ports/membership-repository';
+import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PartRepository } from '@/application/ports/part-repository';
 import type { PieceFileRepository } from '@/application/ports/piece-file-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
@@ -182,6 +184,74 @@ export async function removePieceFile(
   } catch {
     return Result.fail('delete_failed');
   }
+}
+
+export type PieceAdminDownloadFile = {
+  fileId: string;
+  filename: string;
+  url: string;
+};
+
+async function assertOrgAdminAccess(
+  membershipRepo: MembershipRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  userId: string,
+): Promise<Result<void, 'not_a_member' | 'not_allowed'>> {
+  const [membership, isPlatformAdmin] = await Promise.all([
+    membershipRepo.getByUserAndOrg(organizationId, userId),
+    orgRepo.isPlatformAdmin(userId),
+  ]);
+
+  if (!membership && !isPlatformAdmin) {
+    return Result.fail('not_a_member');
+  }
+
+  const isPrivileged =
+    isPlatformAdmin || membership?.accessRole === 'owner' || membership?.accessRole === 'admin';
+
+  if (!isPrivileged) {
+    return Result.fail('not_allowed');
+  }
+
+  return Result.ok(undefined);
+}
+
+export async function preparePieceAdminDownload(
+  pieceRepo: PieceRepository,
+  fileStorage: FileStorage,
+  membershipRepo: MembershipRepository,
+  orgRepo: OrganizationRepository,
+  organizationId: string,
+  pieceId: string,
+  userId: string,
+) {
+  const access = await assertOrgAdminAccess(membershipRepo, orgRepo, organizationId, userId);
+  if (!access.ok) {
+    return access;
+  }
+
+  const piece = await pieceRepo.getById(organizationId, pieceId);
+  if (!piece) {
+    return Result.fail('not_found');
+  }
+
+  const files: PieceAdminDownloadFile[] = [];
+
+  for (const file of piece.files) {
+    try {
+      const url = await fileStorage.getSignedUrl(file.storageKey);
+      files.push({
+        fileId: file.id,
+        filename: file.originalName || file.title,
+        url,
+      });
+    } catch {
+      return Result.fail('signed_url_failed');
+    }
+  }
+
+  return Result.ok({ pieceTitle: piece.title, files });
 }
 
 export async function getPieceFileDownloadUrl(

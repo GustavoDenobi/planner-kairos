@@ -8,11 +8,14 @@ import { dismissPwaInstall, isPwaInstallDismissed } from '@/ui/features/pwa/pwa-
 
 export type PwaInstallState = {
   kind: PwaInstallContextKind;
+  /** Dá para instalar neste navegador (atalhos fixos: menu lateral e "Mais"). */
+  installable: boolean;
+  /** Banner do celular: instalável e não dispensado nos últimos 30 dias. */
   visible: boolean;
   modalOpen: boolean;
   openModal: () => void;
   closeModal: () => void;
-  dismissSession: () => void;
+  dismissBanner: () => void;
   promptNativeInstall: () => Promise<void>;
 };
 
@@ -58,7 +61,7 @@ export function usePwaInstall(): PwaInstallState {
     setModalOpen(false);
   }, []);
 
-  const dismissSession = useCallback(() => {
+  const dismissBanner = useCallback(() => {
     dismissPwaInstall();
     setDismissed(true);
     setModalOpen(false);
@@ -83,13 +86,16 @@ export function usePwaInstall(): PwaInstallState {
     }
   }, []);
 
+  const installable = shouldShowPwaInstallPrompt(kind);
+
   return {
     kind,
-    visible: !dismissed && shouldShowPwaInstallPrompt(kind),
+    installable,
+    visible: !dismissed && installable,
     modalOpen,
     openModal,
     closeModal,
-    dismissSession,
+    dismissBanner,
     promptNativeInstall,
   };
 }

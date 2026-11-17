@@ -41,9 +41,9 @@ export function AppLayout() {
   const showOfflineFallback = !online && !isOfflineAllowedPath(location.pathname);
 
   return (
-    <div className="flex min-h-dvh overflow-x-hidden bg-bg">
+    <div className="flex h-[var(--app-vh)] overflow-x-hidden bg-bg">
       <Sidebar orgSlug={orgSlug} />
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
         <MobileHeader orgSlug={orgSlug} />
         <div
           className="shrink-0 md:hidden"
@@ -51,11 +51,19 @@ export function AppLayout() {
           aria-hidden
         />
         <OfflineBanner />
-        <main
-          className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 md:p-6"
-          style={{ paddingBottom: `calc(${spacing.bottomNavOffset} + 1rem)` }}
-        >
-          {showOfflineFallback ? <OfflineUnavailableMessage /> : <Outlet />}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-4 pt-4 md:px-6 md:pt-6">
+          <div className="flex min-h-0 flex-1 flex-col">
+            {showOfflineFallback ? <OfflineUnavailableMessage /> : <Outlet />}
+            {/*
+              Respiro inferior (barra de navegação no celular) como elemento, não padding do <main>:
+              páginas mais altas que a tela transbordam este wrapper, e o padding do <main>
+              não entra na área de rolagem — o fim da página ficava sob a barra.
+            */}
+            <div
+              className="h-[calc(var(--app-bottom-nav-offset)+1rem)] shrink-0 md:h-6"
+              aria-hidden
+            />
+          </div>
         </main>
         {showInstallBanner ? <div className="h-12 shrink-0 md:hidden" aria-hidden /> : null}
         <PwaInstallMobileBanner />

@@ -5,12 +5,15 @@ import {
 } from '@/ui/features/agenda/agenda-date';
 import { AgendaBirthdayCard } from '@/ui/features/agenda/AgendaBirthdayCard';
 import { AgendaEventCard } from '@/ui/features/agenda/AgendaEventCard';
+import { AgendaPracticeTaskCard } from '@/ui/features/agenda/AgendaPracticeTaskCard';
+import type { AgendaPracticeTaskItem } from '@/ui/features/agenda/agenda-practice-tasks';
 import { AgendaEventsListSkeleton } from '@/ui/components/skeletons/page-list-skeletons';
 
 type AgendaEventsSectionProps = {
   orgSlug: string;
   events: EventListItem[];
   birthdays?: MusicianBirthdayItem[];
+  tasks?: AgendaPracticeTaskItem[];
   isLoading: boolean;
 };
 
@@ -18,9 +21,10 @@ export function AgendaEventsSection({
   orgSlug,
   events,
   birthdays = [],
+  tasks = [],
   isLoading,
 }: AgendaEventsSectionProps) {
-  const grouped = groupAgendaItemsByDay(events, birthdays);
+  const grouped = groupAgendaItemsByDay(events, birthdays, tasks);
 
   if (isLoading) {
     return <AgendaEventsListSkeleton />;
@@ -32,7 +36,7 @@ export function AgendaEventsSection({
 
   return (
     <div className="space-y-6">
-      {grouped.map(({ date, birthdays: dayBirthdays, events: dayEvents }) => (
+      {grouped.map(({ date, birthdays: dayBirthdays, tasks: dayTasks, events: dayEvents }) => (
         <section key={date.toISOString()}>
           <h2 className="mb-2 text-sm font-semibold capitalize text-text">
             {formatDayHeader(date)}
@@ -41,6 +45,11 @@ export function AgendaEventsSection({
             {dayBirthdays.map((birthday) => (
               <li key={`birthday-${birthday.musicianId}-${birthday.date}`}>
                 <AgendaBirthdayCard orgSlug={orgSlug} birthday={birthday} />
+              </li>
+            ))}
+            {dayTasks.map((task) => (
+              <li key={`task-${task.key}`}>
+                <AgendaPracticeTaskCard orgSlug={orgSlug} item={task} />
               </li>
             ))}
             {dayEvents.map((event) => (

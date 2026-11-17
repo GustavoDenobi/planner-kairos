@@ -177,6 +177,54 @@ export type StudyRecordingRecord = {
   mimeType: string;
   byteSize: number;
   blob: Blob;
+  /** Obra em que a gravação começou (gravações do leitor de partituras). */
+  pieceId?: string | null;
+  /** Arquivo em que a gravação começou. */
+  pieceFileId?: string | null;
+  /** Página em que a gravação começou. */
+  startPage?: number | null;
+  /** Páginas exibidas durante a gravação, com o instante (em segundos de áudio). */
+  pageMarks?: StudyRecordingPageMark[];
+  /** Recuperada de uma sessão interrompida (aba fechada, travamento). */
+  recovered?: boolean;
+  /** Tarefa em que a gravação foi feita: só essas podem ser enviadas a ela. */
+  practiceTaskId?: string | null;
+  /** Título da tarefa no momento da gravação (exibido em Ferramentas). */
+  practiceTaskTitle?: string | null;
+  /** Envio criado com esta gravação (some da lista de "para enviar"). */
+  practiceSubmissionId?: string | null;
+};
+
+export type StudyRecordingPageMark = {
+  atSec: number;
+  pieceFileId: string;
+  page: number;
+};
+
+/** Sessão de gravação em andamento, persistida para recuperação após interrupção. */
+export type StudyRecordingDraftRecord = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  title: string;
+  mimeType: string;
+  startedAt: string;
+  updatedAt: string;
+  durationMs: number;
+  pieceId: string | null;
+  pieceFileId: string | null;
+  startPage: number | null;
+  pageMarks: StudyRecordingPageMark[];
+  /** Tarefa em que a gravação foi feita: só essas podem ser enviadas a ela. */
+  practiceTaskId?: string | null;
+  /** Título da tarefa no momento da gravação (exibido em Ferramentas). */
+  practiceTaskTitle?: string | null;
+};
+
+export type StudyRecordingDraftChunkRecord = {
+  draftId: string;
+  seq: number;
+  blob: Blob;
 };
 
 export class PlannerKairosOfflineDb extends Dexie {
@@ -194,6 +242,8 @@ export class PlannerKairosOfflineDb extends Dexie {
   cachedTocEntries!: Table<CachedTocEntryRecord, string>;
   tocEntrySyncOutbox!: Table<TocEntrySyncOutboxRecord, string>;
   studyRecordings!: Table<StudyRecordingRecord, string>;
+  studyRecordingDrafts!: Table<StudyRecordingDraftRecord, string>;
+  studyRecordingDraftChunks!: Table<StudyRecordingDraftChunkRecord, [string, number]>;
 
   constructor() {
     super('planner-kairos-offline');
@@ -322,6 +372,29 @@ export class PlannerKairosOfflineDb extends Dexie {
         'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
       tocEntrySyncOutbox: 'id, createdAt',
       studyRecordings: 'id, organizationId, userId, createdAt, [organizationId+userId]',
+    });
+    this.version(11).stores({
+      cachedFiles: 'pieceFileId, organizationId, [organizationId+pieceFileId]',
+      cachedAnnotations:
+        'clientId, pieceFileId, organizationId, syncStatus, annotationSetId, [organizationId+pieceFileId]',
+      cachedAnnotationSets:
+        'id, pieceFileId, organizationId, syncStatus, authorUserId, [organizationId+pieceFileId]',
+      syncOutbox: 'id, createdAt',
+      cachedPlaylists: 'playlistId, organizationId',
+      identitySnapshot: 'id, userId',
+      cachedAgenda: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedMusicians: 'cacheKey, organizationId, userId, [organizationId+userId]',
+      cachedOrgImages: 'storageKey',
+      cachedNavigationShortcuts:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      navigationShortcutSyncOutbox: 'id, createdAt',
+      cachedTocEntries:
+        'clientId, pieceFileId, organizationId, syncStatus, [organizationId+pieceFileId]',
+      tocEntrySyncOutbox: 'id, createdAt',
+      studyRecordings:
+        'id, organizationId, userId, createdAt, pieceFileId, [organizationId+userId]',
+      studyRecordingDrafts: 'id, userId, updatedAt',
+      studyRecordingDraftChunks: '[draftId+seq], draftId',
     });
   }
 }

@@ -13,6 +13,26 @@ import { supabase } from './client';
 const ASSIGNMENT_COLUMNS =
   'id, organization_id, musician_id, group_id, section_id, part_id, ensemble_role';
 
+function mapAssignmentWithDetails(row: {
+  id: string;
+  organization_id: string;
+  musician_id: string;
+  group_id: string;
+  section_id: string | null;
+  part_id: string | null;
+  ensemble_role: Assignment['ensembleRole'];
+  groups: unknown;
+  sections: unknown;
+  parts: unknown;
+}): AssignmentWithDetails {
+  return {
+    ...mapAssignment(row),
+    groupName: (row.groups as { name: string } | null)?.name ?? '',
+    sectionName: (row.sections as { name: string } | null)?.name ?? null,
+    partName: (row.parts as { name: string } | null)?.name ?? null,
+  };
+}
+
 function mapAssignment(row: {
   id: string;
   organization_id: string;
@@ -49,24 +69,25 @@ export function createAssignmentRepository(): AssignmentRepository {
         return [];
       }
 
-      return data.map(
-        (row): AssignmentWithDetails => ({
-          ...mapAssignment(
-            row as {
-              id: string;
-              organization_id: string;
-              musician_id: string;
-              group_id: string;
-              section_id: string | null;
-              part_id: string | null;
-              ensemble_role: Assignment['ensembleRole'];
-            },
-          ),
-          groupName: (row.groups as unknown as { name: string } | null)?.name ?? '',
-          sectionName: (row.sections as unknown as { name: string } | null)?.name ?? null,
-          partName: (row.parts as unknown as { name: string } | null)?.name ?? null,
-        }),
-      );
+      return data.map((row) => mapAssignmentWithDetails(row));
+    },
+
+    async listForMusicians(organizationId, musicianIds) {
+      if (musicianIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('assignments')
+        .select(`${ASSIGNMENT_COLUMNS}, groups(name), sections(name), parts(name)`)
+        .eq('organization_id', organizationId)
+        .in('musician_id', musicianIds);
+
+      if (error || !data) {
+        return [];
+      }
+
+      return data.map((row) => mapAssignmentWithDetails(row));
     },
 
     async listForGroup(organizationId, groupId) {

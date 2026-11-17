@@ -371,6 +371,18 @@ export function createMusicianRepository(): MusicianRepository {
         throw new Error(error.message);
       }
     },
+
+    async ensureClaimToken(musicianId) {
+      const { data, error } = await supabase.rpc('ensure_musician_claim_token', {
+        p_musician_id: musicianId,
+      });
+
+      if (error || typeof data !== 'string' || !data) {
+        throw new Error(error?.message ?? 'claim_token_failed');
+      }
+
+      return data;
+    },
   };
 }
 

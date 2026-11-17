@@ -1,6 +1,6 @@
 import type { EnsembleUseCases } from '@/application/ensemble';
 import type { RepertoireUseCases } from '@/application/repertoire';
-import type { PieceFileWithLinks } from '@/domain/repertoire';
+import { isUserGroupWriterInLinkedGroups, type PieceFileWithLinks } from '@/domain/repertoire';
 import type { PartWithDivisions } from '@/application/ports/part-repository';
 import type { GroupFileAccessSettings } from '@/domain/ensemble';
 import {
@@ -89,19 +89,14 @@ export async function loadPieceViewerAudioContext(input: {
     return { audios: [], parts };
   }
 
-  const isConductor = linkedGroupIds.some((groupId) =>
-    assignments.some(
-      (assignment) =>
-        assignment.groupId === groupId && assignment.ensembleRole === 'conductor',
-    ),
-  );
+  const isGroupWriter = isUserGroupWriterInLinkedGroups(linkedGroupIds, assignments);
 
   return {
     audios: buildAccessiblePieceAudios(
       pieceResult.value,
       audioAccess,
       userPartIds,
-      isConductor,
+      isGroupWriter,
     ),
     parts,
   };

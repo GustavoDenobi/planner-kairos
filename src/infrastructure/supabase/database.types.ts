@@ -924,6 +924,7 @@ export type Database = {
           birth_date: string | null
           created_at: string
           email: string | null
+          claim_token_hash: string | null
           full_name: string
           group_invite_id: string | null
           id: string
@@ -995,6 +996,7 @@ export type Database = {
           rules_title: string | null
           rules_version: number
           slug: string
+          time_zone: string
           updated_at: string
         }
         Insert: {
@@ -1008,6 +1010,7 @@ export type Database = {
           rules_title?: string | null
           rules_version?: number
           slug: string
+          time_zone?: string
           updated_at?: string
         }
         Update: {
@@ -1021,6 +1024,7 @@ export type Database = {
           rules_title?: string | null
           rules_version?: number
           slug?: string
+          time_zone?: string
           updated_at?: string
         }
         Relationships: [
@@ -1629,6 +1633,62 @@ export type Database = {
           },
         ]
       }
+      piece_part_links: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          part_division_id: string | null
+          part_id: string
+          piece_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          part_division_id?: string | null
+          part_id: string
+          piece_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          part_division_id?: string | null
+          part_id?: string
+          piece_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_part_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_part_links_part_division_id_fkey"
+            columns: ["part_division_id"]
+            isOneToOne: false
+            referencedRelation: "part_divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_part_links_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "parts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piece_part_links_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piece_theme_links: {
         Row: {
           created_at: string
@@ -1906,6 +1966,318 @@ export type Database = {
             columns: ["actor_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_submissions: {
+        Row: {
+          attempt: number
+          byte_size: number
+          duration_ms: number
+          feedback: string | null
+          id: string
+          mime_type: string
+          musician_id: string
+          organization_id: string
+          page_marks: Json
+          period_date: string | null
+          recorded_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["practice_submission_status"]
+          storage_path: string
+          student_note: string | null
+          submitted_at: string
+          submitted_by: string | null
+          task_id: string
+        }
+        Insert: {
+          attempt: number
+          byte_size: number
+          duration_ms: number
+          feedback?: string | null
+          id?: string
+          mime_type: string
+          musician_id: string
+          organization_id: string
+          page_marks?: Json
+          period_date?: string | null
+          recorded_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["practice_submission_status"]
+          storage_path: string
+          student_note?: string | null
+          submitted_at?: string
+          submitted_by?: string | null
+          task_id: string
+        }
+        Update: {
+          attempt?: number
+          byte_size?: number
+          duration_ms?: number
+          feedback?: string | null
+          id?: string
+          mime_type?: string
+          musician_id?: string
+          organization_id?: string
+          page_marks?: Json
+          period_date?: string | null
+          recorded_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["practice_submission_status"]
+          storage_path?: string
+          student_note?: string | null
+          submitted_at?: string
+          submitted_by?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_submissions_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_submissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "practice_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_task_groups: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          organization_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          organization_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          organization_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_task_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_task_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_task_groups_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "practice_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_task_musicians: {
+        Row: {
+          created_at: string
+          id: string
+          musician_id: string
+          organization_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          musician_id: string
+          organization_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          musician_id?: string
+          organization_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_task_musicians_musician_id_fkey"
+            columns: ["musician_id"]
+            isOneToOne: false
+            referencedRelation: "musicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_task_musicians_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_task_musicians_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "practice_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_tasks: {
+        Row: {
+          accept_late_submissions: boolean
+          cadence: Database["public"]["Enums"]["practice_task_cadence"]
+          ends_on: string | null
+          starts_on: string | null
+          weekdays: number[] | null
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string
+          id: string
+          instructions: string
+          linked_event_id: string | null
+          organization_id: string
+          piece_file_id: string | null
+          piece_id: string | null
+          target_page: number | null
+          target_x: number | null
+          target_y: number | null
+          title: string
+          toc_entry_id: string | null
+          toc_label_snapshot: string | null
+          updated_at: string
+        }
+        Insert: {
+          accept_late_submissions?: boolean
+          cadence?: Database["public"]["Enums"]["practice_task_cadence"]
+          ends_on?: string | null
+          starts_on?: string | null
+          weekdays?: number[] | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at: string
+          id?: string
+          instructions?: string
+          linked_event_id?: string | null
+          organization_id: string
+          piece_file_id?: string | null
+          piece_id?: string | null
+          target_page?: number | null
+          target_x?: number | null
+          target_y?: number | null
+          title: string
+          toc_entry_id?: string | null
+          toc_label_snapshot?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accept_late_submissions?: boolean
+          cadence?: Database["public"]["Enums"]["practice_task_cadence"]
+          ends_on?: string | null
+          starts_on?: string | null
+          weekdays?: number[] | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string
+          id?: string
+          instructions?: string
+          linked_event_id?: string | null
+          organization_id?: string
+          piece_file_id?: string | null
+          piece_id?: string | null
+          target_page?: number | null
+          target_x?: number | null
+          target_y?: number | null
+          title?: string
+          toc_entry_id?: string | null
+          toc_label_snapshot?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_tasks_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_tasks_piece_file_id_fkey"
+            columns: ["piece_file_id"]
+            isOneToOne: false
+            referencedRelation: "piece_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_tasks_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_tasks_toc_entry_id_fkey"
+            columns: ["toc_entry_id"]
+            isOneToOne: false
+            referencedRelation: "piece_file_toc_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -2348,12 +2720,21 @@ export type Database = {
         Args: { p_recurrence_id: string }
         Returns: boolean
       }
+      assert_rate_limit: {
+        Args: {
+          p_action: string
+          p_bucket_key: string
+          p_max_count: number
+          p_window_seconds: number
+        }
+        Returns: undefined
+      }
       claim_musician: {
         Args: {
           p_birth_date?: string
           p_display_name: string
-          p_musician_id: string
           p_phone?: string
+          p_token: string
         }
         Returns: {
           organization_slug: string
@@ -2365,6 +2746,10 @@ export type Database = {
           invite_id: string
           token: string
         }[]
+      }
+      ensure_musician_claim_token: {
+        Args: { p_musician_id: string }
+        Returns: string
       }
       create_musician: {
         Args: {
@@ -2398,7 +2783,7 @@ export type Database = {
         }[]
       }
       get_musician_claim_preview: {
-        Args: { p_musician_id: string }
+        Args: { p_token: string }
         Returns: {
           already_claimed: boolean
           assignments: Json
@@ -2423,6 +2808,27 @@ export type Database = {
           storage_bytes: number
         }[]
       }
+      get_org_billing_overview: {
+        Args: { p_org_id: string }
+        Returns: {
+          amount_cents: number
+          cycle_months: number
+          grace_days: number
+          instructions: string | null
+          next_due_date: string
+          pix_key: string | null
+          pix_recipient_name: string | null
+          recent_payments: Json
+        }[]
+      }
+      get_org_storage_breakdown: {
+        Args: { p_org_id: string }
+        Returns: {
+          bytes: number
+          category: string
+          file_count: number
+        }[]
+      }
       get_org_storage_bytes: { Args: { p_org_id: string }; Returns: number }
       grant_org_admin: {
         Args: { p_organization_id: string; p_user_id: string }
@@ -2437,6 +2843,7 @@ export type Database = {
       }
       hash_token: { Args: { p_token: string }; Returns: string }
       is_conductor_for_piece: { Args: { p_piece_id: string }; Returns: boolean }
+      is_group_writer_for_piece: { Args: { p_piece_id: string }; Returns: boolean }
       is_in_section: {
         Args: { p_org_id: string; p_section_id: string }
         Returns: boolean
@@ -2491,8 +2898,18 @@ export type Database = {
       }
       piece_allows_override: { Args: { p_piece_id: string }; Returns: boolean }
       piece_has_audience: { Args: { p_piece_id: string }; Returns: boolean }
+      piece_has_part_restrictions: { Args: { p_piece_id: string }; Returns: boolean }
+      platform_add_org_billing_note: {
+        Args: { p_note: string; p_org_id: string }
+        Returns: string
+      }
       platform_assign_organization_plan: {
-        Args: { p_org_id: string; p_plan_id: string }
+        Args: {
+          p_note?: string | null
+          p_org_id: string
+          p_plan_id: string
+          p_stop_billing?: boolean
+        }
         Returns: undefined
       }
       platform_create_organization: {
@@ -2504,12 +2921,36 @@ export type Database = {
         }
         Returns: string
       }
+      platform_delete_org_billing_entry: {
+        Args: { p_entry_id: string }
+        Returns: undefined
+      }
       platform_find_user_by_email: {
         Args: { p_email: string }
         Returns: {
           display_name: string
           email: string
           id: string
+        }[]
+      }
+      platform_get_billing_settings: {
+        Args: never
+        Returns: {
+          instructions: string | null
+          pix_key: string | null
+          pix_recipient_name: string | null
+        }[]
+      }
+      platform_get_org_billing: {
+        Args: { p_org_id: string }
+        Returns: {
+          amount_cents: number
+          cycle_months: number
+          grace_days: number
+          is_active: boolean
+          next_due_date: string
+          notes: string | null
+          organization_id: string
         }[]
       }
       platform_get_organization: {
@@ -2576,6 +3017,26 @@ export type Database = {
           plan_id: string
           plan_name: string
           slug: string
+          billing_amount_cents: number | null
+          billing_cycle_months: number | null
+          billing_grace_days: number | null
+          billing_is_active: boolean | null
+          billing_last_payment_on: string | null
+          billing_next_due_date: string | null
+        }[]
+      }
+      platform_list_org_billing_entries: {
+        Args: { p_org_id: string }
+        Returns: {
+          amount_cents: number | null
+          created_at: string
+          created_by_name: string | null
+          from_plan_name: string | null
+          id: string
+          kind: string
+          note: string | null
+          occurred_on: string
+          to_plan_name: string | null
         }[]
       }
       platform_list_plans: {
@@ -2607,11 +3068,29 @@ export type Database = {
           total_count: number
         }[]
       }
+      platform_record_org_payment: {
+        Args: {
+          p_amount_cents: number
+          p_next_due_date: string
+          p_note: string | null
+          p_org_id: string
+          p_paid_on: string
+        }
+        Returns: string
+      }
       platform_remove_membership: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: undefined
       }
       platform_require_admin: { Args: never; Returns: undefined }
+      platform_update_billing_settings: {
+        Args: {
+          p_instructions: string | null
+          p_pix_key: string | null
+          p_pix_recipient_name: string | null
+        }
+        Returns: undefined
+      }
       platform_upsert_membership: {
         Args: {
           p_org_id: string
@@ -2619,6 +3098,18 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      platform_upsert_org_billing: {
+        Args: {
+          p_amount_cents: number
+          p_cycle_months: number
+          p_grace_days: number
+          p_is_active: boolean
+          p_next_due_date: string
+          p_notes: string | null
+          p_org_id: string
+        }
+        Returns: undefined
       }
       platform_upsert_plan: {
         Args: {
@@ -2675,6 +3166,7 @@ export type Database = {
         Args: { p_invite_id: string; p_max_uses: number }
         Returns: undefined
       }
+      user_matches_piece_parts: { Args: { p_piece_id: string }; Returns: boolean }
     }
     Enums: {
       access_role: "owner" | "admin" | "member"
@@ -2685,6 +3177,8 @@ export type Database = {
       group_kind: "ensemble" | "choir" | "class" | "other"
       part_kind: "instrument" | "voice"
       piece_file_access_scope: "own_parts" | "all_files"
+      practice_submission_status: "submitted" | "reviewed" | "redo_requested"
+      practice_task_cadence: "once" | "daily"
       piece_file_kind: "score" | "audio"
       piece_file_organization: "distributed" | "sequential" | "single"
       program_item_status: "planned" | "performed" | "skipped"
@@ -2828,6 +3322,8 @@ export const Constants = {
       group_kind: ["ensemble", "choir", "class", "other"],
       part_kind: ["instrument", "voice"],
       piece_file_access_scope: ["own_parts", "all_files"],
+      practice_submission_status: ["submitted", "reviewed", "redo_requested"],
+      practice_task_cadence: ["once", "daily"],
       piece_file_kind: ["score", "audio"],
       piece_file_organization: ["distributed", "sequential", "single"],
       program_item_status: ["planned", "performed", "skipped"],

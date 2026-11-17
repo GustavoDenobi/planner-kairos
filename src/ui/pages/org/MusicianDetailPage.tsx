@@ -21,12 +21,17 @@ import { useLoadingBar } from '@/ui/app/loading-bar/useLoadingBar';
 import { Modal } from '@/ui/components/Modal';
 import { MusicianLinkCopy } from '@/ui/components/MusicianLinkCopy';
 import { Tabs } from '@/ui/components/Tabs';
+import { MusicianPracticeTasksSection } from '@/ui/features/practice/PracticeStudentTasks';
 import { BackButton, BackLink } from '@/ui/components/BackButton';
 import { IconPencil } from '@/ui/components/icons';
 import { ENSEMBLE_ROLE_OPTIONS, ensembleRoleLabel } from '@/ui/features/ensemble/ensemble-labels';
 import { MusicianHistorySection } from '@/ui/features/ensemble/MusicianHistorySection';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
-import { orgListPageHeightClass, orgPageContentClass } from '@/ui/layouts/OrgListPageLayout';
+import {
+  orgListPageHeightClass,
+  orgPageContentClass,
+  scrollContentEndPaddingClass,
+} from '@/ui/layouts/OrgListPageLayout';
 
 type AssignmentFormState = {
   groupId: string;
@@ -617,7 +622,9 @@ export function MusicianDetailPage() {
               id: 'geral',
               label: 'Geral',
               content: (
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <div
+                  className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+                >
                 <>
                   <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
                     <label className="flex flex-col gap-1 text-sm">
@@ -780,7 +787,9 @@ export function MusicianDetailPage() {
               id: 'atribuicoes',
               label: 'Atribuições',
               content: (
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <div
+                  className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+                >
                 <>
                   <ul className="flex flex-col gap-2">
                     {assignments.map((assignment) => (
@@ -826,6 +835,24 @@ export function MusicianDetailPage() {
                 </>
                 </div>
               ),
+            },
+            {
+              id: 'tarefas',
+              label: 'Tarefas',
+              content:
+                userId && orgSlug ? (
+                  <div
+                    className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+                  >
+                    <MusicianPracticeTasksSection
+                      orgSlug={orgSlug}
+                      organizationId={org.id}
+                      userId={userId}
+                      musicianId={musician.id}
+                      musicianName={musician.fullName}
+                    />
+                  </div>
+                ) : null,
             },
             {
               id: 'historico',

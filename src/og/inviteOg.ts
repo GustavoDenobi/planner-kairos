@@ -1,5 +1,5 @@
-import { publicOrgImageUrl } from '../ui/utils/publicOrgImageUrl.js';
 import { normalizeEnvUrl } from '../domain/shared/normalizeEnvUrl.js';
+import { signOrgBrandingUrl } from './signOrgBrandingUrl.js';
 
 export type InvitePreviewRow = {
   invite_id: string;
@@ -17,6 +17,7 @@ export type InviteOgHtmlOptions = {
   siteOrigin: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  serviceRoleKey?: string;
   productionAssets?: { js: string; css?: string };
 };
 
@@ -63,21 +64,20 @@ export type InviteOgMeta = {
 
 export function buildInviteOgMeta(
   preview: InvitePreviewRow,
-  options: Pick<InviteOgHtmlOptions, 'token' | 'siteOrigin' | 'supabaseUrl'>,
+  options: Pick<InviteOgHtmlOptions, 'token' | 'siteOrigin'>,
+  imageUrl: string | null,
 ): InviteOgMeta {
   const siteOrigin = normalizeEnvUrl(options.siteOrigin);
   const pageUrl = `${siteOrigin}/convite/${encodeURIComponent(options.token)}`;
   const title = `Convite — ${preview.organization_name}`;
   const description = `Participe de ${preview.organization_name} no grupo ${preview.group_name}.`;
-  const imageUrl = preview.organization_image_storage_key
-    ? publicOrgImageUrl(options.supabaseUrl, preview.organization_image_storage_key)
-    : `${siteOrigin}/logo.png`;
+  const resolvedImageUrl = imageUrl ?? `${siteOrigin}/logo.png`;
 
   return {
     title,
     description,
     pageUrl,
-    imageUrl,
+    imageUrl: resolvedImageUrl,
     organizationName: preview.organization_name,
   };
 }
@@ -104,6 +104,24 @@ function renderInviteOgHeadTags(meta: InviteOgMeta): string {
     <meta name="twitter:description" content="${escapeHtml(meta.description)}" />`;
 }
 
+export async function signInvitePreviewImage(
+  preview: InvitePreviewRow,
+  options: Pick<InviteOgHtmlOptions, 'supabaseUrl' | 'serviceRoleKey'>,
+): Promise<string | null> {
+  const storageKey = preview.organization_image_storage_key;
+  const serviceRoleKey = options.serviceRoleKey ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!storageKey || !serviceRoleKey) {
+    return null;
+  }
+
+  return signOrgBrandingUrl({
+    supabaseUrl: options.supabaseUrl,
+    serviceRoleKey,
+    organizationId: preview.organization_id,
+    storageKey,
+  });
+}
+
 export function injectInviteOgIntoHtml(indexHtml: string, meta: InviteOgMeta): string {
   const headTags = renderInviteOgHeadTags(meta);
 
@@ -123,7 +141,8 @@ export async function buildInviteOgHtml(options: InviteOgHtmlOptions): Promise<s
     return null;
   }
 
-  const meta = buildInviteOgMeta(preview, options);
+  const imageUrl = await signInvitePreviewImage(preview, options);
+  const meta = buildInviteOgMeta(preview, options, imageUrl);
 
   const cssTag = options.productionAssets?.css
     ? `<link rel="stylesheet" crossorigin href="${escapeHtml(options.productionAssets.css)}" />`

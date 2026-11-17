@@ -12,6 +12,7 @@ export function OrgSelectorPage() {
     organizations,
     isLoading,
     isOfflineData,
+    loadFailed,
     isPlatformAdmin,
     setCurrentOrgBySlug,
     refreshOrganizations,
@@ -55,6 +56,20 @@ export function OrgSelectorPage() {
               <p className="mt-2 text-sm text-muted">
                 Conecte-se à internet e abra o app uma vez para sincronizar suas organizações.
               </p>
+            </>
+          ) : loadFailed ? (
+            <>
+              <h1 className="text-xl font-semibold text-text">Erro ao carregar</h1>
+              <p className="mt-2 text-sm text-muted">
+                Não foi possível carregar suas organizações.
+              </p>
+              <button
+                type="button"
+                onClick={() => void refreshOrganizations()}
+                className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Tentar de novo
+              </button>
             </>
           ) : (
             <>

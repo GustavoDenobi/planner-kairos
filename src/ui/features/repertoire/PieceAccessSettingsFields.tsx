@@ -122,7 +122,7 @@ export function GroupFileAccessSettingsForm({
           disabled={disabled}
           className="mt-0.5 rounded border-border text-primary focus:ring-primary"
         />
-        <span>Permitir que regra de acesso da peça sobrescreva regra do grupo</span>
+        <span>Permitir que regra de acesso da obra sobrescreva regra do grupo</span>
       </label>
     </div>
   );

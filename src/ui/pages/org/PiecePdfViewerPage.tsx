@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useReaderPracticeTaskUi } from '@/ui/features/practice/useReaderPracticeTaskUi';
 import type * as pdfjs from 'pdfjs-dist';
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceFileWithLinks, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet, CreatePieceFileTocEntryInput, PieceFileTocEntry, UpdatePieceFileTocEntryInput } from '@/domain/repertoire';
 import { formatAnnotationSetLabel, resolveAnnotationSetAudience } from '@/domain/repertoire';
@@ -41,6 +42,10 @@ import type { AssignmentWithDetails, GroupFileAccessSettings } from '@/domain/en
 
 export function PiecePdfViewerPage() {
   const { orgSlug, pieceId, fileId } = useParams();
+  const [searchParams] = useSearchParams();
+  // Links de tarefas abrem o leitor já na página do trecho (?pagina=N).
+  const requestedPage = Number(searchParams.get('pagina'));
+  const initialPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const repertoire = useRepertoire();
   const offline = useOffline();
   const ensemble = useEnsemble();
@@ -271,7 +276,7 @@ export function PiecePdfViewerPage() {
 
       let pieceFile: PieceFileWithLinks | null = null;
       let pieceDetailForAccess: PieceDetail | null = null;
-      if (online && pdfLoad.resolved?.source !== 'local') {
+      if (online) {
         const pieceResult = await repertoire.getPiece(resolvedOrganizationId, currentPieceId);
         if (!cancelled && pieceResult.ok) {
           pieceDetailForAccess = pieceResult.value;
@@ -1045,6 +1050,30 @@ export function PiecePdfViewerPage() {
 
   const transposePartOptions = useMemo(() => mapTransposePartOptions(parts), [parts]);
 
+  const recordingContext = useMemo(
+    () =>
+      org && pieceId && fileId
+        ? {
+            organizationId: org.id,
+            pieceId,
+            pieceFileId: fileId,
+            titlePrefix: pieceDetail?.title ?? null,
+          }
+        : null,
+    [fileId, org, pieceDetail?.title, pieceId],
+  );
+
+  const practiceTaskUi = useReaderPracticeTaskUi({
+    orgSlug,
+    organizationId: org?.id ?? null,
+    userId,
+    pieceId: pieceId ?? null,
+    pieceFileId: fileId ?? null,
+    initialTaskId: searchParams.get('tarefa'),
+    online,
+    recordingContext,
+  });
+
   if (!orgSlug || !pieceId || !fileId) {
     return null;
   }
@@ -1102,6 +1131,11 @@ export function PiecePdfViewerPage() {
       <PdfViewer
         key={fileId}
         url={downloadUrl ?? ''}
+        initialPage={initialPage}
+        controlsBarExtra={practiceTaskUi.controlsBarExtra}
+        toolbarExtraActions={practiceTaskUi.toolbarExtraActions}
+        pageRequest={practiceTaskUi.pageRequest}
+        onPageChange={practiceTaskUi.onPageChange}
         userId={userId}
         annotations={annotations}
         sectionLeadOptions={sectionLeadOptions}
@@ -1123,6 +1157,8 @@ export function PiecePdfViewerPage() {
         allowDownload={allowFileDownload}
         transposePartOptions={transposePartOptions}
         filePartLinks={file.partLinks}
+        recordingContext={recordingContext}
+        recorderEmbedded={practiceTaskUi.recorderEmbedded}
         readerInfo={{
           open: infoModalOpen,
           onClose: () => setInfoModalOpen(false),

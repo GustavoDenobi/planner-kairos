@@ -1,4 +1,5 @@
 import type * as pdfjs from 'pdfjs-dist';
+import { downloadBlob } from '@/ui/utils/download-url';
 
 export function pdfShareFilename(name?: string | null): string {
   const trimmed = name?.trim();
@@ -16,7 +17,10 @@ export async function sharePdfDocument(
   pdf: pdfjs.PDFDocumentProxy,
   filename?: string | null,
 ): Promise<void> {
-  const data = await pdf.getData();
+  await sharePdfBytes(await pdf.getData(), filename);
+}
+
+export async function sharePdfBytes(data: Uint8Array, filename?: string | null): Promise<void> {
   const file = new File([new Blob([data], { type: 'application/pdf' })], pdfShareFilename(filename), {
     type: 'application/pdf',
   });
@@ -26,4 +30,8 @@ export async function sharePdfDocument(
   }
 
   await navigator.share({ files: [file], title: file.name });
+}
+
+export function downloadPdfBytes(data: Uint8Array, filename?: string | null): void {
+  downloadBlob(new Blob([data], { type: 'application/pdf' }), pdfShareFilename(filename));
 }

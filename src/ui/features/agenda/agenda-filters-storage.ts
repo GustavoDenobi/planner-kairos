@@ -48,3 +48,30 @@ export function saveAgendaFilters(userId: string, filters: StoredAgendaFilters):
     // ignore storage errors
   }
 }
+
+/**
+ * Um id gravado deixa de valer quando o tipo ou o grupo some.
+ * Catálogo `null` significa que a lista ainda não foi carregada — o id fica como está.
+ */
+export function resolveAgendaFilters(
+  filters: Pick<StoredAgendaFilters, 'typeId' | 'groupId' | 'kind'>,
+  catalogs: {
+    types: readonly { id: string; kind: EventKind }[] | null;
+    groups: readonly { id: string }[] | null;
+  },
+): { typeId: string; groupId: string } {
+  let typeId = filters.typeId;
+  if (catalogs.types && typeId) {
+    const type = catalogs.types.find((item) => item.id === typeId);
+    if (!type || (filters.kind && type.kind !== filters.kind)) {
+      typeId = '';
+    }
+  }
+
+  let groupId = filters.groupId;
+  if (catalogs.groups && groupId && !catalogs.groups.some((group) => group.id === groupId)) {
+    groupId = '';
+  }
+
+  return { typeId, groupId };
+}

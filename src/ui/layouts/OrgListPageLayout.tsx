@@ -2,8 +2,12 @@ import type { ReactNode, Ref } from 'react';
 
 export const orgPageContentClass = 'w-full max-w-6xl';
 
-export const orgListPageHeightClass =
-  'h-[calc(var(--app-vh)-var(--app-header-offset)-var(--app-bottom-nav-offset)-2rem)] md:h-[calc(var(--app-vh)-6.5rem)]';
+export const orgListPageHeightClass = 'min-h-0 flex-1';
+
+/** ~1/3 da viewport — respiro após o último item em áreas com scroll. */
+export const scrollContentEndPaddingClass = 'scroll-content-end-padding';
+
+export const orgListScrollAreaClass = `min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`;
 
 type OrgListPageLayoutProps = {
   header: ReactNode;
@@ -28,7 +32,7 @@ export function OrgListPageLayout({
       </div>
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className={orgListScrollAreaClass}
       >
         {children}
       </div>

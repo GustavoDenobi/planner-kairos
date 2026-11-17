@@ -9,12 +9,13 @@ import {
   assignMusician,
   listAssignmentsForGroup,
   listAssignmentsForMusician,
+  listAssignmentsForMusicians,
   removeAssignment,
   updateAssignment,
 } from './assignment-use-cases';
 import { createGroup, deleteGroup, getGroup, updateGroup, archiveGroup, restoreGroup, updateGroupFileAccessSettings, reorderGroups } from './group-use-cases';
 import { listGroups } from './list-groups';
-import { createMusician, deleteMusician, getMusician, getMyMusician, listMusicians, mergeMusicians, updateMusician } from './musician-use-cases';
+import { createMusician, deleteMusician, ensureMusicianClaimToken, getMusician, getMyMusician, listMusicians, mergeMusicians, updateMusician } from './musician-use-cases';
 import {
   getPart,
   getPartRemovalImpact,
@@ -82,6 +83,8 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
       mergeMusicians(deps.musicianRepo, organizationId, sourceId, targetId),
     deleteMusician: (organizationId: string, musicianId: string) =>
       deleteMusician(deps.musicianRepo, organizationId, musicianId),
+    ensureMusicianClaimToken: (musicianId: string) =>
+      ensureMusicianClaimToken(deps.musicianRepo, musicianId),
 
     listParts: (organizationId: string) => listParts(deps.partRepo, organizationId),
     getPart: (organizationId: string, partId: string) =>
@@ -122,6 +125,8 @@ export function createEnsembleUseCases(deps: EnsembleDeps) {
 
     listAssignmentsForMusician: (organizationId: string, musicianId: string) =>
       listAssignmentsForMusician(deps.assignmentRepo, organizationId, musicianId),
+    listAssignmentsForMusicians: (organizationId: string, musicianIds: string[]) =>
+      listAssignmentsForMusicians(deps.assignmentRepo, organizationId, musicianIds),
     listAssignmentsForGroup: (organizationId: string, groupId: string) =>
       listAssignmentsForGroup(deps.assignmentRepo, organizationId, groupId),
     assignMusician: (organizationId: string, musicianId: string, input: AssignmentInput) =>

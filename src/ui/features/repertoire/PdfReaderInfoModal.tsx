@@ -27,6 +27,8 @@ type PdfReaderInfoModalProps = {
   allowDownload?: boolean;
   downloadUrl?: string | null;
   downloadName?: string;
+  /** Replaces the plain URL download, e.g. to include annotation layers. */
+  onDownload?: () => Promise<void>;
   onShare?: () => void;
   onPrint?: () => void;
 };
@@ -39,19 +41,24 @@ export function PdfReaderInfoModal({
   allowDownload = true,
   downloadUrl,
   downloadName,
+  onDownload,
   onShare,
   onPrint,
 }: PdfReaderInfoModalProps) {
-  const showDownload = allowDownload && Boolean(downloadUrl);
+  const showDownload = allowDownload && (Boolean(downloadUrl) || Boolean(onDownload));
   const showShare = allowDownload && Boolean(onShare);
   const showPrint = allowDownload && Boolean(onPrint);
   const showActions = showDownload || showShare || showPrint;
 
   async function handleDownload() {
-    if (!downloadUrl) {
-      return;
-    }
     try {
+      if (onDownload) {
+        await onDownload();
+        return;
+      }
+      if (!downloadUrl) {
+        return;
+      }
       await downloadFromUrl(downloadUrl, downloadName);
     } catch {
       /* Keep the modal open if the download cannot start. */

@@ -162,7 +162,7 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
   const agendaCache = deps.offlineStorage.agendaCache;
   const musicianCache = deps.offlineStorage.musicianCache;
   const orgImageCache = deps.offlineStorage.orgImageCache;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
+  const getOrgImageSignedUrl = (storageKey: string) => deps.fileStorage.getSignedUrl(storageKey);
 
   return {
     cachePieceFileForOffline: (organizationId: string, pieceId: string, fileId: string) =>
@@ -650,10 +650,10 @@ export function createOfflineUseCases(deps: OfflineUseCaseDeps) {
     getCachedOrgImageObjectUrl: (storageKey: string) => getCachedOrgImageObjectUrl(storageKey),
 
     resolveOrgImageUrl: (storageKey: string) =>
-      resolveOrgImageObjectUrl(orgImageCache, storageKey, supabaseUrl),
+      resolveOrgImageObjectUrl(orgImageCache, storageKey, getOrgImageSignedUrl),
 
     prefetchOrgImages: (storageKeys: Array<string | null | undefined>) =>
-      prefetchOrgImages(orgImageCache, storageKeys, supabaseUrl),
+      prefetchOrgImages(orgImageCache, storageKeys, getOrgImageSignedUrl),
 
     removeOrgImageFromCache: (storageKey: string) =>
       removeOrgImageFromCache(orgImageCache, storageKey),

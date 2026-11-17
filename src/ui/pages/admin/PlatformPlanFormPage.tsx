@@ -197,7 +197,7 @@ export function PlatformPlanFormPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-text">Máx. peças</span>
+            <span className="font-medium text-text">Máx. obras</span>
             <input
               value={maxPieces}
               onChange={(event) => setMaxPieces(event.target.value)}

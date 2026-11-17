@@ -1,16 +1,9 @@
 import type { OfflineOrgImageCache } from '@/application/ports/offline-org-image-cache';
-import { normalizeEnvUrl } from '@/domain/shared/normalizeEnvUrl';
 
 const memoryObjectUrls = new Map<string, string>();
 const inflightResolves = new Map<string, Promise<string | null>>();
 
-function buildPublicOrgImageUrl(supabaseUrl: string, storageKey: string): string {
-  const encodedPath = storageKey
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-  return `${normalizeEnvUrl(supabaseUrl)}/storage/v1/object/public/org-assets/${encodedPath}`;
-}
+type SignedUrlLoader = (storageKey: string) => Promise<string>;
 
 function rememberObjectUrl(storageKey: string, objectUrl: string): string {
   const existing = memoryObjectUrls.get(storageKey);
@@ -28,7 +21,7 @@ export function getCachedOrgImageObjectUrl(storageKey: string): string | null {
 export async function resolveOrgImageObjectUrl(
   cache: OfflineOrgImageCache,
   storageKey: string,
-  supabaseUrl: string,
+  getSignedUrl: SignedUrlLoader,
 ): Promise<string | null> {
   const cached = memoryObjectUrls.get(storageKey);
   if (cached) {
@@ -40,8 +33,7 @@ export async function resolveOrgImageObjectUrl(
     return inflight;
   }
 
-  const publicUrl = buildPublicOrgImageUrl(supabaseUrl, storageKey);
-  const task = resolveOrgImageObjectUrlOnce(cache, storageKey, publicUrl);
+  const task = resolveOrgImageObjectUrlOnce(cache, storageKey, getSignedUrl);
   inflightResolves.set(storageKey, task);
 
   try {
@@ -56,7 +48,7 @@ export async function resolveOrgImageObjectUrl(
 async function resolveOrgImageObjectUrlOnce(
   cache: OfflineOrgImageCache,
   storageKey: string,
-  publicUrl: string,
+  getSignedUrl: SignedUrlLoader,
 ): Promise<string | null> {
   const blob = await cache.getBlob(storageKey);
   if (blob) {
@@ -64,7 +56,8 @@ async function resolveOrgImageObjectUrlOnce(
   }
 
   try {
-    const response = await fetch(publicUrl);
+    const signedUrl = await getSignedUrl(storageKey);
+    const response = await fetch(signedUrl);
     if (!response.ok) {
       return null;
     }
@@ -84,13 +77,13 @@ async function resolveOrgImageObjectUrlOnce(
 export function prefetchOrgImages(
   cache: OfflineOrgImageCache,
   storageKeys: Array<string | null | undefined>,
-  supabaseUrl: string,
+  getSignedUrl: SignedUrlLoader,
 ): void {
   for (const storageKey of storageKeys) {
     if (!storageKey || memoryObjectUrls.has(storageKey) || inflightResolves.has(storageKey)) {
       continue;
     }
-    void resolveOrgImageObjectUrl(cache, storageKey, supabaseUrl);
+    void resolveOrgImageObjectUrl(cache, storageKey, getSignedUrl);
   }
 }
 

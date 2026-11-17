@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
-import type { OrganizationPlanOverview } from '@/domain/platform/plan';
+import type {
+  OrganizationPlanOverview,
+  StorageUsageCategory,
+  StorageUsageEntry,
+} from '@/domain/platform/plan';
 import {
   formatBytes,
   formatLimit,
@@ -38,8 +42,121 @@ function QuotaStatCard({
     <div className="rounded-xl border border-border bg-bg p-4">
       <p className="text-sm text-muted">{label}</p>
       <QuotaValueLine current={current} limitLabel={formatLimit(limit)} />
-      <QuotaProgressBar current={current} limit={limit} />
+      {/* Sem limite não há o que medir: a barra vazia parecia "0% usado". */}
+      {limit !== null ? <QuotaProgressBar current={current} limit={limit} /> : null}
     </div>
+  );
+}
+
+const STORAGE_CATEGORY_LABELS: Record<StorageUsageCategory, string> = {
+  piece_score: 'Partituras',
+  piece_audio: 'Áudios de obras',
+  practice_audio: 'Entregas de tarefas',
+  branding: 'Identidade visual',
+  other: 'Outros arquivos',
+};
+
+const STORAGE_CATEGORY_COLORS: Record<StorageUsageCategory, string> = {
+  piece_score: 'var(--storage-piece-score)',
+  piece_audio: 'var(--storage-piece-audio)',
+  practice_audio: 'var(--storage-practice-audio)',
+  branding: 'var(--storage-branding)',
+  other: 'var(--storage-other)',
+};
+
+/** Categorias sempre listadas (mesmo zeradas); as demais só quando ocupam espaço. */
+const ALWAYS_LISTED: ReadonlySet<StorageUsageCategory> = new Set([
+  'piece_score',
+  'piece_audio',
+  'practice_audio',
+]);
+
+function formatShare(part: number, whole: number): string {
+  if (whole <= 0 || part <= 0) {
+    return '0%';
+  }
+  const percent = (part / whole) * 100;
+  return percent < 1 ? '<1%' : `${Math.round(percent)}%`;
+}
+
+function formatFileCount(count: number): string {
+  return count === 1 ? '1 arquivo' : `${count} arquivos`;
+}
+
+/**
+ * Barra do armazenamento dividida por tipo: cada bloco é proporcional ao limite do plano
+ * (ou ao total, se ilimitado); o trilho restante é o espaço livre.
+ */
+function StorageSegmentedBar({
+  entries,
+  totalBytes,
+  limit,
+}: {
+  entries: StorageUsageEntry[];
+  totalBytes: number;
+  limit: number | null;
+}) {
+  const scale = limit !== null && limit > 0 ? Math.max(limit, totalBytes) : totalBytes;
+  const visible = entries.filter((entry) => entry.bytes > 0);
+  const summary = visible
+    .map(
+      (entry) =>
+        `${STORAGE_CATEGORY_LABELS[entry.category]}: ${formatBytes(entry.bytes)} (${formatShare(entry.bytes, totalBytes)})`,
+    )
+    .join('; ');
+
+  return (
+    <div
+      role="img"
+      aria-label={`Armazenamento usado por tipo. ${summary || 'Nenhum arquivo.'}`}
+      className="mt-3 flex h-2 gap-0.5 overflow-hidden rounded-full bg-surface"
+    >
+      {scale > 0
+        ? visible.map((entry) => (
+            <div
+              key={entry.category}
+              title={`${STORAGE_CATEGORY_LABELS[entry.category]}: ${formatBytes(entry.bytes)}`}
+              className="h-full min-w-[3px] first:rounded-l-full last:rounded-r-full"
+              style={{
+                width: `${(entry.bytes / scale) * 100}%`,
+                backgroundColor: STORAGE_CATEGORY_COLORS[entry.category],
+              }}
+            />
+          ))
+        : null}
+    </div>
+  );
+}
+
+function StorageBreakdownList({
+  entries,
+  totalBytes,
+}: {
+  entries: StorageUsageEntry[];
+  totalBytes: number;
+}) {
+  const listed = entries.filter((entry) => entry.bytes > 0 || ALWAYS_LISTED.has(entry.category));
+
+  return (
+    <ul className="mt-4 space-y-2 text-sm">
+      {listed.map((entry) => (
+        <li key={entry.category} className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+            style={{ backgroundColor: STORAGE_CATEGORY_COLORS[entry.category] }}
+          />
+          <span className="min-w-0 flex-1 truncate text-text">
+            {STORAGE_CATEGORY_LABELS[entry.category]}
+            <span className="ml-1.5 text-xs text-muted">{formatFileCount(entry.fileCount)}</span>
+          </span>
+          <span className="shrink-0 tabular-nums text-text">{formatBytes(entry.bytes)}</span>
+          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted">
+            {formatShare(entry.bytes, totalBytes)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -83,7 +200,7 @@ export function OrganizationPlanOverviewSection({
           current={overview.musiciansCount}
           limit={overview.maxMusicians}
         />
-        <QuotaStatCard label="Peças" current={overview.piecesCount} limit={overview.maxPieces} />
+        <QuotaStatCard label="Obras" current={overview.piecesCount} limit={overview.maxPieces} />
         <QuotaStatCard label="Eventos" current={overview.eventsCount} limit={null} />
         <div className="rounded-xl border border-border bg-bg p-4 sm:col-span-2">
           <p className="text-sm text-muted">Armazenamento</p>
@@ -95,9 +212,14 @@ export function OrganizationPlanOverviewSection({
                 : formatBytes(overview.maxStorageBytes)
             }
           />
-          <QuotaProgressBar
-            current={overview.storageBytes}
+          <StorageSegmentedBar
+            entries={overview.storageBreakdown}
+            totalBytes={overview.storageBytes}
             limit={overview.maxStorageBytes}
+          />
+          <StorageBreakdownList
+            entries={overview.storageBreakdown}
+            totalBytes={overview.storageBytes}
           />
         </div>
       </div>

@@ -29,6 +29,10 @@ export type AssignmentRepository = {
     organizationId: string,
     musicianId: string,
   ): Promise<AssignmentWithDetails[]>;
+  listForMusicians(
+    organizationId: string,
+    musicianIds: string[],
+  ): Promise<AssignmentWithDetails[]>;
   listForGroup(
     organizationId: string,
     groupId: string,

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { clientIp, consumeRateLimit, sha256Hex } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -100,6 +101,12 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const rateBucket = `${await sha256Hex(clientIp(req))}:${await sha256Hex(normalizedEmail)}`;
+    const allowed = await consumeRateLimit(supabase, 'signup_invite', rateBucket, 8, 15 * 60);
+    if (!allowed) {
+      return jsonResponse({ error: 'signup_failed' }, 429);
+    }
+
     const trimmedDisplayName = displayName.trim();
 
     const { data: created, error: createError } = await supabase.auth.admin.createUser({

@@ -1,10 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useReaderPracticeTaskUi } from '@/ui/features/practice/useReaderPracticeTaskUi';
 
 import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, PdfAnnotation, PdfNavigationShortcut, PieceDetail, PieceFileTocEntry, PieceFileWithLinks, ReadingPlaylistDetail, UpdateAnnotationSetInput, UpdatePdfNavigationShortcutInput, AnnotationSet } from '@/domain/repertoire';
 
-import { formatAnnotationSetLabel, matchDirectedAnnotationSetIds, playlistItemObservation, resolveAnnotationSetAudience, resolvePlaylistItemOpenPage } from '@/domain/repertoire';
+import {
+  annotationSetAudienceFingerprint,
+  annotationSetMatchesLessonSession,
+  defaultLessonDirectedLayerTitle,
+  fingerprintsEqual,
+  formatAnnotationSetLabel,
+  formatSourceEventAudienceLabel,
+  matchDirectedAnnotationSetIds,
+  normalizeSourceEventAudience,
+  pickDirectedAnnotationSetForLesson,
+  playlistItemObservation,
+  resolveAnnotationSetAudience,
+  resolvePlaylistItemOpenPage,
+} from '@/domain/repertoire';
 
 import { isBrowserOnline } from '@/application/offline/file-cache-use-cases';
 
@@ -29,6 +43,18 @@ import { mapTransposePartOptions } from '@/ui/features/repertoire/transpose-part
 import { DirectedAnnotationSetModal } from '@/ui/features/repertoire/DirectedAnnotationSetModal';
 
 import { DirectedAnnotationSetManageModal } from '@/ui/features/repertoire/DirectedAnnotationSetManageModal';
+import {
+  LessonAnnotationAudienceChip,
+  type LessonAudiencePreset,
+} from '@/ui/features/repertoire/LessonAnnotationAudienceChip';
+import { LessonDirectedSetPickModal } from '@/ui/features/repertoire/LessonDirectedSetPickModal';
+import { LessonMissingDirectedLayerBanner } from '@/ui/features/repertoire/LessonMissingDirectedLayerBanner';
+import {
+  createInitialLessonSession,
+  loadPlaylistLessonSession,
+  savePlaylistLessonSession,
+  type PlaylistLessonSessionState,
+} from '@/ui/features/repertoire/playlist-lesson-session-storage';
 
 import { eventPath } from '@/ui/features/agenda/agenda-routes';
 
@@ -232,7 +258,12 @@ export function ReadingPlaylistReaderPage() {
   const [directedSetManageModalOpen, setDirectedSetManageModalOpen] = useState(false);
   const [directedSetModalMode, setDirectedSetModalMode] = useState<'create' | 'edit'>('create');
   const [directedSetSelectRequest, setDirectedSetSelectRequest] = useState<{ id: string; nonce: number } | null>(null);
-  const lessonLayerRequestKeyRef = useRef<string | null>(null);
+  const [lessonSession, setLessonSession] = useState<PlaylistLessonSessionState | null>(null);
+  const [disambiguationSetIds, setDisambiguationSetIds] = useState<string[] | null>(null);
+  const [missingLessonLayer, setMissingLessonLayer] = useState(false);
+  const [isEnsuringLessonLayer, setIsEnsuringLessonLayer] = useState(false);
+  const lessonSyncKeyRef = useRef<string | null>(null);
+  const ensureLessonLayerInFlightRef = useRef<string | null>(null);
   const [manageHighlightedSetId, setManageHighlightedSetId] = useState<string | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
@@ -293,6 +324,11 @@ export function ReadingPlaylistReaderPage() {
         : undefined,
     [includeThirdPartyDirectedLayers],
   );
+  const viewerContextRef = useRef(viewerContext);
+  viewerContextRef.current = viewerContext;
+  const annotationReadingOptionsRef = useRef(annotationReadingOptions);
+  annotationReadingOptionsRef.current = annotationReadingOptions;
+  const annotationEditGenerationRef = useRef(0);
 
   const transposePartOptions = useMemo(
     () => mapTransposePartOptions(catalogParts),
@@ -724,18 +760,19 @@ export function ReadingPlaylistReaderPage() {
 
 
 
-      const result = await itemCacheRef.current.load(index, () =>
-
-        loadPlaylistItemData(
-          offline,
-          organizationId,
-          item,
-          viewerContext ?? undefined,
-          annotationReadingOptions,
-          reportItemDownloadProgress,
-          abortController.signal,
-        ),
-
+      const result = await itemCacheRef.current.load(
+        index,
+        () =>
+          loadPlaylistItemData(
+            offline,
+            organizationId,
+            item,
+            () => viewerContextRef.current ?? undefined,
+            () => annotationReadingOptionsRef.current,
+            reportItemDownloadProgress,
+            abortController.signal,
+          ),
+        abortController.signal,
       );
 
 
@@ -784,12 +821,13 @@ export function ReadingPlaylistReaderPage() {
 
       setAnnotations(result.annotations);
 
-      if (viewerContext) {
+      const viewer = viewerContextRef.current;
+      if (viewer) {
         const setsResult = await offline.listAnnotationSetsForReading(
           organizationId,
           item.pieceFileId,
-          viewerContext,
-          annotationReadingOptions,
+          viewer,
+          annotationReadingOptionsRef.current,
         );
         if (!isActive()) {
           return result;
@@ -818,8 +856,6 @@ export function ReadingPlaylistReaderPage() {
       playlist,
       offline,
       online,
-      viewerContext,
-      annotationReadingOptions,
       reportItemDownloadProgress,
     ],
 
@@ -936,14 +972,73 @@ export function ReadingPlaylistReaderPage() {
           offline,
           organizationId,
           item,
-          viewerContext ?? undefined,
-          annotationReadingOptions,
+          () => viewerContextRef.current ?? undefined,
+          () => annotationReadingOptionsRef.current,
         ),
       );
 
     }
 
-  }, [playlist, organizationId, itemIndex, offline, viewerContext, annotationReadingOptions]);
+  }, [playlist, organizationId, itemIndex, offline]);
+
+
+
+  useEffect(() => {
+    if (!viewerContext || !organizationId || !playlist) {
+      return;
+    }
+
+    const item = playlist.items[itemIndex];
+    if (!item || !isPlaylistItemAvailable(item) || !itemCacheRef.current.get(itemIndex)) {
+      return;
+    }
+
+    const editGeneration = annotationEditGenerationRef.current;
+    let cancelled = false;
+
+    void (async () => {
+      const annotationsResult = await offline.listAnnotationsForReading(
+        organizationId,
+        item.pieceFileId,
+        viewerContext,
+        annotationReadingOptions,
+      );
+      if (
+        cancelled ||
+        !annotationsResult.ok ||
+        annotationEditGenerationRef.current !== editGeneration ||
+        activeReaderItemRef.current.index !== itemIndex ||
+        activeReaderItemRef.current.pieceFileId !== item.pieceFileId
+      ) {
+        return;
+      }
+
+      itemCacheRef.current.updateAnnotations(itemIndex, () => annotationsResult.value);
+      setAnnotations(annotationsResult.value);
+
+      const setsResult = await offline.listAnnotationSetsForReading(
+        organizationId,
+        item.pieceFileId,
+        viewerContext,
+        annotationReadingOptions,
+      );
+      if (
+        cancelled ||
+        annotationEditGenerationRef.current !== editGeneration ||
+        activeReaderItemRef.current.index !== itemIndex ||
+        activeReaderItemRef.current.pieceFileId !== item.pieceFileId
+      ) {
+        return;
+      }
+      if (setsResult.ok) {
+        setAnnotationSets(setsResult.value);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerContext, annotationReadingOptions, itemIndex, organizationId, playlist, offline]);
 
 
 
@@ -952,6 +1047,7 @@ export function ReadingPlaylistReaderPage() {
       target: { index: number; pieceFileId: string },
       updater: (current: PdfAnnotation[]) => PdfAnnotation[],
     ) => {
+      annotationEditGenerationRef.current += 1;
       itemCacheRef.current.updateAnnotations(target.index, updater);
       setAnnotations((current) => {
         const active = activeReaderItemRef.current;
@@ -1072,7 +1168,8 @@ export function ReadingPlaylistReaderPage() {
         offline,
         organizationId,
         playlist.items[previousIndex],
-        viewerContext ?? undefined,
+        () => viewerContextRef.current ?? undefined,
+        () => annotationReadingOptionsRef.current,
       ),
 
     );
@@ -1499,8 +1596,94 @@ export function ReadingPlaylistReaderPage() {
     [associableGroups, associableMusicians],
   );
 
+  const playlistSourceAudience = useMemo(
+    () => normalizeSourceEventAudience(playlist?.sourceEventAudience ?? null),
+    [playlist?.sourceEventAudience],
+  );
+
+  const lessonMode = Boolean(playlistSourceAudience);
+
+  useEffect(() => {
+    if (!playlist?.id || !playlistSourceAudience) {
+      setLessonSession(null);
+      return;
+    }
+
+    const stored = loadPlaylistLessonSession(playlist.id);
+    if (stored) {
+      setLessonSession(stored);
+      return;
+    }
+
+    setLessonSession(createInitialLessonSession(playlistSourceAudience));
+  }, [playlist?.id, playlistSourceAudience]);
+
+  useEffect(() => {
+    if (!playlist?.id || !lessonSession) {
+      return;
+    }
+    savePlaylistLessonSession(playlist.id, lessonSession);
+  }, [playlist?.id, lessonSession]);
+
+  const lessonAudienceLabelLookup = useMemo(
+    () => ({
+      musicians: associableMusicians.map((musician) => ({
+        id: musician.id,
+        name: musician.name,
+      })),
+      groups: associableGroups,
+    }),
+    [associableMusicians, associableGroups],
+  );
+
+  const lessonAudiencePresets = useMemo((): LessonAudiencePreset[] => {
+    if (!playlistSourceAudience) {
+      return [];
+    }
+
+    const presets: LessonAudiencePreset[] = [
+      {
+        id: 'full',
+        label: formatSourceEventAudienceLabel(playlistSourceAudience, lessonAudienceLabelLookup),
+        audience: {
+          musicianIds: [...playlistSourceAudience.musicianIds],
+          groupIds: [...playlistSourceAudience.groupIds],
+        },
+      },
+    ];
+
+    for (const musicianId of playlistSourceAudience.musicianIds) {
+      const musicianName =
+        associableMusicians.find((musician) => musician.id === musicianId)?.name ?? 'Aluno';
+      presets.push({
+        id: `musician:${musicianId}`,
+        label: musicianName,
+        audience: { musicianIds: [musicianId], groupIds: [] },
+      });
+    }
+
+    if (
+      playlistSourceAudience.groupIds.length > 0 &&
+      playlistSourceAudience.musicianIds.length > 0
+    ) {
+      presets.push({
+        id: 'groups-only',
+        label: formatSourceEventAudienceLabel(
+          { musicianIds: [], groupIds: playlistSourceAudience.groupIds },
+          lessonAudienceLabelLookup,
+        ),
+        audience: { musicianIds: [], groupIds: [...playlistSourceAudience.groupIds] },
+      });
+    }
+
+    return presets;
+  }, [playlistSourceAudience, associableMusicians, lessonAudienceLabelLookup]);
+
+  const sessionAudience = lessonSession?.audience ?? playlistSourceAudience;
+
   const directedSetOptions = useMemo((): DirectedSetOption[] => {
-    return annotationSets.map((set) => {
+    const audience = normalizeSourceEventAudience(sessionAudience ?? null);
+    const options = annotationSets.map((set) => {
       const isThirdParty = Boolean(userId && set.authorUserId !== userId);
       return {
         id: set.id,
@@ -1509,33 +1692,212 @@ export function ReadingPlaylistReaderPage() {
           ? authorNameByUserId[set.authorUserId] ?? 'Autor desconhecido'
           : undefined,
         canEdit: Boolean(userId && set.authorUserId === userId),
+        matchesLessonAudience: audience
+          ? annotationSetMatchesLessonSession(set, audience)
+          : false,
       };
     });
-  }, [annotationSets, userId, audienceLookup, authorNameByUserId]);
+
+    return options.sort((left, right) => {
+      const leftLesson = left.matchesLessonAudience ? 0 : 1;
+      const rightLesson = right.matchesLessonAudience ? 0 : 1;
+      if (leftLesson !== rightLesson) {
+        return leftLesson - rightLesson;
+      }
+      return left.label.localeCompare(right.label, 'pt-BR', { sensitivity: 'base' });
+    });
+  }, [annotationSets, userId, audienceLookup, authorNameByUserId, sessionAudience]);
 
   const directedLayerAutoVisibleSetIds = useMemo(() => {
-    const audience = playlist?.sourceEventAudience ?? null;
+    const audience = normalizeSourceEventAudience(sessionAudience ?? null);
     if (!audience) {
       return [];
     }
     return matchDirectedAnnotationSetIds(annotationSets, audience);
-  }, [annotationSets, playlist?.sourceEventAudience]);
+  }, [annotationSets, sessionAudience]);
 
-  const lessonDirectedSetId =
-    directedLayerAutoVisibleSetIds.length === 1 ? directedLayerAutoVisibleSetIds[0] : null;
+  const lessonAudienceLabel = useMemo(() => {
+    const audience = normalizeSourceEventAudience(sessionAudience ?? null);
+    if (!audience) {
+      return '';
+    }
+    return formatSourceEventAudienceLabel(audience, lessonAudienceLabelLookup);
+  }, [sessionAudience, lessonAudienceLabelLookup]);
+
+  const rememberDirectedLayer = useCallback((set: AnnotationSet) => {
+    const fingerprint = annotationSetAudienceFingerprint(set);
+    setLessonSession((current) => {
+      if (!current) {
+        return current;
+      }
+      if (current.rememberedFingerprint && fingerprintsEqual(current.rememberedFingerprint, fingerprint)) {
+        return current;
+      }
+      return { ...current, rememberedFingerprint: fingerprint };
+    });
+  }, []);
+
+  const applyLessonDirectedLayer = useCallback(
+    async (options?: { forceCreate?: boolean }) => {
+      if (!lessonMode || !lessonSession) {
+        return;
+      }
+
+      const audience = normalizeSourceEventAudience(lessonSession.audience);
+      const pieceFileId = currentItem?.pieceFileId;
+      if (!audience || !pieceFileId || !organizationId || !userId || !currentItem?.pieceId) {
+        return;
+      }
+
+      const pick = pickDirectedAnnotationSetForLesson(
+        annotationSets,
+        audience,
+        userId,
+        lessonSession.rememberedFingerprint,
+      );
+
+      if (pick.kind === 'picked') {
+        setMissingLessonLayer(false);
+        setDisambiguationSetIds(null);
+        const pickedSet = annotationSets.find((set) => set.id === pick.setId);
+        if (pickedSet) {
+          rememberDirectedLayer(pickedSet);
+        }
+        setDirectedSetSelectRequest({ id: pick.setId, nonce: Date.now() });
+        return;
+      }
+
+      if (pick.kind === 'ambiguous') {
+        setDisambiguationSetIds(pick.setIds);
+        setMissingLessonLayer(false);
+        return;
+      }
+
+      if (!canEditDirectedLayer) {
+        setMissingLessonLayer(true);
+        return;
+      }
+
+      if (!lessonSession.autoEnsureLayers && !options?.forceCreate) {
+        setMissingLessonLayer(true);
+        return;
+      }
+
+      const inFlightKey = pieceFileId;
+      if (ensureLessonLayerInFlightRef.current === inFlightKey) {
+        return;
+      }
+      ensureLessonLayerInFlightRef.current = inFlightKey;
+      setIsEnsuringLessonLayer(true);
+
+      const result = await offline.createAnnotationSet(
+        organizationId,
+        currentItem.pieceId,
+        userId,
+        {
+          pieceFileId,
+          title: defaultLessonDirectedLayerTitle(lessonAudienceLabel),
+          musicianIds: audience.musicianIds,
+          groupIds: audience.groupIds,
+        },
+        audienceLookup,
+      );
+
+      setIsEnsuringLessonLayer(false);
+      ensureLessonLayerInFlightRef.current = null;
+
+      if (!result.ok) {
+        setMissingLessonLayer(true);
+        return;
+      }
+
+      setAnnotationSets((current) => [...current, result.value]);
+      setMissingLessonLayer(false);
+      rememberDirectedLayer(result.value);
+      setDirectedSetSelectRequest({ id: result.value.id, nonce: Date.now() });
+    },
+    [
+      annotationSets,
+      audienceLookup,
+      canEditDirectedLayer,
+      currentItem,
+      lessonAudienceLabel,
+      lessonMode,
+      lessonSession,
+      offline,
+      organizationId,
+      rememberDirectedLayer,
+      userId,
+    ],
+  );
 
   useEffect(() => {
+    if (!lessonMode || !lessonSession || isLoadingItem) {
+      return;
+    }
+
     const pieceFileId = currentItem?.pieceFileId;
-    if (!lessonDirectedSetId || !pieceFileId) {
+    if (!pieceFileId) {
       return;
     }
-    const key = `${pieceFileId}:${lessonDirectedSetId}`;
-    if (lessonLayerRequestKeyRef.current === key) {
+
+    const syncKey = [
+      pieceFileId,
+      lessonSession.audience.musicianIds.join(','),
+      lessonSession.audience.groupIds.join(','),
+      lessonSession.autoEnsureLayers ? '1' : '0',
+      annotationSets.map((set) => set.id).join(','),
+    ].join('|');
+
+    if (lessonSyncKeyRef.current === syncKey) {
       return;
     }
-    lessonLayerRequestKeyRef.current = key;
-    setDirectedSetSelectRequest({ id: lessonDirectedSetId, nonce: Date.now() });
-  }, [currentItem?.pieceFileId, lessonDirectedSetId]);
+    lessonSyncKeyRef.current = syncKey;
+    void applyLessonDirectedLayer();
+  }, [
+    annotationSets,
+    applyLessonDirectedLayer,
+    currentItem?.pieceFileId,
+    isLoadingItem,
+    lessonMode,
+    lessonSession,
+  ]);
+
+  const handleActiveDirectedSetChange = useCallback(
+    (setId: string | null) => {
+      if (!setId || !lessonSession) {
+        return;
+      }
+      const set = annotationSets.find((entry) => entry.id === setId);
+      if (!set || set.authorUserId !== userId) {
+        return;
+      }
+      rememberDirectedLayer(set);
+    },
+    [annotationSets, lessonSession, rememberDirectedLayer, userId],
+  );
+
+  const handleAnnotatingChange = useCallback(
+    (isAnnotating: boolean) => {
+      if (!lessonMode || !isAnnotating || !missingLessonLayer) {
+        return;
+      }
+      void applyLessonDirectedLayer({ forceCreate: true });
+    },
+    [applyLessonDirectedLayer, lessonMode, missingLessonLayer],
+  );
+
+  const handleLessonDisambiguationPick = useCallback(
+    (setId: string) => {
+      const set = annotationSets.find((entry) => entry.id === setId);
+      if (set) {
+        rememberDirectedLayer(set);
+      }
+      setDisambiguationSetIds(null);
+      setDirectedSetSelectRequest({ id: setId, nonce: Date.now() });
+    },
+    [annotationSets, rememberDirectedLayer],
+  );
 
   const editingSet = editingSetId
     ? annotationSets.find((set) => set.id === editingSetId) ?? null
@@ -1617,7 +1979,11 @@ export function ReadingPlaylistReaderPage() {
         }
 
         setAnnotationSets((current) => [...current, result.value]);
+        if (lessonMode) {
+          rememberDirectedLayer(result.value);
+        }
         setDirectedSetSelectRequest({ id: result.value.id, nonce: Date.now() });
+        setMissingLessonLayer(false);
         return true;
       }
 
@@ -1637,9 +2003,23 @@ export function ReadingPlaylistReaderPage() {
 
     },
 
-    [organizationId, userId, currentItem, offline, audienceLookup, directedSetModalMode, editingSetId],
+    [
+      organizationId,
+      userId,
+      currentItem,
+      offline,
+      audienceLookup,
+      directedSetModalMode,
+      editingSetId,
+      lessonMode,
+      rememberDirectedLayer,
+    ],
 
   );
+
+  useEffect(() => {
+    lessonSyncKeyRef.current = null;
+  }, [lessonSession?.audience, lessonSession?.autoEnsureLayers]);
 
 
 
@@ -1999,6 +2379,30 @@ export function ReadingPlaylistReaderPage() {
 
 
 
+  const readerRecordingContext = useMemo(
+    () =>
+      organizationId && currentItem
+        ? {
+            organizationId,
+            pieceId: currentItem.pieceId,
+            pieceFileId: currentItem.pieceFileId,
+            titlePrefix: pieceDetailForInfo?.title ?? currentItem.pieceTitle,
+          }
+        : null,
+    [currentItem, organizationId, pieceDetailForInfo?.title],
+  );
+
+  const practiceTaskUi = useReaderPracticeTaskUi({
+    orgSlug,
+    organizationId: org?.id ?? null,
+    userId,
+    pieceId: currentItem?.pieceId ?? null,
+    pieceFileId: currentItem?.pieceFileId ?? null,
+    initialTaskId: null,
+    online,
+    recordingContext: readerRecordingContext,
+  });
+
   if (!orgSlug || !playlistId || !itemIndexParam) {
 
     return null;
@@ -2221,7 +2625,7 @@ export function ReadingPlaylistReaderPage() {
       backTo={backTo}
 
       leadingActions={
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setPlaylistItemsOpen(true)}
@@ -2231,6 +2635,25 @@ export function ReadingPlaylistReaderPage() {
             <IconPlaylist className="h-6 w-6 shrink-0" />
             <span className="hidden max-w-[8rem] truncate sm:inline-block">{playlist.name}</span>
           </button>
+          {lessonMode && lessonSession ? (
+            <LessonAnnotationAudienceChip
+              activeAudience={lessonSession.audience}
+              presets={lessonAudiencePresets}
+              musicians={lessonAudienceLabelLookup.musicians}
+              groups={lessonAudienceLabelLookup.groups}
+              autoEnsureLayers={lessonSession.autoEnsureLayers}
+              onAudienceChange={(audience) => {
+                setLessonSession((current) =>
+                  current ? { ...current, audience: { ...audience } } : current,
+                );
+              }}
+              onAutoEnsureChange={(autoEnsureLayers) => {
+                setLessonSession((current) =>
+                  current ? { ...current, autoEnsureLayers } : current,
+                );
+              }}
+            />
+          ) : null}
           <span
             className="hidden shrink-0 text-xs font-medium tabular-nums text-muted md:inline"
             aria-label={`Item ${itemIndex + 1} de ${playlist.items.length}`}
@@ -2287,6 +2710,12 @@ export function ReadingPlaylistReaderPage() {
 
         directedLayerAutoVisibleSetIds={directedLayerAutoVisibleSetIds}
 
+        directedSetOptionsPreserveOrder={lessonMode}
+
+        onActiveDirectedSetChange={lessonMode ? handleActiveDirectedSetChange : undefined}
+
+        onAnnotatingChange={lessonMode ? handleAnnotatingChange : undefined}
+
         canEditDirectedLayer={canEditDirectedLayer}
 
         canLoadThirdPartyDirectedLayers={isAdmin}
@@ -2300,6 +2729,19 @@ export function ReadingPlaylistReaderPage() {
         isLoadingThirdPartyDirectedLayers={isLoadingThirdPartyDirectedLayers}
 
         directedSetSelectRequest={directedSetSelectRequest}
+
+        controlsBarExtra={
+          <>
+            {lessonMode && missingLessonLayer && lessonAudienceLabel ? (
+              <LessonMissingDirectedLayerBanner
+                audienceLabel={lessonAudienceLabel}
+                isEnsuring={isEnsuringLessonLayer}
+                onEnsure={() => void applyLessonDirectedLayer({ forceCreate: true })}
+              />
+            ) : null}
+            {practiceTaskUi.controlsBarExtra}
+          </>
+        }
 
         onManageDirectedSet={(context) => {
           setManageHighlightedSetId(context?.activeDirectedSetId ?? null);
@@ -2319,6 +2761,16 @@ export function ReadingPlaylistReaderPage() {
         transposePartOptions={transposePartOptions}
 
         filePartLinks={currentItem.partLinks}
+
+        toolbarExtraActions={practiceTaskUi.toolbarExtraActions}
+
+        pageRequest={practiceTaskUi.pageRequest}
+
+        onPageChange={practiceTaskUi.onPageChange}
+
+        recordingContext={readerRecordingContext}
+
+        recorderEmbedded={practiceTaskUi.recorderEmbedded}
 
         readerInfo={{
           open: infoModalOpen,
@@ -2416,12 +2868,26 @@ export function ReadingPlaylistReaderPage() {
             onEdit={openDirectedSetEdit}
             onDelete={handleDirectedSetDelete}
           />
+          <LessonDirectedSetPickModal
+            open={Boolean(disambiguationSetIds && disambiguationSetIds.length > 0)}
+            options={(disambiguationSetIds ?? []).map((setId) => {
+              const option = directedSetOptions.find((entry) => entry.id === setId);
+              return { id: setId, label: option?.label ?? 'Camada' };
+            })}
+            onClose={() => setDisambiguationSetIds(null)}
+            onSelect={handleLessonDisambiguationPick}
+          />
           <DirectedAnnotationSetModal
             open={directedSetModalOpen}
             mode={directedSetModalMode}
             groups={associableGroups}
             musicians={associableMusicians}
             initialSet={editingSet}
+            defaultAudience={
+              lessonMode && directedSetModalMode === 'create'
+                ? normalizeSourceEventAudience(lessonSession?.audience ?? null)
+                : null
+            }
             disabled={!online && directedSetModalMode === 'create'}
             onClose={() => {
               setDirectedSetModalOpen(false);

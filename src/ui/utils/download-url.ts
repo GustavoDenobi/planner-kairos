@@ -16,7 +16,10 @@ export async function downloadFromUrl(url: string, filename?: string): Promise<v
     throw new Error('Download failed');
   }
 
-  const blob = await response.blob();
+  downloadBlob(await response.blob(), filename);
+}
+
+export function downloadBlob(blob: Blob, filename?: string): void {
   const objectUrl = URL.createObjectURL(blob);
   try {
     clickDownloadLink(objectUrl, filename);

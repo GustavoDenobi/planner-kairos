@@ -1,17 +1,28 @@
-const RECORDING_MIME_CANDIDATES = [
+/**
+ * Ordem de preferência. MP4 com AAC toca em qualquer navegador (inclusive iPhones antigos,
+ * que não tocam WebM), então vem primeiro quando o navegador consegue gravar nele.
+ * `audio/mp4` sem codec fica depois do WebM: no Chrome ele pode sair com Opus, que não
+ * ajuda na compatibilidade; no Safari é o que sobra e grava AAC.
+ */
+export const STUDY_RECORDING_MIME_CANDIDATES = [
+  'audio/mp4;codecs=mp4a.40.2',
   'audio/webm;codecs=opus',
   'audio/webm',
   'audio/mp4',
   'audio/aac',
 ] as const;
 
-export function pickStudyRecordingMimeType(): string {
-  if (typeof MediaRecorder === 'undefined') {
+export function pickStudyRecordingMimeType(
+  isTypeSupported: ((mimeType: string) => boolean) | null = typeof MediaRecorder === 'undefined'
+    ? null
+    : (mimeType) => MediaRecorder.isTypeSupported(mimeType),
+): string {
+  if (!isTypeSupported) {
     return '';
   }
 
-  for (const mimeType of RECORDING_MIME_CANDIDATES) {
-    if (MediaRecorder.isTypeSupported(mimeType)) {
+  for (const mimeType of STUDY_RECORDING_MIME_CANDIDATES) {
+    if (isTypeSupported(mimeType)) {
       return mimeType;
     }
   }

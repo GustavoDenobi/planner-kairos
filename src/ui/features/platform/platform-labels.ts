@@ -27,6 +27,10 @@ export function platformErrorMessage(error: string): string {
     membership_not_found: 'Vínculo não encontrado.',
     weak_password: 'A senha deve ter pelo menos 8 caracteres.',
     cannot_delete_self: 'Você não pode excluir sua própria conta.',
+    billing_not_configured: 'Configure a cobrança desta organização antes de registrar pagamentos.',
+    entry_not_found: 'Lançamento não encontrado.',
+    invalid_amount: 'Informe um valor válido.',
+    invalid_grace_days: 'A carência deve ficar entre 0 e 90 dias.',
     unknown_error: 'Ocorreu um erro inesperado.',
   };
 

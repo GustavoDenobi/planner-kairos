@@ -21,7 +21,7 @@ import {
   inviteSignupFieldErrorMessage,
   inviteSignupSubmitErrorMessage,
 } from '@/ui/utils/inviteSignupValidation';
-import { publicOrgImageUrl } from '@/ui/utils/publicOrgImageUrl';
+import { usePreviewBrandingUrl } from '@/ui/hooks/usePreviewBrandingUrl';
 
 function isInviteSignupFieldErrors(error: unknown): error is InviteSignupFieldErrors {
   return typeof error === 'object' && error !== null && !Array.isArray(error);
@@ -53,6 +53,7 @@ export function InvitePage() {
   const online = useOnlineStatus();
 
   const [preview, setPreview] = useState<GroupInvitePreview | null>(null);
+  const brandingUrl = usePreviewBrandingUrl('invite', token, preview?.organizationImageStorageKey);
   const [previewError, setPreviewError] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -307,12 +308,9 @@ export function InvitePage() {
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
       <div className="mb-6 text-center">
-        {preview.organizationImageStorageKey && (
+        {brandingUrl && (
           <img
-            src={publicOrgImageUrl(
-              import.meta.env.VITE_SUPABASE_URL,
-              preview.organizationImageStorageKey,
-            )}
+            src={brandingUrl}
             alt={preview.organizationName}
             className="mx-auto mb-4 h-20 w-20 rounded-xl object-cover"
           />

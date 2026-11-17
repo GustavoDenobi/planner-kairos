@@ -3,9 +3,9 @@ import { Result } from '@/domain/shared';
 
 export async function previewMusicianClaim(
   claimRepo: MusicianClaimRepository,
-  musicianId: string,
+  claimToken: string,
 ) {
-  const preview = await claimRepo.previewByMusicianId(musicianId);
+  const preview = await claimRepo.previewByToken(claimToken);
   if (!preview) {
     return Result.fail('not_found' as const);
   }

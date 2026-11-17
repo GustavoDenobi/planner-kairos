@@ -27,7 +27,7 @@ export type InviteSignUpResult =
   | { ok: false; error: InviteSignUpError };
 
 export type MusicianClaimSignUpInput = {
-  musicianId: string;
+  claimToken: string;
   email: string;
   password: string;
   displayName: string;
