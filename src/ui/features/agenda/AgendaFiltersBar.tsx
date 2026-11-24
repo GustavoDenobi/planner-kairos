@@ -42,8 +42,7 @@ type AgendaFiltersBarProps = {
 
 const EVENT_KIND_OPTIONS: EventKind[] = ['rehearsal', 'service', 'class', 'special'];
 
-const selectClass =
-  'rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text';
+const selectClass = 'rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text';
 
 export function AgendaFiltersBar({
   showScopeToggle,
@@ -76,10 +75,26 @@ export function AgendaFiltersBar({
     groups.length > 0 && groupId && !groups.some((group) => group.id === groupId) ? '' : groupId;
   const extraFiltersActive = Boolean(kind || typeValue || groupValue);
 
+  // Cada filtro só aparece se tiver mais de uma opção real (com uma só, "Todos" mostraria o mesmo).
+  // Um filtro já aplicado continua visível para poder ser limpo.
+  const kindOptions =
+    types.length > 0
+      ? EVENT_KIND_OPTIONS.filter(
+          (option) => option === kind || types.some((type) => type.kind === option),
+        )
+      : EVENT_KIND_OPTIONS;
+  const showKindFilter = kindOptions.length > 1 || Boolean(kind);
+  const showTypeFilter = visibleTypes.length > 1 || Boolean(typeValue);
+  const showGroupFilter = groups.length > 1 || Boolean(groupValue);
+  const visibleFilterCount = [showKindFilter, showTypeFilter, showGroupFilter].filter(
+    Boolean,
+  ).length;
+  const hasFilters = visibleFilterCount > 0;
+
   return (
     <div className="flex min-w-0 w-full max-w-full flex-col gap-3">
-      <div className="flex min-w-0 w-full max-w-full flex-col gap-3 md:flex-row md:items-center md:gap-3">
-        <div className="flex min-w-0 shrink items-center gap-2">
+      <div className="flex min-w-0 w-full max-w-full flex-wrap items-center gap-3">
+        <div className="flex flex-[1_0_auto] items-center gap-2">
           {rangeControls}
           {onViewModeChange && viewMode && (
             <button
@@ -137,79 +152,96 @@ export function AgendaFiltersBar({
               <IconClipboardCheck className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setOpen((current) => !current)}
-            className={`relative inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors ${
-              open
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-surface text-muted hover:bg-bg hover:text-text'
-            }`}
-            aria-label={open ? 'Ocultar filtros' : 'Mostrar filtros'}
-            aria-expanded={open}
-            aria-controls={panelId}
-          >
-            <IconFilter className="h-4 w-4" />
-            {extraFiltersActive && !open && (
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
-            )}
-          </button>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => setOpen((current) => !current)}
+              className={`relative inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors ${
+                open
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-surface text-muted hover:bg-bg hover:text-text'
+              }`}
+              aria-label={open ? 'Ocultar filtros' : 'Mostrar filtros'}
+              aria-expanded={open}
+              aria-controls={panelId}
+            >
+              <IconFilter className="h-4 w-4" />
+              {extraFiltersActive && !open && (
+                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </button>
+          )}
         </div>
       </div>
-      {open && (
-        <div id={panelId} className="grid gap-2 sm:grid-cols-3">
-          <label className="block min-w-0">
-            <span className="sr-only">Categoria</span>
-            <select
-              value={kind}
-              onChange={(event) => {
-                const nextKind = event.target.value as EventKind | '';
-                onKindChange(nextKind);
-                const selectedType = types.find((type) => type.id === typeId);
-                if (nextKind && selectedType && selectedType.kind !== nextKind) {
-                  onTypeIdChange('');
-                }
-              }}
-              className={`w-full ${selectClass}`}
-            >
-              <option value="">Todas as categorias</option>
-              {EVENT_KIND_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {eventKindLabel(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="sr-only">Tipo</span>
-            <select
-              value={typeValue}
-              onChange={(event) => onTypeIdChange(event.target.value)}
-              className={`w-full ${selectClass}`}
-            >
-              <option value="">Todos os tipos</option>
-              {visibleTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="sr-only">Grupo</span>
-            <select
-              value={groupValue}
-              onChange={(event) => onGroupIdChange(event.target.value)}
-              className={`w-full ${selectClass}`}
-            >
-              <option value="">Todos os grupos</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-          </label>
+      {open && hasFilters && (
+        <div
+          id={panelId}
+          className={`grid gap-2 ${
+            visibleFilterCount === 3
+              ? 'sm:grid-cols-3'
+              : visibleFilterCount === 2
+                ? 'sm:grid-cols-2'
+                : ''
+          }`}
+        >
+          {showKindFilter && (
+            <label className="block min-w-0">
+              <span className="sr-only">Categoria</span>
+              <select
+                value={kind}
+                onChange={(event) => {
+                  const nextKind = event.target.value as EventKind | '';
+                  onKindChange(nextKind);
+                  const selectedType = types.find((type) => type.id === typeId);
+                  if (nextKind && selectedType && selectedType.kind !== nextKind) {
+                    onTypeIdChange('');
+                  }
+                }}
+                className={`w-full ${selectClass}`}
+              >
+                <option value="">Todas as categorias</option>
+                {kindOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {eventKindLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {showTypeFilter && (
+            <label className="block min-w-0">
+              <span className="sr-only">Tipo</span>
+              <select
+                value={typeValue}
+                onChange={(event) => onTypeIdChange(event.target.value)}
+                className={`w-full ${selectClass}`}
+              >
+                <option value="">Todos os tipos</option>
+                {visibleTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {showGroupFilter && (
+            <label className="block min-w-0">
+              <span className="sr-only">Grupo</span>
+              <select
+                value={groupValue}
+                onChange={(event) => onGroupIdChange(event.target.value)}
+                className={`w-full ${selectClass}`}
+              >
+                <option value="">Todos os grupos</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       )}
     </div>

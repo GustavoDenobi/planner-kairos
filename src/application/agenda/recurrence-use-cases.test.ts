@@ -102,6 +102,8 @@ function createRepos() {
     create: vi.fn(),
     update: vi.fn(),
     replaceProgram: vi.fn(),
+    appendPieceToEventPrograms: vi.fn(),
+    listPieceProgramEntries: vi.fn(),
     delete: vi.fn(),
     setCancelledAt: vi.fn(),
     bulkCancelFutureOccurrences: vi.fn(),

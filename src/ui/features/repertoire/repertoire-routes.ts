@@ -6,6 +6,7 @@ const SECTION_QUERY_VALUES: Record<RepertoireAdminSection, string> = {
   pieces: 'pecas',
   categories: 'categorias',
   themes: 'temas',
+  reports: 'relatorios',
 };
 
 const QUERY_VALUE_TO_SECTION = Object.fromEntries(
@@ -28,4 +29,41 @@ export function repertoirePath(orgSlug: string, section?: RepertoireAdminSection
     return `/${orgSlug}/repertorio`;
   }
   return `/${orgSlug}/repertorio?${REPERTOIRE_SECTION_QUERY}=${SECTION_QUERY_VALUES[section]}`;
+}
+
+/**
+ * Estado da listagem de obras guardado na URL, para que "voltar" (do detalhe da obra,
+ * por exemplo) reabra a mesma listagem: grupo, categoria, busca, tema e ordenação.
+ */
+export const REPERTOIRE_GROUP_QUERY = 'grupo';
+export const REPERTOIRE_CATEGORY_QUERY = 'categoria';
+export const REPERTOIRE_SEARCH_QUERY = 'busca';
+export const REPERTOIRE_THEME_QUERY = 'tema';
+export const REPERTOIRE_SORT_QUERY = 'ordem';
+
+const ALL_GROUPS_QUERY_VALUE = 'todos';
+const ALL_CATEGORIES_QUERY_VALUE = 'todas';
+
+/** `null` = etapa ainda não escolhida; `''` = "todos"/"todas". */
+export function readRepertoireGroupParam(params: URLSearchParams): string | null {
+  return decodeScope(params.get(REPERTOIRE_GROUP_QUERY), ALL_GROUPS_QUERY_VALUE);
+}
+
+export function readRepertoireCategoryParam(params: URLSearchParams): string | null {
+  return decodeScope(params.get(REPERTOIRE_CATEGORY_QUERY), ALL_CATEGORIES_QUERY_VALUE);
+}
+
+export function encodeRepertoireGroupParam(groupId: string): string {
+  return groupId || ALL_GROUPS_QUERY_VALUE;
+}
+
+export function encodeRepertoireCategoryParam(categoryId: string): string {
+  return categoryId || ALL_CATEGORIES_QUERY_VALUE;
+}
+
+function decodeScope(value: string | null, allValue: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  return value === allValue ? '' : value;
 }

@@ -30,6 +30,15 @@ export {
   appendScoreFileToEventProgram,
   programUnitIdentityKey,
 } from './append-event-program-score';
+export type {
+  AppendPieceToEventResult,
+  AppendPieceToEventStatus,
+  PieceProgramEntry,
+} from './piece-program-duplicates';
+export {
+  findEventsWithSamePieceEntry,
+  programUnitsSignature,
+} from './piece-program-duplicates';
 export type { EventDetail } from './event-detail';
 export type {
   PieceEventHistory,

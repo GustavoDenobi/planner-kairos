@@ -14,8 +14,9 @@ import type { PieceAccessRepository } from '@/application/ports/piece-access-rep
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceThemeRepository } from '@/application/ports/piece-theme-repository';
 import type { ReadingPlaylistRepository } from '@/application/ports/reading-playlist-repository';
+import type { RepertoireReportRepository } from '@/application/ports/repertoire-report-repository';
 import type { SearchPiecesOptions } from '@/application/ports/piece-repository';
-import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, CreatePieceFileTocEntryInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdateAnnotationSetInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, UpdatePieceFileTocEntryInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput } from '@/domain/repertoire';
+import type { CreatePdfAnnotationInput, CreateAnnotationSetInput, CreatePdfNavigationShortcutInput, CreatePieceFileTocEntryInput, PieceAccessInput, PieceCategoryInput, PieceInput, PieceThemeInput, UpdateAnnotationSetInput, UpdatePdfAnnotationInput, UpdatePdfNavigationShortcutInput, UpdatePieceFileTocEntryInput, CreateReadingPlaylistInput, CreateReadingPlaylistItemInput, UpdateReadingPlaylistInput, RepertoireReportFilters } from '@/domain/repertoire';
 
 import {
   createPieceCategory,
@@ -70,10 +71,11 @@ import {
   updateReadingPlaylist,
 } from './reading-playlist-use-cases';
 import {
-  listPieceCategoryIdsByGroup,
+  listPieceGroupMemberships,
   shouldWarnEmptyPieceAudience,
   updatePieceAccess,
 } from './piece-access-use-cases';
+import { loadRepertoireReport } from './report-use-cases';
 import {
   catalogPiece,
   getPiece,
@@ -99,6 +101,7 @@ export type RepertoireDeps = {
   navigationShortcutRepo: PieceFileNavigationShortcutRepository;
   tocEntryRepo: PieceFileTocEntryRepository;
   playlistRepo: ReadingPlaylistRepository;
+  reportRepo: RepertoireReportRepository;
   partRepo: PartRepository;
   fileStorage: FileStorage;
   membershipRepo: MembershipRepository;
@@ -143,8 +146,10 @@ export function createRepertoireUseCases(deps: RepertoireDeps) {
       groupIds: string[],
       musicianIds: string[],
     ) => shouldWarnEmptyPieceAudience(isAdmin, groupIds, musicianIds),
-    listPieceCategoryIdsByGroup: (organizationId: string) =>
-      listPieceCategoryIdsByGroup(deps.accessRepo, organizationId),
+    listPieceGroupMemberships: (organizationId: string) =>
+      listPieceGroupMemberships(deps.accessRepo, organizationId),
+    loadRepertoireReport: (organizationId: string, filters: RepertoireReportFilters) =>
+      loadRepertoireReport(deps.reportRepo, organizationId, filters),
     softDeletePiece: (organizationId: string, pieceId: string) =>
       softDeletePiece(deps.pieceRepo, organizationId, pieceId),
 

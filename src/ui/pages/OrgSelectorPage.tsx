@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { IconSettings } from '@/ui/components/icons';
 import { OrgAvatar } from '@/ui/components/OrgAvatar';
 import { DisplayPreferencesControls } from '@/ui/components/DisplayPreferencesControls';
 import { useOrg } from '@/ui/app/OrgProvider';
 import { withReturnTo } from '@/ui/navigation/return-to';
+import { readAutoEnterSingleOrg } from '@/ui/navigation/org-selector-state';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 
 export function OrgSelectorPage() {
@@ -18,24 +19,50 @@ export function OrgSelectorPage() {
     refreshOrganizations,
   } = useOrg();
   const navigate = useNavigate();
+  const location = useLocation();
   const online = useOnlineStatus();
+  const autoEnterRequested = readAutoEnterSingleOrg(location.state);
+  // Logo após o login, quem tem uma única organização entra direto nela. Admins da plataforma
+  // continuam vendo a tela, que também dá acesso à administração.
+  const [autoEnterFailed, setAutoEnterFailed] = useState(false);
+  const autoEnterSlug =
+    autoEnterRequested &&
+    !autoEnterFailed && !isLoading && !isPlatformAdmin && organizations.length === 1
+      ? organizations[0].slug
+      : null;
+  const autoEnterStartedRef = useRef(false);
 
   useEffect(() => {
     refreshOrganizations();
   }, [refreshOrganizations]);
 
-  async function handleSelect(slug: string) {
+  useEffect(() => {
+    if (!autoEnterSlug || autoEnterStartedRef.current) {
+      return;
+    }
+    autoEnterStartedRef.current = true;
+    void handleSelect(autoEnterSlug, { replace: true }).then((ok) => {
+      if (!ok) {
+        setAutoEnterFailed(true);
+      }
+    });
+    // handleSelect é recriada a cada render; a ref garante uma única tentativa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEnterSlug]);
+
+  async function handleSelect(slug: string, options?: { replace?: boolean }) {
     const ok = await setCurrentOrgBySlug(slug);
     if (ok) {
       if (!online || isOfflineData) {
-        navigate(`/${slug}/leitura`);
+        navigate(`/${slug}/leitura`, options);
       } else {
-        navigate(`/${slug}/agenda`);
+        navigate(`/${slug}/agenda`, options);
       }
     }
+    return ok;
   }
 
-  if (isLoading) {
+  if (isLoading || autoEnterSlug) {
     return (
       <div className="flex min-h-dvh items-center justify-center text-muted">
         Carregando organizações…

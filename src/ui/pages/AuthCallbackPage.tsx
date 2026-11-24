@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIdentity } from '@/ui/app/AppServicesContext';
 import { useOrg } from '@/ui/app/OrgProvider';
+import { AUTO_ENTER_SINGLE_ORG_STATE } from '@/ui/navigation/org-selector-state';
 
 export function AuthCallbackPage() {
   const identity = useIdentity();
@@ -27,7 +28,7 @@ export function AuthCallbackPage() {
       identity.clearOAuthPendingContext();
 
       if (!pending) {
-        navigate('/orgs', { replace: true });
+        navigate('/orgs', { replace: true, state: AUTO_ENTER_SINGLE_ORG_STATE });
         return;
       }
 

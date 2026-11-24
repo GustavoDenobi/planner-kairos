@@ -21,11 +21,13 @@ import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import { Modal } from '@/ui/components/Modal';
 import { BackButton } from '@/ui/components/BackButton';
 import { Tabs } from '@/ui/components/Tabs';
-import { IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
+import { IconCalendar, IconPencil, IconTrash, IconArrowDown } from '@/ui/components/icons';
+import { AddPieceToEventsModal } from '@/ui/features/repertoire/AddPieceToEventsModal';
+import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { AudienceChips } from '@/ui/features/audience';
 import { PiecePermissionsModal } from '@/ui/features/repertoire/PiecePermissionsModal';
 import { buildResolvedPieceFileAccess } from '@/ui/features/repertoire/resolve-piece-access-for-viewer';
-import type { AssignmentWithDetails } from '@/domain/ensemble';
+import { isGroupWriterRole, type AssignmentWithDetails } from '@/domain/ensemble';
 import type { GroupFileAccessSettings } from '@/domain/ensemble';
 import type { AudienceGroupOption, AudienceMusicianOption } from '@/ui/features/audience';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
@@ -123,6 +125,13 @@ export function PieceDetailPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
 
   const isAdmin = org?.accessRole === 'admin' || org?.accessRole === 'owner';
+  const online = useOnlineStatus();
+  const [addToEventsOpen, setAddToEventsOpen] = useState(false);
+  const [historyReloadKey, setHistoryReloadKey] = useState(0);
+  const canAddToEvents =
+    online &&
+    Boolean(userId) &&
+    (isAdmin || assignments.some((assignment) => isGroupWriterRole(assignment.ensembleRole)));
   const isGroupWriter = useMemo(() => {
     if (!piece) {
       return false;
@@ -769,6 +778,18 @@ export function PieceDetailPage() {
             slug={piece.category.slug}
             className="shrink-0"
           />
+          {canAddToEvents && (
+            <button
+              type="button"
+              onClick={() => setAddToEventsOpen(true)}
+              aria-label="Adicionar à programação de eventos"
+              title="Adicionar à programação de eventos"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
+            >
+              <IconCalendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Adicionar a eventos</span>
+            </button>
+          )}
         </div>
 
         {hasCollapsibleContent && (
@@ -955,6 +976,7 @@ export function PieceDetailPage() {
             label: 'Histórico',
             content: (
               <PieceHistorySection
+                key={historyReloadKey}
                 organizationId={org.id}
                 orgSlug={orgSlug!}
                 pieceId={piece.id}
@@ -965,6 +987,21 @@ export function PieceDetailPage() {
         />
       </div>
     </div>
+
+      {canAddToEvents && userId && (
+        <AddPieceToEventsModal
+          open={addToEventsOpen}
+          onClose={() => {
+            setAddToEventsOpen(false);
+            setHistoryReloadKey((key) => key + 1);
+          }}
+          organizationId={org.id}
+          orgSlug={orgSlug!}
+          userId={userId}
+          isAdmin={isAdmin}
+          piece={piece}
+        />
+      )}
 
       <Modal
         open={editOpen}

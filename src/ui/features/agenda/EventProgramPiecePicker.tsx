@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PieceListItem } from '@/domain/repertoire';
 import { Modal } from '@/ui/components/Modal';
 
@@ -20,6 +20,12 @@ export function EventProgramPiecePicker({
   onSelect,
 }: EventProgramPiecePickerProps) {
   const [query, setQuery] = useState('');
+  // Guarda o callback mais recente sem torná-lo dependência do efeito:
+  // callers passam arrow functions inline, o que re-disparava a busca a cada render.
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
 
   useEffect(() => {
     if (!open) {
@@ -27,10 +33,10 @@ export function EventProgramPiecePicker({
       return;
     }
     const timeout = window.setTimeout(() => {
-      onSearch(query);
+      onSearchRef.current(query);
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [open, query, onSearch]);
+  }, [open, query]);
 
   return (
     <Modal open={open} onClose={onClose} title="Selecionar obra">

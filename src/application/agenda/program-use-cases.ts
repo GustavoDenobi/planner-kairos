@@ -1,7 +1,12 @@
 import type { EventRepository } from '@/application/ports/event-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
-import type { ProgramItemDetail, ProgramItemInput } from '@/domain/agenda';
+import type {
+  AppendPieceToEventResult,
+  ProgramItemDetail,
+  ProgramItemInput,
+  ProgramItemUnitInput,
+} from '@/domain/agenda';
 import { buildProgramItemValidationContext, validateProgramItems } from '@/domain/agenda';
 import { Result } from '@/domain/shared';
 
@@ -93,6 +98,72 @@ export async function setEventProgram(
     if (error instanceof Error && /piece_deleted/i.test(error.message)) {
       return Result.fail('piece_deleted');
     }
+    return Result.fail('program_failed');
+  }
+}
+
+/**
+ * Acrescenta a obra (inteira ou com trechos) ao fim da programação de vários eventos.
+ * Valida os trechos uma vez e devolve o resultado por evento (adicionado, sem permissão etc.).
+ */
+export async function appendPieceToEvents(
+  eventRepo: EventRepository,
+  pieceRepo: PieceRepository,
+  tocRepo: PieceFileTocEntryRepository,
+  organizationId: string,
+  pieceId: string,
+  eventIds: string[],
+  units: ProgramItemUnitInput[],
+) {
+  const uniqueEventIds = [...new Set(eventIds)];
+  if (uniqueEventIds.length === 0) {
+    return Result.ok([] as AppendPieceToEventResult[]);
+  }
+
+  const piece = await pieceRepo.getById(organizationId, pieceId);
+  if (!piece) {
+    return Result.fail('piece_not_found');
+  }
+  if (piece.deletedAt) {
+    return Result.fail('piece_deleted');
+  }
+
+  const tocEntries = await tocRepo.listForPiece(organizationId, piece.id);
+  const validationContext = buildProgramItemValidationContext(
+    [piece],
+    new Map([[piece.id, tocEntries]]),
+  );
+  const validationError = validateProgramItems([{ pieceId, units }], validationContext);
+  if (validationError) {
+    return Result.fail(validationError);
+  }
+
+  try {
+    const results = await eventRepo.appendPieceToEventPrograms(
+      organizationId,
+      pieceId,
+      uniqueEventIds,
+      units,
+    );
+    return Result.ok(results);
+  } catch (error) {
+    if (error instanceof Error && /piece_deleted/i.test(error.message)) {
+      return Result.fail('piece_deleted');
+    }
+    return Result.fail('program_failed');
+  }
+}
+
+export async function listPieceProgramEntries(
+  eventRepo: EventRepository,
+  organizationId: string,
+  pieceId: string,
+  eventIds: string[],
+) {
+  try {
+    const entries = await eventRepo.listPieceProgramEntries(organizationId, pieceId, eventIds);
+    return Result.ok(entries);
+  } catch {
     return Result.fail('program_failed');
   }
 }

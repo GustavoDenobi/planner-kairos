@@ -1,11 +1,14 @@
 import type { EventKind } from '@/domain/agenda';
 import type {
+  AppendPieceToEventResult,
   EventDetail,
   EventInput,
   EventListItem,
   MusicianEventHistory,
   PieceEventHistory,
+  PieceProgramEntry,
   ProgramItemInput,
+  ProgramItemUnitInput,
 } from '@/domain/agenda';
 
 export type ListEventsInRangeOptions = {
@@ -44,6 +47,19 @@ export type EventRepository = {
     eventId: string,
     items: ProgramItemInput[],
   ): Promise<EventDetail>;
+  /** Acrescenta uma linha com a obra ao fim da programação de cada evento (sem reescrever o resto). */
+  appendPieceToEventPrograms(
+    organizationId: string,
+    pieceId: string,
+    eventIds: string[],
+    units: ProgramItemUnitInput[],
+  ): Promise<AppendPieceToEventResult[]>;
+  /** Linhas da programação desses eventos que contêm a obra, com seus trechos. */
+  listPieceProgramEntries(
+    organizationId: string,
+    pieceId: string,
+    eventIds: string[],
+  ): Promise<PieceProgramEntry[]>;
   delete(organizationId: string, eventId: string): Promise<void>;
   setCancelledAt(organizationId: string, eventId: string, cancelledAt: string | null): Promise<EventDetail>;
   bulkCancelFutureOccurrences(

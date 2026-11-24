@@ -3,7 +3,6 @@ import type { PieceAccessRepository } from '@/application/ports/piece-access-rep
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceAccessInput } from '@/domain/repertoire';
 import { pieceHasNoAudience } from '@/domain/repertoire';
-import { REPERTOIRE_UNLINKED_FILTER } from '@/domain/repertoire/repertoire-filters';
 import { Result } from '@/domain/shared';
 
 function uniqueIds(ids: string[]): string[] {
@@ -70,16 +69,13 @@ export function shouldWarnEmptyPieceAudience(
   return isAdmin && pieceHasNoAudience(groupIds, musicianIds);
 }
 
-export async function listPieceCategoryIdsByGroup(
+export async function listPieceGroupMemberships(
   accessRepo: PieceAccessRepository,
   organizationId: string,
 ) {
-  const [categoryIdsByGroup, unlinkedCategoryIds] = await Promise.all([
-    accessRepo.listCategoryIdsByGroup(organizationId),
-    accessRepo.listUnlinkedCategoryIds(organizationId),
-  ]);
-
-  const record = Object.fromEntries(categoryIdsByGroup);
-  record[REPERTOIRE_UNLINKED_FILTER] = unlinkedCategoryIds;
-  return Result.ok(record);
+  try {
+    return Result.ok(await accessRepo.listPieceGroupMemberships(organizationId));
+  } catch {
+    return Result.fail('load_failed');
+  }
 }

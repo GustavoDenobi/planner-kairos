@@ -85,7 +85,7 @@ export function formatRangeLabel(mode: AgendaRangeMode, anchor: Date): string {
   if (mode === 'week') {
     const { from, to } = getWeekRange(anchor);
     const endDay = addDays(to, -1);
-    const fmt = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' });
+    const fmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
     return `${fmt.format(from)} – ${fmt.format(endDay)}`;
   }
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(anchor);

@@ -1,6 +1,16 @@
+import { useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import type { PieceCategory, PieceListItem, PieceTheme } from '@/domain/repertoire';
+import type {
+  PieceCategory,
+  PieceListItem,
+  PieceTheme,
+  RepertoirePieceMembership,
+} from '@/domain/repertoire';
 import { isRepertoireUnlinkedFilter } from '@/domain/repertoire/repertoire-filters';
+import {
+  resolveRepertoireCategoryChoices,
+  resolveRepertoireGroupChoices,
+} from '@/domain/repertoire/repertoire-picker-counts';
 import { CategoryBadge } from '@/ui/components/CategoryBadge';
 import {
   RepertoireCategoryPickerSkeleton,
@@ -16,6 +26,7 @@ import {
 } from '@/ui/features/repertoire/repertoire-filter-ids';
 import type { PieceListSort } from '@/domain/repertoire';
 import { PIECE_LIST_SORT_OPTIONS } from '@/ui/features/repertoire/repertoire-labels';
+import { useScrollRestoration } from '@/ui/hooks/useScrollRestoration';
 import { scrollContentEndPaddingClass } from '@/ui/layouts/OrgListPageLayout';
 
 type RepertoirePiecesSectionProps = {
@@ -29,8 +40,17 @@ type RepertoirePiecesSectionProps = {
   pickerGroups: RepertoireGroupPickerOption[];
   showGroupPicker: boolean;
   implicitGroupId: string;
-  categoryIdsByGroupId: Record<string, string[]>;
-  onCategoryPickerSelect?: (selection: { groupId: string; categoryId: string }) => void;
+  pieceMemberships: RepertoirePieceMembership[];
+  /** Escopo de grupo aplicado à lista ('' = todos). */
+  groupScope: string;
+  /** Grupo escolhido no seletor (da URL); `null` = etapa de grupos. */
+  pickerSelectedGroupId: string | null;
+  onPickerSelectGroup: (groupId: string) => void;
+  onPickerBackToGroups: () => void;
+  onCategoryPickerSelect: (
+    selection: { groupId: string; categoryId: string },
+    options: { auto: boolean },
+  ) => void;
   isAdmin: boolean;
   searchInput: string;
   onSearchInputChange: (value: string) => void;
@@ -55,7 +75,11 @@ export function RepertoirePiecesSection({
   pickerGroups,
   showGroupPicker,
   implicitGroupId,
-  categoryIdsByGroupId,
+  pieceMemberships,
+  groupScope,
+  pickerSelectedGroupId,
+  onPickerSelectGroup,
+  onPickerBackToGroups,
   onCategoryPickerSelect,
   isAdmin,
   searchInput,
@@ -71,12 +95,48 @@ export function RepertoirePiecesSection({
 }: RepertoirePiecesSectionProps) {
   const themeById = new Map(themes.map((theme) => [theme.id, theme]));
   const isMemberView = !isAdmin;
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  useScrollRestoration(listScrollRef, !showCategoryPicker && !isLoading && pieces.length > 0);
 
   const memberCategoryLabel = isRepertoireUnlinkedFilter(memberCategoryId ?? '')
     ? REPERTOIRE_UNLINKED_LABEL
     : memberCategoryId
       ? (categories.find((category) => category.id === memberCategoryId)?.name ?? 'Categoria')
       : 'Todas';
+
+  const categoryChoices = useMemo(
+    () =>
+      resolveRepertoireCategoryChoices(
+        pieceMemberships,
+        categories.map((category) => category.id),
+        groupScope,
+        isAdmin,
+      ),
+    [pieceMemberships, categories, groupScope, isAdmin],
+  );
+  const groupChoiceCount = useMemo(
+    () =>
+      resolveRepertoireGroupChoices(
+        pieceMemberships,
+        pickerGroups.map((group) => group.id),
+        isAdmin,
+      ).choiceCount,
+    [pieceMemberships, pickerGroups, isAdmin],
+  );
+
+  // Só oferece as categorias com obras no grupo atual (mantendo a selecionada, se houver).
+  const categoryOptions = categories.filter(
+    (category) =>
+      categoryChoices.visibleCategoryIds.includes(category.id) || category.id === categoryFilter,
+  );
+  const showUnlinkedCategoryOption =
+    categoryChoices.showUnlinked || isRepertoireUnlinkedFilter(categoryFilter);
+  // Com uma única categoria real, filtrar não muda nada: esconde o filtro.
+  const showAdminCategoryFilter = categoryOptions.length + (showUnlinkedCategoryOption ? 1 : 0) > 1;
+  // Reabrir o seletor só faz sentido se ele tiver algo a escolher; senão ele voltaria direto.
+  const showMemberCategoryButton =
+    (showGroupPicker && groupChoiceCount > 1) || categoryChoices.choiceCount > 1;
+  const showCategoryFilter = isMemberView ? showMemberCategoryButton : showAdminCategoryFilter;
 
   const filterSelectClass =
     'w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text';
@@ -93,8 +153,11 @@ export function RepertoirePiecesSection({
             implicitGroupId={implicitGroupId}
             showUnlinkedOption={isAdmin}
             categories={categories}
-            categoryIdsByGroupId={categoryIdsByGroupId}
-            onSelect={(selection) => onCategoryPickerSelect?.(selection)}
+            pieceMemberships={pieceMemberships}
+            selectedGroupId={pickerSelectedGroupId}
+            onSelectGroup={onPickerSelectGroup}
+            onBackToGroups={onPickerBackToGroups}
+            onSelect={onCategoryPickerSelect}
           />
         )}
       </div>
@@ -114,34 +177,40 @@ export function RepertoirePiecesSection({
           />
 
           <div className="grid grid-cols-2 gap-2 md:flex md:min-w-0 md:flex-[2] md:gap-2">
-            <label className="min-w-0 md:flex-1">
-              <span className="sr-only">Categoria</span>
-              {isMemberView ? (
-                <button
-                  type="button"
-                  aria-label="Categoria"
-                  onClick={() => onOpenCategoryPicker?.()}
-                  className={`${filterSelectClass} text-left`}
-                >
-                  {memberCategoryLabel}
-                </button>
-              ) : (
-                <select
-                  aria-label="Categoria"
-                  value={categoryFilter}
-                  onChange={(event) => onCategoryFilterChange(event.target.value)}
-                  className={filterSelectClass}
-                >
-                  <option value="">Categorias (tudo)</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                  <option value={REPERTOIRE_UNLINKED_FILTER}>{REPERTOIRE_UNLINKED_LABEL}</option>
-                </select>
-              )}
-            </label>
+            {showCategoryFilter && (
+              <label className="min-w-0 md:flex-1">
+                <span className="sr-only">Categoria</span>
+                {isMemberView ? (
+                  <button
+                    type="button"
+                    aria-label="Categoria"
+                    onClick={() => onOpenCategoryPicker?.()}
+                    className={`${filterSelectClass} text-left`}
+                  >
+                    {memberCategoryLabel}
+                  </button>
+                ) : (
+                  <select
+                    aria-label="Categoria"
+                    value={categoryFilter}
+                    onChange={(event) => onCategoryFilterChange(event.target.value)}
+                    className={filterSelectClass}
+                  >
+                    <option value="">Categorias (tudo)</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                    {showUnlinkedCategoryOption && (
+                      <option value={REPERTOIRE_UNLINKED_FILTER}>
+                        {REPERTOIRE_UNLINKED_LABEL}
+                      </option>
+                    )}
+                  </select>
+                )}
+              </label>
+            )}
 
             {themes.length > 0 && (
               <label className="min-w-0 md:flex-1">
@@ -167,9 +236,7 @@ export function RepertoirePiecesSection({
               <select
                 aria-label="Ordenar"
                 value={sortFilter}
-                onChange={(event) =>
-                  onSortFilterChange(event.target.value as PieceListSort)
-                }
+                onChange={(event) => onSortFilterChange(event.target.value as PieceListSort)}
                 className={filterSelectClass}
               >
                 {PIECE_LIST_SORT_OPTIONS.map((option) => (
@@ -184,6 +251,7 @@ export function RepertoirePiecesSection({
       </div>
 
       <div
+        ref={listScrollRef}
         className={`mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3 overscroll-contain ${scrollContentEndPaddingClass}`}
       >
         {isLoading ? (

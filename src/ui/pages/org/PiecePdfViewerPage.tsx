@@ -1187,7 +1187,14 @@ export function PiecePdfViewerPage() {
         }}
         audioPicker={{
           visible: online && accessibleAudios.length > 0,
-          onOpenPicker: () => setAudioPickerOpen(true),
+          onOpenPicker: () => {
+            // Com um único áudio não há o que escolher: carrega direto.
+            if (accessibleAudios.length === 1) {
+              void handleSelectAudio(accessibleAudios[0]);
+            } else {
+              setAudioPickerOpen(true);
+            }
+          },
         }}
         inlineAudioBar={
           activeAudio && audioUrl ? (

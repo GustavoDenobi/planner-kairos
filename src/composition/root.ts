@@ -13,6 +13,7 @@ import { createEventRepository } from '@/infrastructure/supabase/event-repositor
 import { createEventRecurrenceRepository } from '@/infrastructure/supabase/event-recurrence-repository';
 import { createEventAbsenceRepository } from '@/infrastructure/supabase/event-absence-repository';
 import { createEventTypeRepository } from '@/infrastructure/supabase/event-type-repository';
+import { createRepertoireReportRepository } from '@/infrastructure/supabase/repertoire-report-repository';
 import { createGroupInviteRepository } from '@/infrastructure/supabase/group-invite-repository';
 import { createAssignmentRepository } from '@/infrastructure/supabase/assignment-repository';
 import { createGroupRepository } from '@/infrastructure/supabase/group-repository';
@@ -102,6 +103,7 @@ export function createAppServices() {
     navigationShortcutRepo,
     tocEntryRepo,
     playlistRepo,
+    reportRepo: createRepertoireReportRepository(),
     partRepo,
     fileStorage,
     membershipRepo,

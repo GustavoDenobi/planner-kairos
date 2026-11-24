@@ -2,6 +2,13 @@ import type { PieceAccessRepository } from '@/application/ports/piece-access-rep
 import type { PieceAudienceGroup, PieceAudienceMusician, PiecePartLink } from '@/domain/repertoire';
 import type { GroupKind } from '@/domain/ensemble';
 import { supabase } from './client';
+import { fetchAllPages } from './fetch-all-pages';
+
+type PieceMembershipRow = {
+  id: string;
+  category_id: string;
+  piece_groups: { group_id: string }[] | null;
+};
 
 type AudienceByPiece = {
   groups: PieceAudienceGroup[];
@@ -189,65 +196,29 @@ export function createPieceAccessRepository(): PieceAccessRepository {
       }
     },
 
-    async listCategoryIdsByGroup(organizationId) {
-      const { data, error } = await supabase
-        .from('piece_groups')
-        .select('group_id, pieces!inner(category_id, deleted_at)')
-        .eq('organization_id', organizationId)
-        .is('pieces.deleted_at', null);
+    async listPieceGroupMemberships(organizationId) {
+      // Uma única consulta a partir de `pieces` (índice por organização), embutindo os vínculos
+      // por `piece_id`. Evita varrer `piece_groups` pela organização (sem índice) e reduz as
+      // avaliações de RLS por linha em relação às três consultas anteriores.
+      const rows = await fetchAllPages<PieceMembershipRow>((from, to) =>
+        supabase
+          .from('pieces')
+          .select('id, category_id, piece_groups(group_id)')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .order('id')
+          .range(from, to),
+      );
 
-      if (error || !data) {
-        return new Map();
+      if (!rows) {
+        throw new Error('list_piece_group_memberships_failed');
       }
 
-      const byGroup = new Map<string, string[]>();
-
-      for (const row of data) {
-        const piece = row.pieces as unknown as { category_id: string } | null;
-        if (!piece) {
-          continue;
-        }
-
-        const list = byGroup.get(row.group_id) ?? [];
-        if (!list.includes(piece.category_id)) {
-          list.push(piece.category_id);
-        }
-        byGroup.set(row.group_id, list);
-      }
-
-      return byGroup;
-    },
-
-    async listUnlinkedCategoryIds(organizationId) {
-      const { data: linkedRows, error: linkedError } = await supabase
-        .from('piece_groups')
-        .select('piece_id')
-        .eq('organization_id', organizationId);
-
-      if (linkedError) {
-        return [];
-      }
-
-      const linkedPieceIds = new Set((linkedRows ?? []).map((row) => row.piece_id));
-
-      const { data: pieces, error: piecesError } = await supabase
-        .from('pieces')
-        .select('id, category_id')
-        .eq('organization_id', organizationId)
-        .is('deleted_at', null);
-
-      if (piecesError || !pieces) {
-        return [];
-      }
-
-      const categoryIds = new Set<string>();
-      for (const piece of pieces) {
-        if (!linkedPieceIds.has(piece.id)) {
-          categoryIds.add(piece.category_id);
-        }
-      }
-
-      return [...categoryIds];
+      return rows.map((row) => ({
+        pieceId: row.id,
+        categoryId: row.category_id,
+        groupIds: (row.piece_groups ?? []).map((link) => link.group_id),
+      }));
     },
   };
 }

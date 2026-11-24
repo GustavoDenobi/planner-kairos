@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { AssignmentWithDetails, GroupListItem } from '@/domain/ensemble';
-import type { PieceCategory, PieceListItem, PieceListSort, PieceTheme } from '@/domain/repertoire';
+import type {
+  PieceCategory,
+  PieceListItem,
+  PieceListSort,
+  PieceTheme,
+  RepertoirePieceMembership,
+} from '@/domain/repertoire';
 import { DEFAULT_PIECE_LIST_SORT } from '@/domain/repertoire';
 import { useEnsemble, useRepertoire } from '@/ui/app/AppServicesContext';
 import { useAuth } from '@/ui/app/auth/AuthProvider';
@@ -19,16 +25,28 @@ import { RepertoireCategoriesSection } from '@/ui/features/repertoire/Repertoire
 import {
   RepertoirePiecesSection,
 } from '@/ui/features/repertoire/RepertoirePiecesSection';
+import { RepertoireReportsSection } from '@/ui/features/repertoire/RepertoireReportsSection';
 import { RepertoireThemesSection } from '@/ui/features/repertoire/RepertoireThemesSection';
 import {
   loadRepertoireMemberFilters,
   saveRepertoireMemberFilters,
 } from '@/ui/features/repertoire/repertoire-filters-storage';
 import { resolveRepertoireSearchFilters } from '@/domain/repertoire/repertoire-filters';
-import { repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
+import { isPieceListSort, repertoireErrorMessage } from '@/ui/features/repertoire/repertoire-labels';
+import { isPageStepState, PAGE_STEP_STATE } from '@/ui/navigation/page-step';
 import { PieceAliasesField } from '@/ui/features/repertoire/PieceAliasesField';
 import {
+  encodeRepertoireCategoryParam,
+  encodeRepertoireGroupParam,
   parseRepertoireSection,
+  readRepertoireCategoryParam,
+  readRepertoireGroupParam,
+  REPERTOIRE_CATEGORY_QUERY,
+  REPERTOIRE_GROUP_QUERY,
+  REPERTOIRE_SEARCH_QUERY,
+  REPERTOIRE_SECTION_QUERY,
+  REPERTOIRE_SORT_QUERY,
+  REPERTOIRE_THEME_QUERY,
   repertoireSectionQueryValue,
 } from '@/ui/features/repertoire/repertoire-routes';
 import {
@@ -51,6 +69,7 @@ type TaxonomyModalState =
 export function RepertoirePage() {
   const { orgSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const repertoire = useRepertoire();
   const ensemble = useEnsemble();
@@ -64,13 +83,55 @@ export function RepertoirePage() {
     ? (parseRepertoireSection(searchParams.get('secao')) ?? 'menu')
     : 'pieces';
 
-  function openAdminSection(section: RepertoireAdminSection) {
-    setSearchParams({ secao: repertoireSectionQueryValue(section) });
+  /**
+   * Avança uma etapa dentro da página (`push`: nova entrada no histórico) ou só ajusta
+   * filtros da etapa atual (substitui a entrada) — assim "voltar" volta à etapa anterior.
+   */
+  function updateParams(
+    patch: Record<string, string | null>,
+    { push = false }: { push?: boolean } = {},
+  ) {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null || value === '') {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    }
+    setSearchParams(
+      next,
+      push ? { state: PAGE_STEP_STATE } : { replace: true, state: location.state },
+    );
   }
 
-  function openAdminMenu() {
-    setSearchParams({});
+  /** Volta à etapa anterior da página; sem histórico de etapas (link direto), vai para `fallback`. */
+  function stepBack(fallback: URLSearchParams) {
+    if (isPageStepState(location.state)) {
+      navigate(-1);
+      return;
+    }
+    setSearchParams(fallback, { replace: true });
   }
+
+  function openAdminSection(section: RepertoireAdminSection) {
+    setSearchParams(
+      { [REPERTOIRE_SECTION_QUERY]: repertoireSectionQueryValue(section) },
+      { state: PAGE_STEP_STATE },
+    );
+  }
+
+  function goBackInAdminSection() {
+    stepBack(new URLSearchParams());
+  }
+
+  const urlGroupId = readRepertoireGroupParam(searchParams);
+  const urlCategoryId = readRepertoireCategoryParam(searchParams);
+  const searchQuery = searchParams.get(REPERTOIRE_SEARCH_QUERY) ?? '';
+  const themeFilter = searchParams.get(REPERTOIRE_THEME_QUERY) ?? '';
+  const sortParam = searchParams.get(REPERTOIRE_SORT_QUERY);
+  const sortFilter: PieceListSort =
+    sortParam && isPieceListSort(sortParam) ? sortParam : DEFAULT_PIECE_LIST_SORT;
 
   const [pieces, setPieces] = useState<PieceListItem[]>([]);
   const [categories, setCategories] = useState<PieceCategory[]>([]);
@@ -82,18 +143,21 @@ export function RepertoirePage() {
 
   const [groups, setGroups] = useState<GroupListItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
-  const [categoryIdsByGroupId, setCategoryIdsByGroupId] = useState<Record<string, string[]>>({});
-  const [groupFilter, setGroupFilter] = useState('');
-  const [memberGroupId, setMemberGroupId] = useState('');
+  const [pieceMemberships, setPieceMemberships] = useState<RepertoirePieceMembership[]>([]);
+  // Grupo implícito do membro (quando ele só tem um) e última categoria salva: valem
+  // enquanto a URL ainda não traz a escolha.
+  const [defaultMemberGroupId, setDefaultMemberGroupId] = useState('');
+  const [savedMemberCategoryId, setSavedMemberCategoryId] = useState('');
 
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [themeFilter, setThemeFilter] = useState('');
-  const [sortFilter, setSortFilter] = useState<PieceListSort>(DEFAULT_PIECE_LIST_SORT);
-  const [memberCategoryId, setMemberCategoryId] = useState('');
-  const [showCategoryPicker, setShowCategoryPicker] = useState(true);
-  const previousAdminSectionRef = useRef<RepertoireAdminSection | 'menu'>(adminSection);
+  const groupFilter = urlGroupId ?? '';
+  const categoryFilter = urlCategoryId ?? '';
+  const memberGroupId = urlGroupId ?? defaultMemberGroupId;
+  const memberCategoryId = urlCategoryId ?? savedMemberCategoryId;
+  // Sem categoria escolhida na URL, a etapa atual é o seletor de grupo/categoria.
+  const showCategoryPicker = urlCategoryId === null;
+
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  const lastWrittenSearchRef = useRef(searchQuery);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -123,6 +187,7 @@ export function RepertoirePage() {
     pieces: 'Obras',
     categories: 'Categorias',
     themes: 'Temas',
+    reports: 'Relatórios',
   };
   const pageTitle =
     isAdmin && adminSection !== 'menu' ? adminSectionTitles[adminSection] : 'Repertório';
@@ -181,16 +246,16 @@ export function RepertoirePage() {
 
     setPickerContextReady(false);
 
-    const [groupsResult, categoryIdsResult] = await Promise.all([
+    const [groupsResult, membershipsResult] = await Promise.all([
       ensemble.listGroups(org.id),
-      repertoire.listPieceCategoryIdsByGroup(org.id),
+      repertoire.listPieceGroupMemberships(org.id),
     ]);
 
     const nextGroups = groupsResult.ok
       ? groupsResult.value.filter((group) => !group.archivedAt)
       : [];
     setGroups(nextGroups);
-    setCategoryIdsByGroupId(categoryIdsResult.ok ? categoryIdsResult.value : {});
+    setPieceMemberships(membershipsResult.ok ? membershipsResult.value : []);
 
     let nextAssignments: AssignmentWithDetails[] = [];
     if (!isAdmin && userId) {
@@ -216,10 +281,8 @@ export function RepertoirePage() {
         ? ''
         : (availableGroups[0]?.id ?? '');
 
-    if (isAdmin) {
-      setGroupFilter(initialGroupId);
-    } else {
-      setMemberGroupId(initialGroupId);
+    if (!isAdmin) {
+      setDefaultMemberGroupId(initialGroupId);
     }
 
     setPickerContextReady(true);
@@ -240,8 +303,7 @@ export function RepertoirePage() {
         ? saved.categoryId
         : '';
 
-    setMemberCategoryId(resolvedCategoryId);
-    setShowCategoryPicker(true);
+    setSavedMemberCategoryId(resolvedCategoryId);
     setMemberFiltersReady(true);
   }, [org, userId, isAdmin, repertoire]);
 
@@ -291,23 +353,29 @@ export function RepertoirePage() {
     repertoire,
   ]);
 
+  // A busca vive na URL (com debounce) para que voltar reabra a mesma listagem.
   useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === searchQuery) {
+      return;
+    }
     const timer = window.setTimeout(() => {
-      setSearchQuery(searchInput.trim());
+      lastWrittenSearchRef.current = trimmed;
+      updateParams({ [REPERTOIRE_SEARCH_QUERY]: trimmed });
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [searchInput]);
+    // updateParams muda a cada render; o debounce só depende do texto digitado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput, searchQuery]);
 
+  // Voltar/avançar no histórico troca a busca da URL: reflete no campo.
   useEffect(() => {
-    if (
-      isAdmin &&
-      adminSection === 'pieces' &&
-      previousAdminSectionRef.current !== 'pieces'
-    ) {
-      setShowCategoryPicker(true);
+    if (searchQuery === lastWrittenSearchRef.current) {
+      return;
     }
-    previousAdminSectionRef.current = adminSection;
-  }, [isAdmin, adminSection]);
+    lastWrittenSearchRef.current = searchQuery;
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
 
   useEffect(() => {
     loadTaxonomy();
@@ -333,15 +401,43 @@ export function RepertoirePage() {
     return null;
   }
 
-  function handleCategoryPickerSelect(selection: { groupId: string; categoryId: string }) {
-    if (isAdmin) {
-      setCategoryFilter(selection.categoryId);
-      setGroupFilter(selection.groupId);
-    } else {
-      setMemberCategoryId(selection.categoryId);
-      setMemberGroupId(selection.groupId);
-    }
-    setShowCategoryPicker(false);
+  function handleCategoryPickerSelect(
+    selection: { groupId: string; categoryId: string },
+    { auto }: { auto: boolean },
+  ) {
+    // Escolha automática (opção única) substitui a etapa: voltar não cai de novo nela.
+    updateParams(
+      {
+        [REPERTOIRE_GROUP_QUERY]: encodeRepertoireGroupParam(selection.groupId),
+        [REPERTOIRE_CATEGORY_QUERY]: encodeRepertoireCategoryParam(selection.categoryId),
+      },
+      { push: !auto },
+    );
+  }
+
+  function handlePickerSelectGroup(groupId: string) {
+    updateParams(
+      { [REPERTOIRE_GROUP_QUERY]: encodeRepertoireGroupParam(groupId) },
+      { push: true },
+    );
+  }
+
+  function handlePickerBackToGroups() {
+    const fallback = new URLSearchParams(searchParams);
+    fallback.delete(REPERTOIRE_GROUP_QUERY);
+    fallback.delete(REPERTOIRE_CATEGORY_QUERY);
+    stepBack(fallback);
+  }
+
+  function handleOpenCategoryPicker() {
+    // Reabre o seletor do início (grupo, se houver essa etapa) como uma nova etapa.
+    updateParams(
+      {
+        [REPERTOIRE_CATEGORY_QUERY]: null,
+        ...(showGroupPicker ? { [REPERTOIRE_GROUP_QUERY]: null } : {}),
+      },
+      { push: true },
+    );
   }
 
   async function handleCreatePiece(event: React.FormEvent) {
@@ -487,7 +583,8 @@ export function RepertoirePage() {
 
   const useFixedListLayout =
     showPiecesView ||
-    (isAdmin && (adminSection === 'categories' || adminSection === 'themes'));
+    (isAdmin &&
+      (adminSection === 'categories' || adminSection === 'themes' || adminSection === 'reports'));
 
   return (
     <div
@@ -509,9 +606,9 @@ export function RepertoirePage() {
           {isAdmin && adminSection !== 'menu' && (
             <button
               type="button"
-              onClick={openAdminMenu}
+              onClick={goBackInAdminSection}
               className="flex shrink-0 items-center justify-center rounded-lg border border-border p-1 text-muted transition-colors hover:bg-surface hover:text-text"
-              aria-label="Voltar ao menu"
+              aria-label="Voltar"
             >
               <IconChevronLeft className="h-6 w-6" />
             </button>
@@ -573,19 +670,31 @@ export function RepertoirePage() {
             pickerGroups={pickerGroups}
             showGroupPicker={showGroupPicker}
             implicitGroupId={implicitGroupId}
-            categoryIdsByGroupId={categoryIdsByGroupId}
+            pieceMemberships={pieceMemberships}
+            groupScope={isAdmin ? groupFilter : memberGroupId}
+            pickerSelectedGroupId={urlGroupId}
+            onPickerSelectGroup={handlePickerSelectGroup}
+            onPickerBackToGroups={handlePickerBackToGroups}
             onCategoryPickerSelect={handleCategoryPickerSelect}
             isAdmin={isAdmin}
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
             categoryFilter={categoryFilter}
-            onCategoryFilterChange={setCategoryFilter}
+            onCategoryFilterChange={(nextCategoryId) =>
+              updateParams({
+                [REPERTOIRE_CATEGORY_QUERY]: encodeRepertoireCategoryParam(nextCategoryId),
+              })
+            }
             themeFilter={themeFilter}
-            onThemeFilterChange={setThemeFilter}
+            onThemeFilterChange={(themeId) => updateParams({ [REPERTOIRE_THEME_QUERY]: themeId })}
             sortFilter={sortFilter}
-            onSortFilterChange={setSortFilter}
+            onSortFilterChange={(sort) =>
+              updateParams({
+                [REPERTOIRE_SORT_QUERY]: sort === DEFAULT_PIECE_LIST_SORT ? null : sort,
+              })
+            }
             memberCategoryId={memberCategoryId}
-            onOpenCategoryPicker={() => setShowCategoryPicker(true)}
+            onOpenCategoryPicker={handleOpenCategoryPicker}
           />
         </div>
       )}
@@ -617,6 +726,19 @@ export function RepertoirePage() {
           ) : (
             <RepertoireThemesSection themes={themes} onEdit={openEditThemeModal} />
           )}
+        </div>
+      )}
+
+      {isAdmin && adminSection === 'reports' && org && (
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${scrollContentEndPaddingClass}`}
+        >
+          <RepertoireReportsSection
+            organizationId={org.id}
+            orgSlug={org.slug}
+            categories={categories}
+            groups={groups}
+          />
         </div>
       )}
 

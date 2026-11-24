@@ -2683,6 +2683,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      append_piece_to_event_programs: {
+        Args: {
+          p_event_ids: string[]
+          p_org_id: string
+          p_piece_id: string
+          p_units?: Json
+        }
+        Returns: Json
+      }
       assert_org_plan_limit: {
         Args: { p_delta?: number; p_org_id: string; p_resource: string }
         Returns: undefined
@@ -2830,6 +2839,18 @@ export type Database = {
         }[]
       }
       get_org_storage_bytes: { Args: { p_org_id: string }; Returns: number }
+      get_repertoire_report: {
+        Args: {
+          p_category_ids?: string[]
+          p_event_type_ids?: string[]
+          p_from: string
+          p_group_ids?: string[]
+          p_org_id: string
+          p_time_zone?: string
+          p_to: string
+        }
+        Returns: Json
+      }
       grant_org_admin: {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: undefined

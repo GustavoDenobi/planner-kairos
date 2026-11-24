@@ -52,12 +52,14 @@ export function Sidebar({ orgSlug }: SidebarProps) {
                   </Link>
                 )}
               </div>
-              <Link
-                to="/orgs"
-                className="mt-1 text-xs text-muted hover:text-primary hover:underline"
-              >
-                Trocar organização
-              </Link>
+              {(organizations.length > 1 || isPlatformAdmin) && (
+                <Link
+                  to="/orgs"
+                  className="mt-1 text-xs text-muted hover:text-primary hover:underline"
+                >
+                  Trocar organização
+                </Link>
+              )}
             </div>
           </div>
         )}

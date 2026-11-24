@@ -1,5 +1,7 @@
 import type { EventRepository, ListEventsInRangeOptions } from '@/application/ports/event-repository';
 import type {
+  AppendPieceToEventResult,
+  AppendPieceToEventStatus,
   EventAudienceGroup,
   EventAudienceMusician,
   EventDetail,
@@ -10,8 +12,10 @@ import type {
   MusicianEventHistorySourceRow,
   PieceEventHistory,
   PieceEventHistorySourceRow,
+  PieceProgramEntry,
   ProgramItemInput,
   ProgramItemStatus,
+  ProgramItemUnitInput,
 } from '@/domain/agenda';
 import {
   buildMusicianEventHistory,
@@ -22,6 +26,7 @@ import {
 import type { GroupKind } from '@/domain/ensemble';
 import { eventAllParticipantsAbsent, normalizeOptionalText, uniqueIds } from '@/domain/agenda';
 import { supabase } from './client';
+import { fetchAllPages } from './fetch-all-pages';
 
 const EVENT_TYPE_COLUMNS = 'id, organization_id, name, kind, sort_order, color';
 
@@ -826,6 +831,83 @@ export function createEventRepository(): EventRepository {
       return built;
     },
 
+    async appendPieceToEventPrograms(
+      organizationId,
+      pieceId,
+      eventIds,
+      units: ProgramItemUnitInput[],
+    ): Promise<AppendPieceToEventResult[]> {
+      if (eventIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase.rpc('append_piece_to_event_programs', {
+        p_org_id: organizationId,
+        p_piece_id: pieceId,
+        p_event_ids: eventIds,
+        p_units: units.map((unit, index) => ({
+          piece_file_id: unit.pieceFileId,
+          sort_order: unit.sortOrder ?? index,
+          start_page: unit.startPage ?? null,
+          end_page: unit.endPage ?? null,
+          navigation_shortcut_id: unit.navigationShortcutId ?? null,
+          piece_file_toc_entry_id: unit.pieceFileTocEntryId ?? null,
+          label: unit.label?.trim() || null,
+        })),
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const rows = Array.isArray(data) ? (data as Array<{ event_id?: unknown; status?: unknown }>) : [];
+      const statuses: AppendPieceToEventStatus[] = ['added', 'not_found', 'cancelled', 'forbidden'];
+      return rows.flatMap((row) =>
+        typeof row.event_id === 'string' &&
+        statuses.includes(row.status as AppendPieceToEventStatus)
+          ? [{ eventId: row.event_id, status: row.status as AppendPieceToEventStatus }]
+          : [],
+      );
+    },
+
+    async listPieceProgramEntries(organizationId, pieceId, eventIds): Promise<PieceProgramEntry[]> {
+      if (eventIds.length === 0) {
+        return [];
+      }
+
+      const entries: PieceProgramEntry[] = [];
+      // Lotes para não estourar o tamanho da URL do filtro `in`.
+      for (let start = 0; start < eventIds.length; start += 100) {
+        const batch = eventIds.slice(start, start + 100);
+        const { data, error } = await supabase
+          .from('program_items')
+          .select(
+            'event_id, program_item_units (piece_file_id, start_page, end_page, navigation_shortcut_id, piece_file_toc_entry_id)',
+          )
+          .eq('organization_id', organizationId)
+          .eq('piece_id', pieceId)
+          .in('event_id', batch);
+
+        if (error || !data) {
+          throw new Error(error?.message ?? 'program_failed');
+        }
+
+        for (const row of data) {
+          entries.push({
+            eventId: row.event_id,
+            units: (row.program_item_units ?? []).map((unit) => ({
+              pieceFileId: unit.piece_file_id,
+              startPage: unit.start_page,
+              endPage: unit.end_page,
+              navigationShortcutId: unit.navigation_shortcut_id,
+              pieceFileTocEntryId: unit.piece_file_toc_entry_id,
+            })),
+          });
+        }
+      }
+      return entries;
+    },
+
     async delete(organizationId, eventId) {
       const { error } = await supabase
         .from('events')
@@ -1232,27 +1314,4 @@ export function createEventRepository(): EventRepository {
       return result;
     },
   };
-}
-
-const HISTORY_PAGE_SIZE = 1000;
-
-/** Busca todas as páginas de uma consulta (o PostgREST limita a 1000 linhas por resposta). Retorna null em erro. */
-async function fetchAllPages<T>(
-  query: (
-    from: number,
-    to: number,
-  ) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
-): Promise<T[] | null> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += HISTORY_PAGE_SIZE) {
-    const { data, error } = await query(from, from + HISTORY_PAGE_SIZE - 1);
-    if (error) {
-      return null;
-    }
-    const page = (data ?? []) as T[];
-    rows.push(...page);
-    if (page.length < HISTORY_PAGE_SIZE) {
-      return rows;
-    }
-  }
 }

@@ -3,6 +3,7 @@ import type {
   PieceAudienceGroup,
   PieceAudienceMusician,
   PiecePartLink,
+  RepertoirePieceMembership,
 } from '@/domain/repertoire';
 
 export type PieceAccessRepository = {
@@ -38,6 +39,6 @@ export type PieceAccessRepository = {
       'fileAccessScope' | 'allowFileDownload' | 'audioAccessScope' | 'audioAllowDownload'
     >,
   ): Promise<void>;
-  listCategoryIdsByGroup(organizationId: string): Promise<Map<string, string[]>>;
-  listUnlinkedCategoryIds(organizationId: string): Promise<string[]>;
+  /** Todas as obras visíveis da organização, com categoria e grupos vinculados. */
+  listPieceGroupMemberships(organizationId: string): Promise<RepertoirePieceMembership[]>;
 };

@@ -239,3 +239,40 @@ export {
   isRepertoireUnlinkedFilter,
   resolveRepertoireSearchFilters,
 } from './repertoire-filters';
+export {
+  countPiecesByCategory,
+  countPiecesByGroup,
+  filterMembershipsByGroupScope,
+  resolveRepertoireCategoryChoices,
+  resolveRepertoireGroupChoices,
+} from './repertoire-picker-counts';
+export type {
+  RepertoireCategoryChoices,
+  RepertoireGroupChoices,
+  RepertoireGroupCounts,
+  RepertoirePieceMembership,
+} from './repertoire-picker-counts';
+export {
+  DEFAULT_FORGOTTEN_PIECE_THRESHOLD_MONTHS,
+  DEFAULT_REPERTOIRE_REPORT_PERIOD,
+  FORGOTTEN_PIECE_THRESHOLDS_MONTHS,
+  REPERTOIRE_REPORT_PERIODS,
+  calendarMonthsSince,
+  countPerformancesByCategory,
+  isRepertoireReportPeriod,
+  listForgottenPieces,
+  listNeverPerformedPieces,
+  rankMostPerformedPieces,
+  resolveRepertoireReportRange,
+  summarizeProgramStatus,
+  summarizeRepertoireReport,
+} from './repertoire-report';
+export type {
+  RepertoireProgramStatusTotals,
+  RepertoireReport,
+  RepertoireReportFilters,
+  RepertoireReportMonth,
+  RepertoireReportPeriod,
+  RepertoireReportPieceRow,
+  RepertoireReportSummary,
+} from './repertoire-report';

@@ -69,7 +69,6 @@ import {
 } from '@/ui/features/repertoire/category-color';
 import {
   orgListPageHeightClass,
-  orgPageContentClass,
   scrollContentEndPaddingClass,
 } from '@/ui/layouts/OrgListPageLayout';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
@@ -669,7 +668,7 @@ export function AgendaPage() {
 
   return (
     <>
-      <div className={`flex min-w-0 flex-col overflow-hidden ${orgPageContentClass} ${orgListPageHeightClass}`}>
+      <div className={`flex min-w-0 flex-col overflow-hidden w-full ${orgListPageHeightClass}`}>
         <div className="min-w-0 w-full max-w-full shrink-0 space-y-4 overflow-x-hidden pb-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">

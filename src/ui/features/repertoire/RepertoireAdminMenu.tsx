@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { IconFileText, IconPalette, IconTag } from '@/ui/components/icons';
+import { IconChartBar, IconFileText, IconPalette, IconTag } from '@/ui/components/icons';
 
-export type RepertoireAdminSection = 'pieces' | 'categories' | 'themes';
+export type RepertoireAdminSection = 'pieces' | 'categories' | 'themes' | 'reports';
 
 type RepertoireAdminMenuProps = {
   onSelect: (section: RepertoireAdminSection) => void;
@@ -31,11 +31,17 @@ const MENU_ITEMS: {
     description: 'Gerenciar os temas',
     icon: <IconPalette className="h-7 w-7 text-primary" />,
   },
+  {
+    id: 'reports',
+    label: 'Relatórios',
+    description: 'Execuções e uso do acervo',
+    icon: <IconChartBar className="h-7 w-7 text-primary" />,
+  },
 ];
 
 export function RepertoireAdminMenu({ onSelect }: RepertoireAdminMenuProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {MENU_ITEMS.map((item) => (
         <button
           key={item.id}

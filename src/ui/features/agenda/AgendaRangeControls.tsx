@@ -13,20 +13,22 @@ export function AgendaRangeControls({
   onNext,
 }: AgendaRangeControlsProps) {
   return (
-    <div className="flex w-full items-center justify-between gap-2 md:w-auto md:shrink-0 md:justify-start">
+    <div className="flex flex-1 items-center justify-between gap-2 md:flex-none md:justify-start">
       <button
         type="button"
         onClick={onPrevious}
-        className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text hover:bg-bg"
+        className="shrink-0 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text hover:bg-bg"
         aria-label="Semana anterior"
       >
         <IconChevronLeft className="h-5 w-5" />
       </button>
-      <p className="text-sm font-medium text-text">{formatRangeLabel('week', anchor)}</p>
+      <p className="whitespace-nowrap text-sm font-medium text-text tabular-nums">
+        {formatRangeLabel('week', anchor)}
+      </p>
       <button
         type="button"
         onClick={onNext}
-        className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text hover:bg-bg"
+        className="shrink-0 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text hover:bg-bg"
         aria-label="Próxima semana"
       >
         <IconChevronRight className="h-5 w-5" />

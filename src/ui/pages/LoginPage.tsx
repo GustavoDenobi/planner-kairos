@@ -5,6 +5,7 @@ import { AuthDivider } from '@/ui/components/AuthDivider';
 import { GoogleSignInButton } from '@/ui/components/GoogleSignInButton';
 import { useOnlineStatus } from '@/ui/features/pwa/useOnlineStatus';
 import { LOGIN_ERROR_MESSAGES } from '@/ui/utils/auth-error-labels';
+import { AUTO_ENTER_SINGLE_ORG_STATE } from '@/ui/navigation/org-selector-state';
 
 const ORG_STORAGE_KEY = 'planner-kairos:current-org-slug';
 
@@ -43,7 +44,7 @@ export function LoginPage() {
       if (slug) {
         navigate(`/${slug}/leitura`, { replace: true });
       } else {
-        navigate('/orgs', { replace: true });
+        navigate('/orgs', { replace: true, state: AUTO_ENTER_SINGLE_ORG_STATE });
       }
     });
   }, [online, offline, navigate]);
@@ -67,7 +68,7 @@ export function LoginPage() {
       return;
     }
 
-    navigate('/orgs');
+    navigate('/orgs', { state: AUTO_ENTER_SINGLE_ORG_STATE });
   }
 
   async function handleGoogleSignIn() {

@@ -17,7 +17,7 @@ import type { MusicianRepository } from '@/application/ports/musician-repository
 import type { OrganizationRepository } from '@/application/ports/organization-repository';
 import type { PieceRepository } from '@/application/ports/piece-repository';
 import type { PieceFileTocEntryRepository } from '@/application/ports/piece-file-toc-entry-repository';
-import type { EventInput, ProgramItemInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
+import type { EventInput, ProgramItemInput, ProgramItemUnitInput, RecurrenceEditScope, ScheduleRecurrenceInput } from '@/domain/agenda';
 
 import {
   cancelEvent,
@@ -30,7 +30,12 @@ import {
 } from './event-use-cases';
 import { listEventAbsences, toggleEventAbsence } from './event-absence-use-cases';
 import { listAssociableAudience } from './list-associable-audience';
-import { setEventProgram, getPreviousEventProgram } from './program-use-cases';
+import {
+  appendPieceToEvents,
+  getPreviousEventProgram,
+  listPieceProgramEntries,
+  setEventProgram,
+} from './program-use-cases';
 import { listMusicianBirthdaysInRangeForAdmin } from './birthday-use-cases';
 import { getPieceEventHistory } from './piece-event-history-use-cases';
 import {
@@ -275,6 +280,23 @@ export function createAgendaUseCases(deps: AgendaDeps) {
     ) => setEventProgram(deps.eventRepo, deps.pieceRepo, deps.tocRepo, organizationId, eventId, items),
     getPreviousEventProgram: (organizationId: string, eventId: string) =>
       getPreviousEventProgram(deps.eventRepo, organizationId, eventId),
+    appendPieceToEvents: (
+      organizationId: string,
+      pieceId: string,
+      eventIds: string[],
+      units: ProgramItemUnitInput[],
+    ) =>
+      appendPieceToEvents(
+        deps.eventRepo,
+        deps.pieceRepo,
+        deps.tocRepo,
+        organizationId,
+        pieceId,
+        eventIds,
+        units,
+      ),
+    listPieceProgramEntries: (organizationId: string, pieceId: string, eventIds: string[]) =>
+      listPieceProgramEntries(deps.eventRepo, organizationId, pieceId, eventIds),
     listEventAbsences: (organizationId: string, userId: string, eventId: string) =>
       listEventAbsences(
         deps.eventRepo,
